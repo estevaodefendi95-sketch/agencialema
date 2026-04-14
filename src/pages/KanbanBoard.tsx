@@ -357,24 +357,6 @@ export default function KanbanBoard() {
                                 >
                                   {task.title}
                                 </p>
-                                <div className="flex items-center gap-2 shrink-0" onClick={(e) => e.stopPropagation()}>
-                                  <Select
-                                    value={task.status}
-                                    onValueChange={async (v) => {
-                                      await (supabase.from("tasks").update as any)({ status: v }).eq("id", task.id);
-                                      load();
-                                    }}
-                                  >
-                                    <SelectTrigger className="h-6 text-xs w-[120px] border-none bg-transparent shadow-none">
-                                      <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      {columns.map((c) => (
-                                        <SelectItem key={c.slug} value={c.slug}>{c.label}</SelectItem>
-                                      ))}
-                                    </SelectContent>
-                                  </Select>
-                                </div>
                                 <Badge className={`text-[10px] shrink-0 ${PRIORITY_COLORS[task.priority] || ""}`} variant="secondary">
                                   {task.priority}
                                 </Badge>
