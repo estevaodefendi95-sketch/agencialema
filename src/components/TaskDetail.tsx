@@ -56,6 +56,12 @@ export default function TaskDetail({ taskId, onClose }: Props) {
   const addComment = async () => {
     if (!newComment.trim() || !user) return;
     await supabase.from("task_comments").insert({ task_id: taskId, user_id: user.id, content: newComment });
+    await supabase.from("task_history").insert({
+      task_id: taskId,
+      user_id: user.id,
+      action: "Comentou",
+      details: { content: newComment },
+    });
     setNewComment("");
     toast({ title: "Comentário adicionado" });
     load();
