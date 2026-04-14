@@ -203,6 +203,12 @@ export default function KanbanBoard() {
               <List className="h-4 w-4" /> Lista
             </Button>
           </div>
+          {viewMode === "lista" && (
+            <Button variant="ghost" size="sm" className="gap-1.5 text-xs" onClick={toggleSortPrazo}>
+              <ArrowUpDown className="h-3.5 w-3.5" />
+              Prazo {sortPrazo === "asc" ? "↑" : "↓"}
+            </Button>
+          )}
           {canEdit && (
             <Button onClick={() => setNewTaskOpen(true)} className="gap-2">
               <Plus className="h-4 w-4" /> Nova Tarefa
