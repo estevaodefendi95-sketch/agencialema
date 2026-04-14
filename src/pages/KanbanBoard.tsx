@@ -459,9 +459,9 @@ export default function KanbanBoard() {
         </DragDropContext>
       ) : (
         <DragDropContext onDragEnd={onDragEnd}>
-          <div className="flex gap-4 overflow-x-auto pb-4">
+          <div className="flex gap-4 overflow-x-auto pb-4 scroll-smooth snap-x snap-mandatory scrollbar-hide px-1">
             {columns.map((col) => (
-              <div key={col.slug} className="group rounded-lg p-3 min-h-[200px] min-w-[280px] w-[280px] shrink-0" style={{ backgroundColor: `${col.color}10` }}>
+              <div key={col.slug} className="group rounded-lg p-3 min-h-[200px] min-w-[280px] w-[280px] shrink-0 snap-start" style={{ backgroundColor: `${col.color}10` }}>
                 <div className="flex items-center justify-between mb-3">
                   {editingColumnId === col.id ? (
                     <div className="flex items-center gap-1">
