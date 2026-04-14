@@ -223,6 +223,22 @@ export default function KanbanBoard() {
     loadColumns();
   };
 
+  const deleteColumn = async (colId: string) => {
+    const col = columns.find((c) => c.id === colId);
+    if (!col || columns.length <= 1) return;
+    const firstOther = columns.find((c) => c.id !== colId);
+    if (!firstOther) return;
+    // Move tasks to first remaining column
+    const colTasks = tasks.filter((t) => t.status === col.slug);
+    for (const task of colTasks) {
+      await (supabase.from("tasks").update as any)({ status: firstOther.slug }).eq("id", task.id);
+    }
+    await (supabase.from as any)("project_columns").delete().eq("id", colId);
+    setDeleteColumnId(null);
+    loadColumns();
+    load();
+  };
+
   const getColumnColor = (slug: string) => {
     const col = columns.find((c) => c.slug === slug);
     return col?.color || "#94a3b8";
