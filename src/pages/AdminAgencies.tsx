@@ -29,6 +29,13 @@ export default function AdminAgencies() {
   const [slug, setSlug] = useState("");
   const [appName, setAppName] = useState("GestãoPro");
 
+  const load = async () => {
+    const { data } = await supabase.from("agencies").select("*").order("created_at");
+    if (data) setAgencies(data);
+  };
+
+  useEffect(() => { load(); }, []);
+
   if (!isSuperAdmin) return <Navigate to="/" replace />;
 
   const load = async () => {
