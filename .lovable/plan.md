@@ -1,32 +1,28 @@
 
 
-## Plano: Cor das subcategorias + Cor dos cards + Mídia e descrição na lista
+## Plano: Rolagem horizontal fluida + Seletor de cor personalizada
 
-### 1. Seletor de cor para subcategorias (colunas)
+### 1. Melhorar fluidez da rolagem horizontal (UX)
 
-No cabeçalho de cada coluna (card e lista), ao clicar na cor ou em um ícone de paleta, abrir um popover com cores pré-definidas. Ao selecionar, atualizar `project_columns.color` no banco.
+No container `flex gap-4 overflow-x-auto pb-4` do modo card:
+- Adicionar `scroll-smooth` e estilos CSS para esconder a scrollbar nativa (usando `-webkit-scrollbar` / `scrollbar-width: none`)
+- Adicionar padding horizontal e `snap-x snap-mandatory` com `snap-start` em cada coluna para scroll com snap suave
+- Garantir área de scroll com padding no final para o botão "Adicionar coluna" não ficar cortado
 
-Cores disponíveis: cinza, azul, verde, amarelo, vermelho, roxo, rosa, laranja (~8 opções).
+Arquivo: `KanbanBoard.tsx` (classes do container flex) + `src/index.css` (classe utilitária para esconder scrollbar)
 
-### 2. Cor individual por card (tarefa)
+### 2. Botão de cor personalizada (caneta/paleta)
 
-- **Migração SQL**: adicionar coluna `color` (text, nullable) na tabela `tasks`
-- No card (modo kanban), aplicar a cor como borda lateral esquerda (`border-l-4`) ou como faixa sutil no topo
-- Na lista, aplicar como bolinha colorida ou borda esquerda
-- Para definir a cor: popover com as mesmas cores pré-definidas, acessível via clique direito ou ícone discreto no card
+Em todas as 4 instâncias do seletor de cores (coluna lista, coluna card, tarefa lista, tarefa card):
+- Adicionar como último item um botão com ícone `Pencil` que, ao clicar, abre um `<input type="color">` nativo do navegador
+- Ao selecionar a cor no color picker, chamar `saveColumnColor` ou `saveTaskColor` com o valor hex escolhido
 
-### 3. Indicador de mídia + descrição na lista
-
-Na visualização lista, entre o título e a prioridade:
-- Se a tarefa tem mídia (`taskMedia[task.id]`), exibir ícone `ImageIcon` com o count
-- Exibir a descrição truncada (1 linha) no centro da linha
+Isso permite cores customizadas além das 8 pré-definidas.
 
 ### Resumo
 
-| Mudança | Detalhe |
-|---------|---------|
-| Cor da subcategoria | Popover com paleta no header da coluna |
-| Cor do card | Migração `tasks.color` + borda colorida + popover |
-| Mídia na lista | Ícone `ImageIcon` + count inline |
-| Descrição na lista | Texto truncado entre título e badges |
+| Mudança | Onde |
+|---------|------|
+| Scroll suave + snap + esconder scrollbar | `KanbanBoard.tsx` + `index.css` |
+| Botão caneta → color picker nativo | 4 popovers de cor em `KanbanBoard.tsx` |
 
