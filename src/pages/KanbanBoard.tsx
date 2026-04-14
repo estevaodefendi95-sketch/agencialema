@@ -202,7 +202,7 @@ export default function KanbanBoard() {
   // Column management
   const saveColumnLabel = async (col: Column) => {
     if (!editColumnLabel.trim()) return;
-    await supabase.from("project_columns").update({ label: editColumnLabel.trim() } as any).eq("id", col.id);
+    await (supabase.from as any)("project_columns").update({ label: editColumnLabel.trim() }).eq("id", col.id);
     setEditingColumnId(null);
     loadColumns();
   };
@@ -211,13 +211,13 @@ export default function KanbanBoard() {
     if (!projectId) return;
     const maxPos = columns.reduce((max, c) => Math.max(max, c.position), -1);
     const slug = `coluna_${Date.now()}`;
-    await supabase.from("project_columns").insert({
+    await (supabase.from as any)("project_columns").insert({
       project_id: projectId,
       slug,
       label: "Nova Coluna",
       color: "#6b7280",
       position: maxPos + 1,
-    } as any);
+    });
     loadColumns();
   };
 
