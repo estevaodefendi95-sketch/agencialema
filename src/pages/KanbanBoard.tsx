@@ -12,7 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import { DragDropContext, Droppable, Draggable, type DropResult } from "@hello-pangea/dnd";
-import { Plus, GripVertical, Calendar, ThumbsUp, RotateCcw, ImageIcon, Play, LayoutGrid, List } from "lucide-react";
+import { Plus, GripVertical, Calendar, ThumbsUp, RotateCcw, ImageIcon, Play, LayoutGrid, List, ArrowUpDown } from "lucide-react";
 import TaskDetail from "@/components/TaskDetail";
 
 type TaskStatus = "a_fazer" | "em_andamento" | "concluido" | "aprovado";
@@ -68,6 +68,9 @@ export default function KanbanBoard() {
     if (!projectId) return "kanban";
     return (localStorage.getItem(`view-mode-${projectId}`) as "kanban" | "lista") || "kanban";
   });
+  const [sortPrazo, setSortPrazo] = useState<"asc" | "desc">(() =>
+    (localStorage.getItem(`sort-prazo-${projectId}`) as "asc" | "desc") || "asc"
+  );
 
   const load = useCallback(async () => {
     if (!projectId) return;
@@ -103,6 +106,12 @@ export default function KanbanBoard() {
   const toggleViewMode = (mode: "kanban" | "lista") => {
     setViewMode(mode);
     if (projectId) localStorage.setItem(`view-mode-${projectId}`, mode);
+  };
+
+  const toggleSortPrazo = () => {
+    const newDir = sortPrazo === "asc" ? "desc" : "asc";
+    setSortPrazo(newDir);
+    if (projectId) localStorage.setItem(`sort-prazo-${projectId}`, newDir);
   };
 
   const onDragEnd = async (result: DropResult) => {
@@ -194,6 +203,12 @@ export default function KanbanBoard() {
               <List className="h-4 w-4" /> Lista
             </Button>
           </div>
+          {viewMode === "lista" && (
+            <Button variant="ghost" size="sm" className="gap-1.5 text-xs" onClick={toggleSortPrazo}>
+              <ArrowUpDown className="h-3.5 w-3.5" />
+              Prazo {sortPrazo === "asc" ? "↑" : "↓"}
+            </Button>
+          )}
           {canEdit && (
             <Button onClick={() => setNewTaskOpen(true)} className="gap-2">
               <Plus className="h-4 w-4" /> Nova Tarefa
@@ -203,68 +218,83 @@ export default function KanbanBoard() {
       </div>
 
       {viewMode === "lista" ? (
-        <div className="rounded-lg border">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Status</TableHead>
-                <TableHead>Título</TableHead>
-                <TableHead>Prioridade</TableHead>
-                <TableHead>Prazo</TableHead>
-                <TableHead>Mídia</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {allTasksSorted.map((task) => {
-                const media = taskMedia[task.id];
-                return (
-                  <TableRow
-                    key={task.id}
-                    className="cursor-pointer"
-                    onClick={() => setSelectedTask(task.id)}
-                  >
-                    <TableCell>
-                      <Badge className={`text-xs ${STATUS_COLORS[task.status] || ""}`} variant="secondary">
-                        {STATUS_LABELS[task.status] || task.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="font-medium">{task.title}</TableCell>
-                    <TableCell>
-                      <Badge className={`text-xs ${PRIORITY_COLORS[task.priority] || ""}`} variant="secondary">
-                        {task.priority}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      {task.due_date ? (
-                        <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                          <Calendar className="h-3 w-3" />
-                          {new Date(task.due_date).toLocaleDateString("pt-BR")}
-                        </span>
-                      ) : (
-                        <span className="text-xs text-muted-foreground">—</span>
+        <div className="space-y-4">
+          {COLUMNS.map((col) => {
+            const colTasks = tasks
+              .filter((t) => t.status === col.id)
+              .sort((a, b) => {
+                if (a.due_date && b.due_date) {
+                  const diff = new Date(a.due_date).getTime() - new Date(b.due_date).getTime();
+                  return sortPrazo === "asc" ? diff : -diff;
+                }
+                if (!a.due_date && !b.due_date) return a.position - b.position;
+                return a.due_date ? -1 : 1;
+              });
+
+            return (
+              <div key={col.id} className="space-y-1">
+                <div className="flex items-center gap-2 px-2 py-1.5">
+                  <Badge className={`text-xs ${STATUS_COLORS[col.id] || ""}`} variant="secondary">
+                    {col.label}
+                  </Badge>
+                  <span className="text-xs text-muted-foreground">({colTasks.length})</span>
+                </div>
+                <div className="rounded-lg border">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Título</TableHead>
+                        <TableHead>Prioridade</TableHead>
+                        <TableHead>Prazo</TableHead>
+                        <TableHead>Mídia</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {colTasks.map((task) => {
+                        const media = taskMedia[task.id];
+                        return (
+                          <TableRow key={task.id} className="cursor-pointer" onClick={() => setSelectedTask(task.id)}>
+                            <TableCell className="font-medium">{task.title}</TableCell>
+                            <TableCell>
+                              <Badge className={`text-xs ${PRIORITY_COLORS[task.priority] || ""}`} variant="secondary">
+                                {task.priority}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              {task.due_date ? (
+                                <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                                  <Calendar className="h-3 w-3" />
+                                  {new Date(task.due_date).toLocaleDateString("pt-BR")}
+                                </span>
+                              ) : (
+                                <span className="text-xs text-muted-foreground">—</span>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              {media ? (
+                                <Badge variant="secondary" className="text-xs gap-1">
+                                  <ImageIcon className="h-3 w-3" /> {media.count}
+                                </Badge>
+                              ) : (
+                                <span className="text-xs text-muted-foreground">—</span>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                      {colTasks.length === 0 && (
+                        <TableRow>
+                          <TableCell colSpan={4} className="text-center py-4 text-muted-foreground text-sm">
+                            Nenhuma tarefa
+                          </TableCell>
+                        </TableRow>
                       )}
-                    </TableCell>
-                    <TableCell>
-                      {media ? (
-                        <Badge variant="secondary" className="text-xs gap-1">
-                          <ImageIcon className="h-3 w-3" /> {media.count}
-                        </Badge>
-                      ) : (
-                        <span className="text-xs text-muted-foreground">—</span>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-              {allTasksSorted.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
-                    Nenhuma tarefa encontrada
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
+                    </TableBody>
+                  </Table>
+                </div>
+              </div>
+            );
+          })}
         </div>
       ) : (
         <DragDropContext onDragEnd={onDragEnd}>
