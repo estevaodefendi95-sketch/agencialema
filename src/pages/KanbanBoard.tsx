@@ -426,7 +426,14 @@ export default function KanbanBoard() {
                       {col.label}
                     </h3>
                   )}
-                  <Badge variant="secondary" className="text-xs">{getColumnTasks(col.slug).length}</Badge>
+                  <div className="flex items-center gap-1">
+                    <Badge variant="secondary" className="text-xs">{getColumnTasks(col.slug).length}</Badge>
+                    {canEdit && columns.length > 1 && (
+                      <Button variant="ghost" size="icon" className="h-5 w-5 opacity-0 group-hover:opacity-100 text-destructive" onClick={() => setDeleteColumnId(col.id)}>
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    )}
+                  </div>
                 </div>
                 <Droppable droppableId={col.slug}>
                   {(provided) => (
