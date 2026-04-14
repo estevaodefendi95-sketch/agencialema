@@ -1,38 +1,38 @@
 
 
-## Plano: Lixeira discreta no TaskDetail + Toggle Card/Lista em Empresas e Projetos
+## Plano: Agrupamento por subcategorias + Filtros de ordenação
 
-### 1. Lixeira mais discreta no TaskDetail
+### 1. Projetos (`Projects.tsx`) — Agrupar por empresa + filtros
 
-Atualmente o botão de excluir (lixeira vermelha) está ao lado do título, muito próximo do X de fechar. Mudança:
-- Mover o botão de excluir para o **final do dialog** (rodapé), com estilo `ghost` e texto "Excluir tarefa" em vermelho discreto
-- Manter o X de fechar no canto superior direito (padrão do Dialog)
-- Isso separa visualmente as duas ações e evita cliques acidentais
+**Agrupamento**: Em ambos os modos (card e lista), agrupar os projetos por empresa. Cada empresa vira uma seção com título (nome da empresa) e seus projetos abaixo.
 
-### 2. Toggle Card/Lista em Empresas (`Companies.tsx`)
+**Filtros de ordenação**: Adicionar dois botões de sort no cabeçalho:
+- **Empresa** (A-Z / Z-A) — ordena os grupos de empresa
+- **Prazo** (mais próximo primeiro / mais distante primeiro)
 
-- Adicionar estado `viewMode` ("card" | "lista") com persistência em `localStorage` (chave `view-mode-empresas`)
-- Toggle com ícones `LayoutGrid` (Card) e `List` (Lista) no cabeçalho, ao lado do botão "Nova Empresa"
-- **Modo Card**: layout atual (grid de cards)
-- **Modo Lista**: tabela com colunas: Logo, Nome, Slug, Descrição, Ações
+Estado salvo em `localStorage` para persistência.
 
-### 3. Toggle Card/Lista em Projetos (`Projects.tsx`)
+**Implementação**:
+- Derivar `groupedProjects` a partir de `projects`, agrupando por `companies.name`
+- Estado `sortField` ("empresa" | "prazo") e `sortDir` ("asc" | "desc")
+- No modo card: renderizar seções com título da empresa + grid de cards
+- No modo lista: renderizar rows com header de seção (empresa) usando `TableRow` com `colSpan`
 
-- Mesmo padrão: estado `viewMode` com `localStorage` (chave `view-mode-projetos`)
-- Toggle Card/Lista no cabeçalho
-- **Modo Card**: layout atual
-- **Modo Lista**: tabela com colunas: Nome, Empresa, Prazo, Descrição
+### 2. Kanban/Projeto (`KanbanBoard.tsx`) — Agrupar lista por status + filtro prazo
 
-### 4. Renomear labels no KanbanBoard
+**Modo Lista**: Agrupar tarefas por status (subcategorias). Cada status vira uma seção colapsável ou com título separador (ex: "A Fazer", "Em Andamento", etc.) com as tarefas daquele status abaixo.
 
-- Trocar "Kanban" / "Lista" por "Card" / "Lista" nos botões de toggle existentes
+**Filtro de prazo**: Botão toggle no cabeçalho para ordenar por prazo crescente/decrescente dentro de cada grupo de status.
+
+**Implementação**:
+- No modo lista, iterar sobre `COLUMNS` e renderizar um bloco por status com título + badge de contagem
+- Dentro de cada bloco, listar as tarefas ordenadas por prazo conforme o filtro
+- Estado `sortPrazo` ("asc" | "desc") com botão de toggle (ícone `ArrowUpDown`)
 
 ### Resumo
 
 | Mudança | Arquivo |
 |---------|---------|
-| Lixeira para rodapé, separada do X | `TaskDetail.tsx` |
-| Toggle Card/Lista + tabela | `Companies.tsx` |
-| Toggle Card/Lista + tabela | `Projects.tsx` |
-| Renomear labels do toggle | `KanbanBoard.tsx` |
+| Agrupar projetos por empresa + sort empresa/prazo | `Projects.tsx` |
+| Agrupar tarefas por status na lista + sort prazo | `KanbanBoard.tsx` |
 
