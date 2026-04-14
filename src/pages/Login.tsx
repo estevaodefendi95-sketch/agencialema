@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -14,7 +14,7 @@ export default function Login() {
   const { signIn, signUp } = useAuth();
   const [loginSettings, setLoginSettings] = useState<{ login_logo_url: string | null; login_app_name: string }>({ login_logo_url: null, login_app_name: "GestãoPro" });
 
-  useState(() => {
+  useEffect(() => {
     (async () => {
       const { data } = await (await import("@/integrations/supabase/client")).supabase
         .from("app_settings")
@@ -23,7 +23,7 @@ export default function Login() {
         .single();
       if (data) setLoginSettings(data);
     })();
-  });
+  }, []);
   const navigate = useNavigate();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
