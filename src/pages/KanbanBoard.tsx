@@ -337,6 +337,18 @@ export default function KanbanBoard() {
                       </div>
                     ) : (
                       <>
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <button className="h-4 w-4 rounded-full shrink-0 border border-border" style={{ backgroundColor: col.color }} />
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-2" align="start">
+                            <div className="flex gap-1.5">
+                              {COLOR_PALETTE.map((c) => (
+                                <button key={c} className={`h-6 w-6 rounded-full border-2 ${col.color === c ? "border-foreground" : "border-transparent"}`} style={{ backgroundColor: c }} onClick={() => saveColumnColor(col.id, c)} />
+                              ))}
+                            </div>
+                          </PopoverContent>
+                        </Popover>
                         <Badge
                           className="text-xs cursor-pointer"
                           variant="secondary"
