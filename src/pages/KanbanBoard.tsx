@@ -521,6 +521,10 @@ export default function KanbanBoard() {
                                 className={`bg-card rounded-lg border overflow-hidden shadow-sm transition-shadow ${
                                   snapshot.isDragging ? "shadow-lg" : "hover:shadow-md"
                                 }`}
+                                style={{
+                                  ...provided.draggableProps.style,
+                                  borderLeft: task.color ? `4px solid ${task.color}` : undefined,
+                                }}
                               >
                                 {media && (
                                   <div className="relative h-28 w-full cursor-pointer" onClick={() => setSelectedTask(task.id)}>
