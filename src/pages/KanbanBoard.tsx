@@ -477,12 +477,26 @@ export default function KanbanBoard() {
                       </Button>
                     </div>
                   ) : (
-                    <h3
-                      className="font-semibold text-sm cursor-pointer hover:text-primary"
-                      onClick={() => { if (canEdit) { setEditingColumnId(col.id); setEditColumnLabel(col.label); } }}
-                    >
-                      {col.label}
-                    </h3>
+                    <div className="flex items-center gap-2">
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <button className="h-4 w-4 rounded-full shrink-0 border border-border" style={{ backgroundColor: col.color }} />
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-2" align="start">
+                          <div className="flex gap-1.5">
+                            {COLOR_PALETTE.map((c) => (
+                              <button key={c} className={`h-6 w-6 rounded-full border-2 ${col.color === c ? "border-foreground" : "border-transparent"}`} style={{ backgroundColor: c }} onClick={() => saveColumnColor(col.id, c)} />
+                            ))}
+                          </div>
+                        </PopoverContent>
+                      </Popover>
+                      <h3
+                        className="font-semibold text-sm cursor-pointer hover:text-primary"
+                        onClick={() => { if (canEdit) { setEditingColumnId(col.id); setEditColumnLabel(col.label); } }}
+                      >
+                        {col.label}
+                      </h3>
+                    </div>
                   )}
                   <div className="flex items-center gap-1">
                     <Badge variant="secondary" className="text-xs">{getColumnTasks(col.slug).length}</Badge>
