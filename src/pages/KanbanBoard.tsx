@@ -123,7 +123,7 @@ export default function KanbanBoard() {
     setProjectName(proj?.name || "");
     setCompanyName((proj?.companies as any)?.name || "");
     const { data } = await supabase.from("tasks").select("*").eq("project_id", projectId).order("position");
-    const taskList = ((data as any[]) || []).map((t) => ({ ...t, status: t.status || "a_fazer" })) as Task[];
+    const taskList = ((data as any[]) || []).map((t) => ({ ...t, status: t.status || "a_fazer", color: t.color || null })) as Task[];
     setTasks(taskList);
 
     const taskIds = taskList.map((t) => t.id);
