@@ -1,29 +1,30 @@
 
 
-## Plano: Corrigir migração e restaurar funcionalidade
+## Plano: Excluir colunas + Layout horizontal fixo + Remover select de status na lista
 
-A migração anterior estava incompleta — ela apenas removeu o enum `task_status` com CASCADE, o que provavelmente removeu a coluna `status` da tabela `tasks`. A tabela `project_columns` também não foi criada. Preciso corrigir isso.
+### 1. Excluir coluna (`KanbanBoard.tsx`)
 
-### 1. Migração SQL
+- Adicionar ícone `Trash2` no cabeçalho de cada coluna (card e lista), visível ao hover
+- Ao clicar, exibir confirmação (AlertDialog): "Excluir coluna X? As tarefas serão movidas para a primeira coluna."
+- Ao confirmar: mover todas as tarefas da coluna excluída para a primeira coluna restante, depois deletar a coluna do banco
+- Não permitir excluir se restar apenas 1 coluna
 
-Executar uma migração que:
-- Adiciona a coluna `status` (text, default `'a_fazer'`) de volta à tabela `tasks` (se não existir)
-- Cria a tabela `project_columns` com colunas: `id`, `project_id` (FK → projects), `slug`, `label`, `color`, `position`
-- Habilita RLS em `project_columns` com as mesmas políticas de acesso dos projetos (super admin, agency admin, clientes, editores)
+### 2. Layout horizontal dos cards (modo Kanban)
 
-### 2. Código (`KanbanBoard.tsx`)
+- Atualmente o grid usa `grid-cols-1 md:grid-cols-2 lg:grid-cols-4`, o que quebra em linhas quando há mais de 4 colunas
+- Trocar para `flex overflow-x-auto` com largura fixa por coluna (`min-w-[280px] w-[280px]`), criando scroll horizontal estilo Trello
+- O botão "Adicionar coluna" também fica inline no final do flex
 
-O código atual já está correto — usa `project_columns`, edição inline de nomes, criação de colunas, drag-and-drop em card e lista. Não precisa de alteração.
+### 3. Remover select de status na lista
 
-### 3. O que o usuário pediu
-
-O usuário quer manter os **cards** (modo kanban) como estão, apenas com a capacidade de renomear subcategorias e criar novas (estilo Trello). Isso já está implementado no código atual — só faltava a migração correta no banco.
+- Remover o `Select` de status que aparece em cada linha da lista (linhas 342-358)
+- O usuário já pode arrastar para mudar de coluna, então o campo é redundante
 
 ### Resumo
 
-| Mudança | Onde |
-|---------|------|
-| Recriar coluna `status` text em `tasks` | Migration SQL |
-| Criar tabela `project_columns` + RLS | Migration SQL |
-| Nenhuma mudança de código necessária | — |
+| Mudança | Detalhe |
+|---------|---------|
+| Excluir coluna com confirmação | `KanbanBoard.tsx` — AlertDialog + migração de tarefas |
+| Layout horizontal scroll | `KanbanBoard.tsx` — flex + overflow-x-auto no modo card |
+| Remover select status na lista | `KanbanBoard.tsx` — limpar linhas 342-358 |
 
