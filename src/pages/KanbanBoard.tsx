@@ -9,24 +9,29 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import { DragDropContext, Droppable, Draggable, type DropResult } from "@hello-pangea/dnd";
-import { Plus, GripVertical, Calendar, ThumbsUp, RotateCcw, ImageIcon, Play, LayoutGrid, List, ArrowUpDown } from "lucide-react";
+import { Plus, GripVertical, Calendar, ThumbsUp, RotateCcw, ImageIcon, Play, LayoutGrid, List, ArrowUpDown, Pencil, Check, X } from "lucide-react";
 import TaskDetail from "@/components/TaskDetail";
-
-type TaskStatus = "a_fazer" | "em_andamento" | "concluido" | "aprovado";
 
 interface Task {
   id: string;
   title: string;
   description: string | null;
-  status: TaskStatus;
+  status: string;
   priority: string;
   due_date: string | null;
   position: number;
   assigned_to: string | null;
   project_id: string;
+}
+
+interface Column {
+  id: string;
+  slug: string;
+  label: string;
+  color: string;
+  position: number;
 }
 
 interface MediaInfo {
@@ -35,11 +40,11 @@ interface MediaInfo {
   count: number;
 }
 
-const COLUMNS: { id: TaskStatus; label: string; color: string }[] = [
-  { id: "a_fazer", label: "A Fazer", color: "bg-muted" },
-  { id: "em_andamento", label: "Em Andamento", color: "bg-primary/10" },
-  { id: "concluido", label: "Concluído", color: "bg-success/10" },
-  { id: "aprovado", label: "Aprovado", color: "bg-success/20" },
+const DEFAULT_COLUMNS = [
+  { slug: "a_fazer", label: "A Fazer", color: "#94a3b8", position: 0 },
+  { slug: "em_andamento", label: "Em Andamento", color: "#3B82F6", position: 1 },
+  { slug: "concluido", label: "Concluído", color: "#22c55e", position: 2 },
+  { slug: "aprovado", label: "Aprovado", color: "#16a34a", position: 3 },
 ];
 
 const PRIORITY_COLORS: Record<string, string> = {
@@ -54,6 +59,7 @@ export default function KanbanBoard() {
   const { isAdmin, user, canEdit } = useAuth();
   const { toast } = useToast();
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [columns, setColumns] = useState<Column[]>([]);
   const [taskMedia, setTaskMedia] = useState<Record<string, MediaInfo>>({});
   const [projectName, setProjectName] = useState("");
   const [companyName, setCompanyName] = useState("");
@@ -63,7 +69,11 @@ export default function KanbanBoard() {
   const [newDesc, setNewDesc] = useState("");
   const [newPriority, setNewPriority] = useState<string>("media");
   const [newDueDate, setNewDueDate] = useState("");
-  const [newStatus, setNewStatus] = useState<TaskStatus>("a_fazer");
+  const [newStatus, setNewStatus] = useState<string>("a_fazer");
+
+  // Inline column editing
+  const [editingColumnId, setEditingColumnId] = useState<string | null>(null);
+  const [editColumnLabel, setEditColumnLabel] = useState("");
 
   const [viewMode, setViewMode] = useState<"kanban" | "lista">(() => {
     if (!projectId) return "kanban";
@@ -73,16 +83,40 @@ export default function KanbanBoard() {
     (localStorage.getItem(`sort-prazo-${projectId}`) as "asc" | "desc") || "asc"
   );
 
+  const loadColumns = useCallback(async () => {
+    if (!projectId) return;
+    const { data } = await (supabase.from as any)("project_columns")
+      .select("*")
+      .eq("project_id", projectId)
+      .order("position");
+
+    if (data && data.length > 0) {
+      setColumns(data.map((c: any) => ({ id: c.id, slug: c.slug, label: c.label, color: c.color, position: c.position })));
+    } else {
+      // Create default columns
+      const inserts = DEFAULT_COLUMNS.map((c) => ({
+        project_id: projectId,
+        slug: c.slug,
+        label: c.label,
+        color: c.color,
+        position: c.position,
+      }));
+      const { data: created } = await (supabase.from as any)("project_columns").insert(inserts).select();
+      if (created) {
+        setColumns(created.map((c: any) => ({ id: c.id, slug: c.slug, label: c.label, color: c.color, position: c.position })));
+      }
+    }
+  }, [projectId]);
+
   const load = useCallback(async () => {
     if (!projectId) return;
     const { data: proj } = await supabase.from("projects").select("name, company_id, companies(name)").eq("id", projectId).single();
     setProjectName(proj?.name || "");
     setCompanyName((proj?.companies as any)?.name || "");
     const { data } = await supabase.from("tasks").select("*").eq("project_id", projectId).order("position");
-    const taskList = (data as Task[]) || [];
+    const taskList = ((data as any[]) || []).map((t) => ({ ...t, status: t.status || "a_fazer" })) as Task[];
     setTasks(taskList);
 
-    // Load media for all tasks
     const taskIds = taskList.map((t) => t.id);
     if (taskIds.length > 0) {
       const { data: mediaData } = await supabase
@@ -103,6 +137,7 @@ export default function KanbanBoard() {
     }
   }, [projectId]);
 
+  useEffect(() => { loadColumns(); }, [loadColumns]);
   useEffect(() => { load(); }, [load]);
 
   const toggleViewMode = (mode: "kanban" | "lista") => {
@@ -119,24 +154,25 @@ export default function KanbanBoard() {
   const onDragEnd = async (result: DropResult) => {
     if (!result.destination) return;
     const taskId = result.draggableId;
-    const newStatus = result.destination.droppableId as TaskStatus;
+    const newStatus = result.destination.droppableId;
     const newPos = result.destination.index;
 
     setTasks((prev) =>
       prev.map((t) => (t.id === taskId ? { ...t, status: newStatus, position: newPos } : t))
     );
 
-    await supabase.from("tasks").update({ status: newStatus, position: newPos }).eq("id", taskId);
+    await (supabase.from("tasks").update as any)({ status: newStatus, position: newPos }).eq("id", taskId);
   };
 
   const createTask = async () => {
     if (!projectId) return;
-    const maxPos = tasks.filter((t) => t.status === newStatus).reduce((max, t) => Math.max(max, t.position), -1);
-    await supabase.from("tasks").insert({
+    const colTasks = tasks.filter((t) => t.status === newStatus);
+    const maxPos = colTasks.reduce((max, t) => Math.max(max, t.position), -1);
+    await (supabase.from("tasks") as any).insert({
       project_id: projectId,
       title: newTitle,
       description: newDesc || null,
-      priority: newPriority as any,
+      priority: newPriority,
       due_date: newDueDate || null,
       status: newStatus,
       position: maxPos + 1,
@@ -149,38 +185,46 @@ export default function KanbanBoard() {
   };
 
   const approveTask = async (taskId: string) => {
-    await supabase.from("tasks").update({ status: "aprovado" as any }).eq("id", taskId);
+    await (supabase.from("tasks").update as any)({ status: "aprovado" }).eq("id", taskId);
     toast({ title: "Tarefa aprovada!" });
     load();
   };
 
   const requestAdjust = async (taskId: string) => {
-    await supabase.from("tasks").update({ status: "em_andamento" as any }).eq("id", taskId);
+    await (supabase.from("tasks").update as any)({ status: "em_andamento" }).eq("id", taskId);
     toast({ title: "Ajuste solicitado — tarefa retornou para 'Em Andamento'" });
     load();
   };
 
-  const getColumnTasks = (status: TaskStatus) =>
-    tasks.filter((t) => t.status === status).sort((a, b) => a.position - b.position);
+  const getColumnTasks = (slug: string) =>
+    tasks.filter((t) => t.status === slug).sort((a, b) => a.position - b.position);
 
-  const STATUS_LABELS: Record<string, string> = {
-    a_fazer: "A Fazer",
-    em_andamento: "Em Andamento",
-    concluido: "Concluído",
-    aprovado: "Aprovado",
+  // Column management
+  const saveColumnLabel = async (col: Column) => {
+    if (!editColumnLabel.trim()) return;
+    await (supabase.from as any)("project_columns").update({ label: editColumnLabel.trim() }).eq("id", col.id);
+    setEditingColumnId(null);
+    loadColumns();
   };
 
-  const STATUS_COLORS: Record<string, string> = {
-    a_fazer: "bg-muted text-muted-foreground",
-    em_andamento: "bg-primary/20 text-primary",
-    concluido: "bg-success/20 text-success",
-    aprovado: "bg-success/30 text-success",
+  const addColumn = async () => {
+    if (!projectId) return;
+    const maxPos = columns.reduce((max, c) => Math.max(max, c.position), -1);
+    const slug = `coluna_${Date.now()}`;
+    await (supabase.from as any)("project_columns").insert({
+      project_id: projectId,
+      slug,
+      label: "Nova Coluna",
+      color: "#6b7280",
+      position: maxPos + 1,
+    });
+    loadColumns();
   };
 
-  const allTasksSorted = [...tasks].sort((a, b) => {
-    const statusOrder = ["a_fazer", "em_andamento", "concluido", "aprovado"];
-    return statusOrder.indexOf(a.status) - statusOrder.indexOf(b.status) || a.position - b.position;
-  });
+  const getColumnColor = (slug: string) => {
+    const col = columns.find((c) => c.slug === slug);
+    return col?.color || "#94a3b8";
+  };
 
   return (
     <div className="space-y-4">
@@ -223,98 +267,171 @@ export default function KanbanBoard() {
       </div>
 
       {viewMode === "lista" ? (
-        <div className="space-y-4">
-          {COLUMNS.map((col) => {
-            const colTasks = tasks
-              .filter((t) => t.status === col.id)
-              .sort((a, b) => {
-                if (a.due_date && b.due_date) {
-                  const diff = new Date(a.due_date).getTime() - new Date(b.due_date).getTime();
-                  return sortPrazo === "asc" ? diff : -diff;
-                }
-                if (!a.due_date && !b.due_date) return a.position - b.position;
-                return a.due_date ? -1 : 1;
-              });
+        <DragDropContext onDragEnd={onDragEnd}>
+          <div className="space-y-4">
+            {columns.map((col) => {
+              const colTasks = tasks
+                .filter((t) => t.status === col.slug)
+                .sort((a, b) => {
+                  if (a.due_date && b.due_date) {
+                    const diff = new Date(a.due_date).getTime() - new Date(b.due_date).getTime();
+                    return sortPrazo === "asc" ? diff : -diff;
+                  }
+                  if (!a.due_date && !b.due_date) return a.position - b.position;
+                  return a.due_date ? -1 : 1;
+                });
 
-            return (
-              <div key={col.id} className="space-y-1">
-                <div className="flex items-center gap-2 px-2 py-1.5">
-                  <Badge className={`text-xs ${STATUS_COLORS[col.id] || ""}`} variant="secondary">
-                    {col.label}
-                  </Badge>
-                  <span className="text-xs text-muted-foreground">({colTasks.length})</span>
-                </div>
-                <div className="rounded-lg border divide-y">
-                  {colTasks.map((task) => (
-                    <div key={task.id} className="flex items-center gap-3 px-3 py-2 hover:bg-muted/50 cursor-pointer">
-                      <p
-                        className="flex-1 text-sm font-medium truncate hover:text-primary"
-                        onClick={() => setSelectedTask(task.id)}
-                      >
-                        {task.title}
-                      </p>
-                      <div className="flex items-center gap-2 shrink-0" onClick={(e) => e.stopPropagation()}>
-                        <Select
-                          value={task.status}
-                          onValueChange={async (v) => {
-                            await supabase.from("tasks").update({ status: v as any }).eq("id", task.id);
-                            load();
-                          }}
-                        >
-                          <SelectTrigger className="h-6 text-xs w-[120px] border-none bg-transparent shadow-none">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {COLUMNS.map((c) => (
-                              <SelectItem key={c.id} value={c.id}>{c.label}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+              return (
+                <div key={col.slug} className="space-y-1">
+                  <div className="flex items-center gap-2 px-2 py-1.5">
+                    {editingColumnId === col.id ? (
+                      <div className="flex items-center gap-1">
+                        <Input
+                          value={editColumnLabel}
+                          onChange={(e) => setEditColumnLabel(e.target.value)}
+                          className="h-6 text-xs w-32"
+                          autoFocus
+                          onKeyDown={(e) => { if (e.key === "Enter") saveColumnLabel(col); if (e.key === "Escape") setEditingColumnId(null); }}
+                        />
+                        <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => saveColumnLabel(col)}>
+                          <Check className="h-3 w-3" />
+                        </Button>
+                        <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => setEditingColumnId(null)}>
+                          <X className="h-3 w-3" />
+                        </Button>
                       </div>
-                      <Badge className={`text-[10px] shrink-0 ${PRIORITY_COLORS[task.priority] || ""}`} variant="secondary">
-                        {task.priority}
-                      </Badge>
-                      {task.due_date ? (
-                        <span className="flex items-center gap-1 text-xs text-muted-foreground shrink-0" onClick={() => setSelectedTask(task.id)}>
-                          <Calendar className="h-3 w-3" />
-                          {new Date(task.due_date).toLocaleDateString("pt-BR")}
-                        </span>
-                      ) : null}
-                    </div>
-                  ))}
-                  {colTasks.length === 0 && (
-                    <div className="text-center py-4 text-muted-foreground text-sm">
-                      Nenhuma tarefa
-                    </div>
+                    ) : (
+                      <>
+                        <Badge
+                          className="text-xs cursor-pointer"
+                          variant="secondary"
+                          style={{ backgroundColor: `${col.color}20`, color: col.color }}
+                          onClick={() => { if (canEdit) { setEditingColumnId(col.id); setEditColumnLabel(col.label); } }}
+                        >
+                          {col.label}
+                        </Badge>
+                        <span className="text-xs text-muted-foreground">({colTasks.length})</span>
+                        {canEdit && (
+                          <Button variant="ghost" size="icon" className="h-5 w-5 opacity-0 group-hover:opacity-100" onClick={() => { setEditingColumnId(col.id); setEditColumnLabel(col.label); }}>
+                            <Pencil className="h-3 w-3" />
+                          </Button>
+                        )}
+                      </>
+                    )}
+                  </div>
+                  <Droppable droppableId={col.slug}>
+                    {(provided) => (
+                      <div ref={provided.innerRef} {...provided.droppableProps} className="rounded-lg border divide-y min-h-[40px]">
+                        {colTasks.map((task, index) => (
+                          <Draggable key={task.id} draggableId={task.id} index={index}>
+                            {(provided, snapshot) => (
+                              <div
+                                ref={provided.innerRef}
+                                {...provided.draggableProps}
+                                className={`flex items-center gap-3 px-3 py-2 hover:bg-muted/50 cursor-pointer ${snapshot.isDragging ? "bg-muted shadow-lg" : ""}`}
+                              >
+                                <div {...provided.dragHandleProps} className="cursor-grab shrink-0">
+                                  <GripVertical className="h-4 w-4 text-muted-foreground" />
+                                </div>
+                                <p
+                                  className="flex-1 text-sm font-medium truncate hover:text-primary"
+                                  onClick={() => setSelectedTask(task.id)}
+                                >
+                                  {task.title}
+                                </p>
+                                <div className="flex items-center gap-2 shrink-0" onClick={(e) => e.stopPropagation()}>
+                                  <Select
+                                    value={task.status}
+                                    onValueChange={async (v) => {
+                                      await (supabase.from("tasks").update as any)({ status: v }).eq("id", task.id);
+                                      load();
+                                    }}
+                                  >
+                                    <SelectTrigger className="h-6 text-xs w-[120px] border-none bg-transparent shadow-none">
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {columns.map((c) => (
+                                        <SelectItem key={c.slug} value={c.slug}>{c.label}</SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                                <Badge className={`text-[10px] shrink-0 ${PRIORITY_COLORS[task.priority] || ""}`} variant="secondary">
+                                  {task.priority}
+                                </Badge>
+                                {task.due_date && (
+                                  <span className="flex items-center gap-1 text-xs text-muted-foreground shrink-0" onClick={() => setSelectedTask(task.id)}>
+                                    <Calendar className="h-3 w-3" />
+                                    {new Date(task.due_date).toLocaleDateString("pt-BR")}
+                                  </span>
+                                )}
+                              </div>
+                            )}
+                          </Draggable>
+                        ))}
+                        {provided.placeholder}
+                        {colTasks.length === 0 && (
+                          <div className="text-center py-4 text-muted-foreground text-sm">
+                            Nenhuma tarefa
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </Droppable>
+                  {canEdit && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
+                      onClick={() => { setNewStatus(col.slug); setNewTaskOpen(true); }}
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                    </Button>
                   )}
                 </div>
-                {canEdit && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="w-full text-xs text-muted-foreground gap-1 hover:text-foreground"
-                    onClick={() => { setNewStatus(col.id); setNewTaskOpen(true); }}
-                  >
-                    <Plus className="h-3 w-3" /> Nova tarefa
-                  </Button>
-                )}
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+            {canEdit && (
+              <Button variant="outline" size="sm" className="gap-1.5 text-xs" onClick={addColumn}>
+                <Plus className="h-3 w-3" /> Adicionar coluna
+              </Button>
+            )}
+          </div>
+        </DragDropContext>
       ) : (
         <DragDropContext onDragEnd={onDragEnd}>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            {COLUMNS.map((col) => (
-              <div key={col.id} className={`rounded-lg p-3 ${col.color} min-h-[200px]`}>
+            {columns.map((col) => (
+              <div key={col.slug} className="rounded-lg p-3 min-h-[200px]" style={{ backgroundColor: `${col.color}10` }}>
                 <div className="flex items-center justify-between mb-3">
-                  <h3 className="font-semibold text-sm">{col.label}</h3>
-                  <Badge variant="secondary" className="text-xs">{getColumnTasks(col.id).length}</Badge>
+                  {editingColumnId === col.id ? (
+                    <div className="flex items-center gap-1">
+                      <Input
+                        value={editColumnLabel}
+                        onChange={(e) => setEditColumnLabel(e.target.value)}
+                        className="h-6 text-xs w-24"
+                        autoFocus
+                        onKeyDown={(e) => { if (e.key === "Enter") saveColumnLabel(col); if (e.key === "Escape") setEditingColumnId(null); }}
+                      />
+                      <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => saveColumnLabel(col)}>
+                        <Check className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  ) : (
+                    <h3
+                      className="font-semibold text-sm cursor-pointer hover:text-primary"
+                      onClick={() => { if (canEdit) { setEditingColumnId(col.id); setEditColumnLabel(col.label); } }}
+                    >
+                      {col.label}
+                    </h3>
+                  )}
+                  <Badge variant="secondary" className="text-xs">{getColumnTasks(col.slug).length}</Badge>
                 </div>
-                <Droppable droppableId={col.id}>
+                <Droppable droppableId={col.slug}>
                   {(provided) => (
                     <div ref={provided.innerRef} {...provided.droppableProps} className="space-y-2 min-h-[100px]">
-                      {getColumnTasks(col.id).map((task, index) => {
+                      {getColumnTasks(col.slug).map((task, index) => {
                         const media = taskMedia[task.id];
                         return (
                           <Draggable key={task.id} draggableId={task.id} index={index}>
@@ -327,10 +444,7 @@ export default function KanbanBoard() {
                                 }`}
                               >
                                 {media && (
-                                  <div
-                                    className="relative h-28 w-full cursor-pointer"
-                                    onClick={() => setSelectedTask(task.id)}
-                                  >
+                                  <div className="relative h-28 w-full cursor-pointer" onClick={() => setSelectedTask(task.id)}>
                                     {media.file_type === "video" ? (
                                       <div className="relative h-full w-full bg-muted flex items-center justify-center">
                                         <Play className="h-8 w-8 text-muted-foreground" />
@@ -339,12 +453,8 @@ export default function KanbanBoard() {
                                       <img src={media.file_url} alt="" className="w-full h-full object-cover" />
                                     )}
                                     {media.count > 1 && (
-                                      <Badge
-                                        variant="secondary"
-                                        className="absolute top-1 right-1 text-[10px] px-1.5 py-0.5 bg-background/80 backdrop-blur-sm"
-                                      >
-                                        <ImageIcon className="h-3 w-3 mr-0.5" />
-                                        +{media.count - 1}
+                                      <Badge variant="secondary" className="absolute top-1 right-1 text-[10px] px-1.5 py-0.5 bg-background/80 backdrop-blur-sm">
+                                        <ImageIcon className="h-3 w-3 mr-0.5" />+{media.count - 1}
                                       </Badge>
                                     )}
                                   </div>
@@ -355,10 +465,7 @@ export default function KanbanBoard() {
                                       <GripVertical className="h-4 w-4 text-muted-foreground" />
                                     </div>
                                     <div className="flex-1 min-w-0">
-                                      <p
-                                        className="font-medium text-sm cursor-pointer hover:text-primary truncate"
-                                        onClick={() => setSelectedTask(task.id)}
-                                      >
+                                      <p className="font-medium text-sm cursor-pointer hover:text-primary truncate" onClick={() => setSelectedTask(task.id)}>
                                         {task.title}
                                       </p>
                                       <div className="flex items-center gap-2 mt-2 flex-wrap">
@@ -394,8 +501,25 @@ export default function KanbanBoard() {
                     </div>
                   )}
                 </Droppable>
+                {canEdit && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 w-7 p-0 mt-2 text-muted-foreground hover:text-foreground"
+                    onClick={() => { setNewStatus(col.slug); setNewTaskOpen(true); }}
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                  </Button>
+                )}
               </div>
             ))}
+            {canEdit && (
+              <div className="rounded-lg border-2 border-dashed border-muted flex items-center justify-center min-h-[200px]">
+                <Button variant="ghost" className="gap-1.5 text-muted-foreground" onClick={addColumn}>
+                  <Plus className="h-4 w-4" /> Adicionar coluna
+                </Button>
+              </div>
+            )}
           </div>
         </DragDropContext>
       )}
@@ -428,10 +552,10 @@ export default function KanbanBoard() {
               </div>
               <div className="space-y-2">
                 <Label>Coluna</Label>
-                <Select value={newStatus} onValueChange={(v) => setNewStatus(v as TaskStatus)}>
+                <Select value={newStatus} onValueChange={setNewStatus}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    {COLUMNS.map((c) => <SelectItem key={c.id} value={c.id}>{c.label}</SelectItem>)}
+                    {columns.map((c) => <SelectItem key={c.slug} value={c.slug}>{c.label}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>

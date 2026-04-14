@@ -18,7 +18,7 @@ export default function Dashboard() {
         supabase.from("tasks").select("*"),
       ]);
 
-      const allTasks = tasks.data || [];
+      const allTasks = (tasks.data || []) as any[];
       const pending = allTasks.filter((t) => t.status === "concluido").length;
       const today = new Date().toISOString().split("T")[0];
       const overdue = allTasks.filter((t) => t.due_date && t.due_date < today && t.status !== "aprovado" && t.status !== "concluido").length;
