@@ -1,5 +1,5 @@
 import {
-  LayoutDashboard, Building2, FolderKanban, Users, Bell, LogOut, Sun, Moon, Settings,
+  LayoutDashboard, Building2, FolderKanban, Users, Bell, LogOut, Sun, Moon, Settings, Building,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/contexts/AuthContext";
@@ -12,28 +12,33 @@ import {
 import { Button } from "@/components/ui/button";
 
 export function AppSidebar() {
-  const { isAdmin, signOut, user } = useAuth();
+  const { isAdmin, isAgencyAdmin, isSuperAdmin, signOut } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const { state } = useSidebar();
   const { app_name, logo_url } = useAppSettings();
   const collapsed = state === "collapsed";
 
-  const adminItems = [
+  const canManage = isAdmin || isAgencyAdmin;
+
+  const baseItems = [
     { title: "Dashboard", url: "/", icon: LayoutDashboard },
     { title: "Empresas", url: "/empresas", icon: Building2 },
     { title: "Projetos", url: "/projetos", icon: FolderKanban },
-    { title: "Usuários", url: "/admin/usuarios", icon: Users },
-    { title: "Notificações", url: "/notificacoes", icon: Bell },
-    { title: "Configurações", url: "/admin/configuracoes", icon: Settings },
   ];
 
-  const clientItems = [
-    { title: "Dashboard", url: "/", icon: LayoutDashboard },
-    { title: "Projetos", url: "/projetos", icon: FolderKanban },
-    { title: "Notificações", url: "/notificacoes", icon: Bell },
-  ];
+  const managerItems = canManage
+    ? [
+        { title: "Usuários", url: "/admin/usuarios", icon: Users },
+        { title: "Notificações", url: "/notificacoes", icon: Bell },
+        { title: "Configurações", url: "/admin/configuracoes", icon: Settings },
+      ]
+    : [{ title: "Notificações", url: "/notificacoes", icon: Bell }];
 
-  const items = isAdmin ? adminItems : clientItems;
+  const superAdminItems = isSuperAdmin
+    ? [{ title: "Agências", url: "/admin/agencias", icon: Building }]
+    : [];
+
+  const items = [...baseItems, ...managerItems, ...superAdminItems];
 
   return (
     <Sidebar collapsible="icon">
