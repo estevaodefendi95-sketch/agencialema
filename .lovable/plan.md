@@ -1,41 +1,42 @@
 
 
-## Plano: Login Social (Google + Apple) e Admin Master
+## Plano: Personalização do Login + Restrição ao Admin Master
 
-### 1. Login com Google e Apple
+### Objetivo
+Adicionar campos para personalizar a tela de login (logo e nome) nas Configurações, e restringir o acesso a essas configurações **exclusivamente** ao email `estevaodefendi95@gmail.com`.
 
-Adicionar botões "Google" e "Apple" na tela de login, seguindo o estilo da imagem de referência (botões lado a lado abaixo do formulário, separados por "OU CONTINUE COM").
+### 1. Migration: novos campos + RLS restritiva
 
-**Implementação:**
-- Usar `lovable.auth.signInWithOAuth("google")` e `lovable.auth.signInWithOAuth("apple")` (Lovable Cloud managed)
-- Chamar a ferramenta **Configure Social Auth** para gerar o módulo `src/integrations/lovable/`
-- Atualizar `Login.tsx` com os botões sociais e o separador visual
-- Redesenhar a tela de login seguindo o estilo dark da referência: fundo escuro, botão principal verde/emerald, ícones nos inputs, toggle de visibilidade da senha, link "Esqueceu a senha?"
-- Separar login e cadastro: login como view principal, link "Não tem conta? Cadastre-se" embaixo
+- Adicionar colunas `login_logo_url` (text, nullable) e `login_app_name` (text, default 'GestãoPro') na tabela `app_settings`
+- Adicionar política SELECT para `anon` na `app_settings` (para a tela de login carregar as configurações sem autenticação)
 
-### 2. Admin Master (estevaodefendi95@gmail.com)
+### 2. Atualizar `AdminSettings.tsx`
 
-Garantir que **apenas** a conta `estevaodefendi95@gmail.com` tenha acesso completo de admin a todas as configurações e todos os usuários/empresas.
+- Adicionar novo Card "Personalização do Login" com:
+  - Campo de texto para nome exibido no login
+  - Upload de logo do login (com crop circular via `ImageCropper`)
+  - Preview visual
+- Verificar `user.email === 'estevaodefendi95@gmail.com'` via `useAuth()` — se não for esse email, não exibir a página de configurações (redirecionar ou mostrar mensagem de acesso negado)
 
-**Implementação:**
-- Criar uma migration que insere o role `admin` para esse email na tabela `user_roles` (via trigger ou verificação no signup)
-- Adicionar um trigger no banco: quando um usuário com esse email faz signup (inclusive via Google/Apple), automaticamente recebe status `aprovado` e role `admin`
-- Proteger as rotas `/admin/*` no frontend verificando `isAdmin`
-- Adicionar verificação no `AuthContext` ou nas páginas admin para garantir que apenas admins acessem
+### 3. Atualizar `Login.tsx`
 
-### 3. Fluxo de usuários OAuth
+- Carregar `login_logo_url` e `login_app_name` do `app_settings` (query sem auth)
+- Substituir o ícone/nome hardcoded pelos valores dinâmicos
 
-Quando um usuário faz login via Google/Apple pela primeira vez:
-- O trigger existente de `handle_new_user` cria o perfil com status `pendente`
-- Exceto se for `estevaodefendi95@gmail.com` → status `aprovado` + role `admin` automaticamente
-- Demais usuários aguardam aprovação do admin
+### 4. Atualizar `useAppSettings.ts`
 
-### Resumo Técnico
+- Incluir os novos campos no hook
 
-| Mudança | Tipo |
-|---------|------|
-| Configurar Social Auth (Google + Apple) | Ferramenta |
-| Redesenhar `Login.tsx` com botões sociais | Edição |
-| Migration: trigger para auto-aprovar admin master | Migration |
-| Proteger rotas admin no frontend | Verificação |
+### 5. Proteger rota no frontend
+
+- Na rota `/admin/configuracoes` ou no próprio componente, verificar que apenas o email master pode acessar
+
+### Resumo
+
+| Mudança | Arquivo |
+|---------|---------|
+| Adicionar `login_logo_url`, `login_app_name`, RLS anon | Migration |
+| Card de personalização do login + restrição por email | `AdminSettings.tsx` |
+| Logo/nome dinâmicos no login | `Login.tsx` |
+| Novos campos no hook | `useAppSettings.ts` |
 
