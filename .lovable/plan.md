@@ -1,107 +1,76 @@
 
 
-## Plano Atualizado: Sistema de Controle de Acesso pelo ADMIN
+## Plano: Personalização, Mídias e Gestão Avançada de Usuários
 
-### Mudança Principal
+### 1. Configurações do Sistema (nome + logo)
 
-O ADMIN controla totalmente o ciclo de vida dos usuários:
-1. **Cadastro controlado** — Usuários não se auto-registram livremente. O ADMIN cria/convida usuários.
-2. **Aprovação de login** — Novos usuários ficam com status "pendente" até o ADMIN aprovar.
-3. **Definição de perfil** — O ADMIN define se o usuário é ADMIN ou CLIENTE.
-4. **Escopo de visibilidade** — O ADMIN vincula o CLIENTE a uma ou mais empresas, determinando exatamente o que ele pode ver.
+**Nova tabela `app_settings`** com campos `app_name` (text), `logo_url` (text). Uma única linha (singleton).
 
----
+**Nova página `/admin/configuracoes`** onde o ADMIN pode:
+- Alterar o nome da aplicação (substitui "GestãoPro" no header e sidebar)
+- Fazer upload de uma logo (exibida no header e sidebar)
 
-### Estrutura de Banco de Dados
-
-**Tabelas de controle de acesso:**
-
-```text
-user_roles
-├── id (uuid, PK)
-├── user_id (uuid → auth.users)
-├── role (enum: admin, cliente)
-└── unique(user_id, role)
-
-user_company_access
-├── id (uuid, PK)
-├── user_id (uuid → auth.users)
-├── company_id (uuid → companies)
-└── unique(user_id, company_id)
-
-profiles
-├── id (uuid, PK → auth.users)
-├── full_name (text)
-├── email (text)
-├── avatar_url (text)
-├── status (enum: pendente, aprovado, bloqueado)
-├── created_at
-└── updated_at
-```
-
-**Fluxo:**
-- ADMIN cria convite (por email) → usuário recebe link → faz cadastro → status fica "pendente"
-- ADMIN aprova → define role (CLIENTE) → vincula às empresas permitidas
-- Usuário só consegue acessar o sistema após aprovação
-- RLS filtra dados usando `user_company_access` para CLIENTEs
+**Impacto nos componentes**: `AppLayout.tsx` e `AppSidebar.tsx` leem de `app_settings` para exibir nome/logo dinâmicos.
 
 ---
 
-### Funcionalidades do Painel ADMIN
+### 2. Logo da Empresa (upload pequeno)
 
-1. **Gestão de Usuários** (`/admin/usuarios`)
-   - Lista de todos os usuários com status (pendente/aprovado/bloqueado)
-   - Botões: Aprovar, Bloquear, Editar
-   - Ao aprovar: selecionar role e vincular empresas
-
-2. **Edição de Acesso** (modal ou página)
-   - Alterar role do usuário
-   - Adicionar/remover empresas visíveis para o CLIENTE
-   - Bloquear/desbloquear acesso
-
-3. **Convite de Usuários**
-   - ADMIN envia convite por email
-   - Link de cadastro com token de convite
+No CRUD de empresas (`Companies.tsx`), adicionar campo de upload de logo:
+- Upload para o bucket `attachments` (já existente)
+- Salvar URL no campo `logo_url` da tabela `companies`
+- Exibir logo pequena (32x32) nos cards de empresa, substituindo o ícone genérico
 
 ---
 
-### Segurança (RLS)
+### 3. Mídias nos Cards de Tarefas (banners, fotos, vídeos)
 
-- **ADMIN**: acessa tudo (verificado via função `has_role`)
-- **CLIENTE**: só vê dados de empresas vinculadas em `user_company_access`
-- **Usuários pendentes/bloqueados**: nenhum acesso a dados (RLS bloqueia)
-- Função `security definer` para checar role sem recursão
+**Nova tabela `task_media`**: `id`, `task_id`, `file_url`, `file_name`, `file_type` (image/video), `created_at`.
 
----
-
-### Implementação — 3 Etapas
-
-**Etapa 1: Banco + Auth + Proteção de rotas**
-- Configurar Supabase Auth (email/senha)
-- Criar tabelas: `profiles`, `user_roles`, `user_company_access`, `companies`
-- Trigger para criar profile com status "pendente" no signup
-- RLS policies com `has_role()` e checagem de `user_company_access`
-- Página de login + tela "Aguardando aprovação" para pendentes
-
-**Etapa 2: Painel ADMIN de Gestão de Usuários**
-- Página de listagem de usuários com filtros por status
-- Fluxo de aprovação: aprovar → definir role → vincular empresas
-- Convite por email
-- CRUD de empresas
-
-**Etapa 3: Restante do MVP**
-- Dashboard diferenciado (ADMIN vs CLIENTE)
-- Projetos, Kanban, Tarefas, Aprovações, Notificações
-- Dark/light mode toggle
-- Tudo em PT-BR
+No Kanban:
+- Cards exibem thumbnail da primeira imagem/banner (se houver)
+- No `TaskDetail`, seção de mídias com upload múltiplo e preview (imagens inline, vídeos com player)
+- Suporte a imagens (jpg, png, webp) e vídeos (mp4, webm)
 
 ---
 
-### Resumo da Mudança
+### 4. Permissões Granulares (editor, visualizador)
 
-| Antes | Agora |
-|-------|-------|
-| Usuário escolhe seu tipo no cadastro | ADMIN define o tipo do usuário |
-| Auto-registro livre | Cadastro requer aprovação do ADMIN |
-| Cliente vê "sua empresa" automaticamente | ADMIN define quais empresas o cliente pode ver |
+Atualizar o enum `app_role` para incluir novos valores: `admin`, `editor`, `visualizador`, `cliente`.
+
+- **editor**: pode criar/editar tarefas e comentar nas empresas vinculadas
+- **visualizador**: apenas visualiza tarefas e projetos (sem editar)
+- **cliente**: mantém o comportamento atual (visualiza + aprova)
+
+Atualizar o select de perfil no `AdminUsers.tsx` com as 4 opções. Ajustar RLS e condicionais no frontend para respeitar os novos níveis.
+
+---
+
+### 5. Admin Cria Novos Usuários (já aprovados)
+
+No `AdminUsers.tsx`, adicionar botão **"Novo Usuário"** que abre um formulário com:
+- Nome completo, email, senha temporária
+- Seleção de role (admin/editor/visualizador/cliente)
+- Vinculação a empresas
+
+Usar uma **Edge Function** que chama `supabase.auth.admin.createUser()` com a service role key para criar o usuário diretamente. O perfil já é criado com status `aprovado` e role definido.
+
+---
+
+### Resumo Técnico
+
+| Mudança | Tipo |
+|---------|------|
+| Tabela `app_settings` + RLS | Migration |
+| Tabela `task_media` + RLS | Migration |
+| Alterar enum `app_role` (adicionar editor, visualizador) | Migration |
+| Atualizar RLS para novos roles | Migration |
+| Edge Function `create-user` | Novo arquivo |
+| Página `AdminSettings.tsx` | Novo componente |
+| Atualizar `Companies.tsx` (upload logo) | Edição |
+| Atualizar `AdminUsers.tsx` (criar usuário + novos roles) | Edição |
+| Atualizar `TaskDetail.tsx` (upload de mídias) | Edição |
+| Atualizar `KanbanBoard.tsx` (thumbnail nos cards) | Edição |
+| Atualizar `AppSidebar.tsx` e `AppLayout.tsx` (nome/logo dinâmicos) | Edição |
+| Nova rota `/admin/configuracoes` em `App.tsx` | Edição |
 
