@@ -251,6 +251,16 @@ export default function KanbanBoard() {
     return col?.color || "#94a3b8";
   };
 
+  const saveColumnColor = async (colId: string, color: string) => {
+    await (supabase.from as any)("project_columns").update({ color }).eq("id", colId);
+    setColumns((prev) => prev.map((c) => (c.id === colId ? { ...c, color } : c)));
+  };
+
+  const saveTaskColor = async (taskId: string, color: string | null) => {
+    await (supabase.from("tasks").update as any)({ color }).eq("id", taskId);
+    setTasks((prev) => prev.map((t) => (t.id === taskId ? { ...t, color } : t)));
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
