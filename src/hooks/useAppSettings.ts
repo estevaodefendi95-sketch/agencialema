@@ -4,13 +4,24 @@ import { supabase } from "@/integrations/supabase/client";
 interface AppSettings {
   app_name: string;
   logo_url: string | null;
+  login_logo_url: string | null;
+  login_app_name: string;
 }
 
 export function useAppSettings() {
-  const [settings, setSettings] = useState<AppSettings>({ app_name: "GestãoPro", logo_url: null });
+  const [settings, setSettings] = useState<AppSettings>({
+    app_name: "GestãoPro",
+    logo_url: null,
+    login_logo_url: null,
+    login_app_name: "GestãoPro",
+  });
 
   const load = async () => {
-    const { data } = await supabase.from("app_settings").select("app_name, logo_url").limit(1).single();
+    const { data } = await supabase
+      .from("app_settings")
+      .select("app_name, logo_url, login_logo_url, login_app_name")
+      .limit(1)
+      .single();
     if (data) setSettings(data);
   };
 

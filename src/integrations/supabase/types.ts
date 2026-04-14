@@ -19,6 +19,8 @@ export type Database = {
           app_name: string
           created_at: string
           id: string
+          login_app_name: string
+          login_logo_url: string | null
           logo_url: string | null
           updated_at: string
         }
@@ -26,6 +28,8 @@ export type Database = {
           app_name?: string
           created_at?: string
           id?: string
+          login_app_name?: string
+          login_logo_url?: string | null
           logo_url?: string | null
           updated_at?: string
         }
@@ -33,6 +37,8 @@ export type Database = {
           app_name?: string
           created_at?: string
           id?: string
+          login_app_name?: string
+          login_logo_url?: string | null
           logo_url?: string | null
           updated_at?: string
         }
