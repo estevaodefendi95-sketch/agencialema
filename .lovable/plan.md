@@ -1,28 +1,54 @@
 
 
-## Plano: Rolagem horizontal fluida + Seletor de cor personalizada
+## Plano: Renomear/Excluir/Arquivar projetos + Histórico de versões
 
-### 1. Melhorar fluidez da rolagem horizontal (UX)
+### 1. Migração SQL
 
-No container `flex gap-4 overflow-x-auto pb-4` do modo card:
-- Adicionar `scroll-smooth` e estilos CSS para esconder a scrollbar nativa (usando `-webkit-scrollbar` / `scrollbar-width: none`)
-- Adicionar padding horizontal e `snap-x snap-mandatory` com `snap-start` em cada coluna para scroll com snap suave
-- Garantir área de scroll com padding no final para o botão "Adicionar coluna" não ficar cortado
+- Adicionar coluna `archived` (boolean, default false) na tabela `projects`
+- Criar tabela `project_history` para registrar alterações:
+  - `id` uuid PK
+  - `project_id` uuid NOT NULL
+  - `action` text NOT NULL (ex: "rename", "archive", "update_description", "update_due_date")
+  - `previous_data` jsonb (snapshot do estado anterior)
+  - `new_data` jsonb (novo estado)
+  - `user_id` uuid
+  - `created_at` timestamptz default now()
+- RLS na `project_history`: mesmas regras de acesso do projeto (admin, agency_admin, editor view, client view)
 
-Arquivo: `KanbanBoard.tsx` (classes do container flex) + `src/index.css` (classe utilitária para esconder scrollbar)
+### 2. Renomear projeto (`Projects.tsx`)
 
-### 2. Botão de cor personalizada (caneta/paleta)
+- Adicionar ícone de edição (Pencil) nos cards e linhas da lista de projetos
+- Ao clicar, abrir dialog simples com campo de nome editável
+- Ao salvar: gravar no banco + inserir registro em `project_history` com `previous_data` e `new_data`
+- Somente admin/editor pode renomear
 
-Em todas as 4 instâncias do seletor de cores (coluna lista, coluna card, tarefa lista, tarefa card):
-- Adicionar como último item um botão com ícone `Pencil` que, ao clicar, abre um `<input type="color">` nativo do navegador
-- Ao selecionar a cor no color picker, chamar `saveColumnColor` ou `saveTaskColor` com o valor hex escolhido
+### 3. Excluir ou Arquivar projeto (`Projects.tsx`)
 
-Isso permite cores customizadas além das 8 pré-definidas.
+- Adicionar menu de ações (dropdown ou ícones) em cada projeto com:
+  - **Arquivar**: seta `archived = true`, projeto some da listagem principal
+  - **Excluir**: confirmação via AlertDialog, depois deleta o projeto e tarefas associadas
+- Filtro para mostrar/esconder projetos arquivados (toggle ou aba)
+- Opção de desarquivar projetos arquivados
+
+### 4. Histórico do projeto (`KanbanBoard.tsx` ou nova seção)
+
+- Adicionar aba/seção "Histórico" na página do projeto (KanbanBoard)
+- Listar registros de `project_history` em ordem cronológica reversa
+- Cada entrada mostra: ação, dados anteriores, quem fez, quando
+- Botão "Desfazer" em cada entrada: restaura `previous_data` no projeto e registra nova entrada de histórico
+
+### 5. Registrar alterações automaticamente
+
+- Toda alteração no projeto (nome, descrição, prazo, arquivamento) grava em `project_history` antes de aplicar
 
 ### Resumo
 
 | Mudança | Onde |
 |---------|------|
-| Scroll suave + snap + esconder scrollbar | `KanbanBoard.tsx` + `index.css` |
-| Botão caneta → color picker nativo | 4 popovers de cor em `KanbanBoard.tsx` |
+| Coluna `archived` em `projects` | Migration SQL |
+| Tabela `project_history` + RLS | Migration SQL |
+| Renomear projeto inline | `Projects.tsx` |
+| Arquivar/Excluir com confirmação | `Projects.tsx` |
+| Filtro de arquivados | `Projects.tsx` |
+| Seção histórico + desfazer | `KanbanBoard.tsx` |
 
