@@ -1,30 +1,39 @@
 
 
-## Plano: Logo do cliente nos Projetos + Nome do cliente no Kanban + Mover tarefas na lista
+## Plano: Drag-and-drop na Lista + Subcategorias customizáveis
 
-### 1. Logo do cliente na página de Projetos (`Projects.tsx`)
+### 1. Drag-and-drop na visualização Lista (`KanbanBoard.tsx`)
 
-- Alterar a query para incluir `companies(name, logo_url)`
-- Atualizar interface `Project` para incluir `logo_url` na relação
-- No cabeçalho de cada grupo (empresa), exibir a logo ao lado do nome (substituir o ícone `Building2` pela imagem quando disponível)
-- No modo card, substituir o ícone `FolderKanban` pela logo da empresa quando disponível
+Envolver as tarefas da lista no mesmo `DragDropContext` já usado no modo card. Cada subcategoria de status será um `Droppable`, e cada linha da lista será um `Draggable` com um `GripVertical` no canto esquerdo (igual ao card).
 
-### 2. Nome do cliente discreto no Kanban (`KanbanBoard.tsx`)
+### 2. Botão "+" compacto
 
-- Alterar a query do projeto para incluir `companies(name)` via join: `projects.select("name, company_id, companies(name)")`
-- Exibir o nome da empresa em texto pequeno e discreto acima do título do projeto (ex: `text-xs text-muted-foreground`)
+Substituir o botão "Nova tarefa" por apenas um ícone `+` discreto abaixo de cada subcategoria.
 
-### 3. Mover tarefas na visualização Lista (`KanbanBoard.tsx`)
+### 3. Subcategorias customizáveis por projeto
 
-- Adicionar uma coluna "Status" na tabela com um `Select` inline (dropdown)
-- Ao alterar o status no dropdown, atualizar no banco e recarregar as tarefas
-- Isso permite mover tarefas entre colunas sem precisar arrastar no modo card
+Atualmente as colunas são um array hardcoded com enum `task_status`. Para permitir editar nomes e criar novas subcategorias, preciso:
+
+**Mudança no banco**:
+- Criar tabela `project_columns` (`id`, `project_id`, `slug` text, `label` text, `color` text, `position` int)
+- Alterar `tasks.status` de enum para `text` (para aceitar qualquer slug customizado)
+- Dropar o enum `task_status`
+- Inserir colunas padrão ao criar projeto (via seed ou na criação)
+- RLS: mesmas regras de acesso do projeto
+
+**Mudança no código**:
+- Carregar colunas do banco ao invés do `COLUMNS` hardcoded
+- Ao abrir um projeto pela primeira vez (sem colunas), criar as 4 padrão automaticamente
+- No cabeçalho de cada subcategoria, permitir editar o nome (click para inline edit)
+- Botão "+ Adicionar coluna" no final das subcategorias (card e lista)
+- Atualizar o dialog de nova tarefa para usar colunas dinâmicas
 
 ### Resumo
 
-| Mudança | Arquivo |
-|---------|---------|
-| Logo da empresa nos grupos e cards | `Projects.tsx` |
-| Nome da empresa discreto acima do título | `KanbanBoard.tsx` |
-| Select de status na tabela lista | `KanbanBoard.tsx` |
+| Mudança | Onde |
+|---------|------|
+| Drag-and-drop na lista com GripVertical | `KanbanBoard.tsx` |
+| Botão "+" compacto | `KanbanBoard.tsx` |
+| Tabela `project_columns` + migração status → text | Migration SQL |
+| Carregar/editar/criar colunas dinamicamente | `KanbanBoard.tsx` |
 
