@@ -6,9 +6,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Building2, Pencil, Trash2, Upload, X } from "lucide-react";
+import { Plus, Building2, Pencil, Trash2, Upload, X, LayoutGrid, List } from "lucide-react";
 import ImageCropper from "@/components/ImageCropper";
 
 interface Company {
@@ -30,6 +31,9 @@ export default function Companies() {
   const [description, setDescription] = useState("");
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [cropFile, setCropFile] = useState<File | null>(null);
+  const [viewMode, setViewMode] = useState<"card" | "lista">(() =>
+    (localStorage.getItem("view-mode-empresas") as "card" | "lista") || "card"
+  );
 
   const load = async () => {
     const { data } = await supabase.from("companies").select("*").order("name");
@@ -37,6 +41,11 @@ export default function Companies() {
   };
 
   useEffect(() => { load(); }, []);
+
+  const toggleViewMode = (mode: "card" | "lista") => {
+    setViewMode(mode);
+    localStorage.setItem("view-mode-empresas", mode);
+  };
 
   const openNew = () => { setEditing(null); setName(""); setDescription(""); setLogoUrl(null); setOpen(true); };
   const openEdit = (c: Company) => { setEditing(c); setName(c.name); setDescription(c.description || ""); setLogoUrl(c.logo_url); setOpen(true); };
@@ -70,51 +79,112 @@ export default function Companies() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold">Empresas</h2>
-        {isAdmin && (
-          <Button onClick={openNew} className="gap-2">
-            <Plus className="h-4 w-4" /> Nova Empresa
-          </Button>
-        )}
-      </div>
-
-      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
-        {companies.map((c) => (
-          <Card key={c.id}>
-            <CardHeader className="flex flex-row items-start justify-between">
-              <div className="flex items-center gap-3">
-                {c.logo_url ? (
-                  <img src={c.logo_url} alt={c.name} className="h-10 w-10 object-cover rounded-full border" />
-                ) : (
-                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
-                    <Building2 className="h-5 w-5 text-primary" />
-                  </div>
-                )}
-                <div>
-                  <CardTitle className="text-base">{c.name}</CardTitle>
-                  <CardDescription className="text-xs">{c.slug}</CardDescription>
-                </div>
-              </div>
-              {isAdmin && (
-                <div className="flex gap-1">
-                  <Button variant="ghost" size="icon" onClick={() => openEdit(c)}><Pencil className="h-4 w-4" /></Button>
-                  <Button variant="ghost" size="icon" onClick={() => remove(c.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
-                </div>
-              )}
-            </CardHeader>
-            {c.description && (
-              <CardContent>
-                <p className="text-sm text-muted-foreground">{c.description}</p>
-              </CardContent>
-            )}
-          </Card>
-        ))}
-      </div>
-
-      {companies.length === 0 && (
-        <div className="text-center py-12 text-muted-foreground">
-          <Building2 className="mx-auto h-12 w-12 mb-4 opacity-50" />
-          <p>Nenhuma empresa cadastrada</p>
+        <div className="flex items-center gap-2">
+          <div className="flex items-center border rounded-lg overflow-hidden">
+            <Button variant={viewMode === "card" ? "default" : "ghost"} size="sm" className="rounded-none gap-1.5" onClick={() => toggleViewMode("card")}>
+              <LayoutGrid className="h-4 w-4" /> Card
+            </Button>
+            <Button variant={viewMode === "lista" ? "default" : "ghost"} size="sm" className="rounded-none gap-1.5" onClick={() => toggleViewMode("lista")}>
+              <List className="h-4 w-4" /> Lista
+            </Button>
+          </div>
+          {isAdmin && (
+            <Button onClick={openNew} className="gap-2">
+              <Plus className="h-4 w-4" /> Nova Empresa
+            </Button>
+          )}
         </div>
+      </div>
+
+      {viewMode === "lista" ? (
+        <div className="rounded-lg border">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Logo</TableHead>
+                <TableHead>Nome</TableHead>
+                <TableHead>Slug</TableHead>
+                <TableHead>Descrição</TableHead>
+                {isAdmin && <TableHead className="text-right">Ações</TableHead>}
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {companies.map((c) => (
+                <TableRow key={c.id}>
+                  <TableCell>
+                    {c.logo_url ? (
+                      <img src={c.logo_url} alt={c.name} className="h-8 w-8 object-cover rounded-full border" />
+                    ) : (
+                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10">
+                        <Building2 className="h-4 w-4 text-primary" />
+                      </div>
+                    )}
+                  </TableCell>
+                  <TableCell className="font-medium">{c.name}</TableCell>
+                  <TableCell className="text-muted-foreground text-sm">{c.slug}</TableCell>
+                  <TableCell className="text-muted-foreground text-sm max-w-[200px] truncate">{c.description || "—"}</TableCell>
+                  {isAdmin && (
+                    <TableCell className="text-right">
+                      <div className="flex justify-end gap-1">
+                        <Button variant="ghost" size="icon" onClick={() => openEdit(c)}><Pencil className="h-4 w-4" /></Button>
+                        <Button variant="ghost" size="icon" onClick={() => remove(c.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                      </div>
+                    </TableCell>
+                  )}
+                </TableRow>
+              ))}
+              {companies.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={isAdmin ? 5 : 4} className="text-center py-8 text-muted-foreground">
+                    Nenhuma empresa cadastrada
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </div>
+      ) : (
+        <>
+          <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+            {companies.map((c) => (
+              <Card key={c.id}>
+                <CardHeader className="flex flex-row items-start justify-between">
+                  <div className="flex items-center gap-3">
+                    {c.logo_url ? (
+                      <img src={c.logo_url} alt={c.name} className="h-10 w-10 object-cover rounded-full border" />
+                    ) : (
+                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
+                        <Building2 className="h-5 w-5 text-primary" />
+                      </div>
+                    )}
+                    <div>
+                      <CardTitle className="text-base">{c.name}</CardTitle>
+                      <CardDescription className="text-xs">{c.slug}</CardDescription>
+                    </div>
+                  </div>
+                  {isAdmin && (
+                    <div className="flex gap-1">
+                      <Button variant="ghost" size="icon" onClick={() => openEdit(c)}><Pencil className="h-4 w-4" /></Button>
+                      <Button variant="ghost" size="icon" onClick={() => remove(c.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                    </div>
+                  )}
+                </CardHeader>
+                {c.description && (
+                  <CardContent>
+                    <p className="text-sm text-muted-foreground">{c.description}</p>
+                  </CardContent>
+                )}
+              </Card>
+            ))}
+          </div>
+
+          {companies.length === 0 && (
+            <div className="text-center py-12 text-muted-foreground">
+              <Building2 className="mx-auto h-12 w-12 mb-4 opacity-50" />
+              <p>Nenhuma empresa cadastrada</p>
+            </div>
+          )}
+        </>
       )}
 
       <Dialog open={open} onOpenChange={setOpen}>
