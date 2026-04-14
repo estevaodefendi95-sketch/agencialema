@@ -303,7 +303,7 @@ export default function KanbanBoard() {
       </Dialog>
 
       {selectedTask && (
-        <TaskDetail taskId={selectedTask} onClose={() => { setSelectedTask(null); load(); }} />
+        <TaskDetail taskId={selectedTask} onClose={() => { setSelectedTask(null); load(); }} onTaskDeleted={load} />
       )}
     </div>
   );
