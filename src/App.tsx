@@ -59,6 +59,7 @@ function AppRoutes() {
           <Route path="/projetos/:id" element={<KanbanBoard />} />
           <Route path="/admin/usuarios" element={<AdminUsers />} />
           <Route path="/admin/configuracoes" element={<AdminSettings />} />
+          <Route path="/admin/agencias" element={<AdminAgencies />} />
           <Route path="/notificacoes" element={<Notifications />} />
           <Route path="*" element={<NotFound />} />
         </Route>
