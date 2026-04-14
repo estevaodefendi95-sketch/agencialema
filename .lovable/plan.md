@@ -1,32 +1,38 @@
 
 
-## Plano: Branding no Cabeçalho para Clientes + Visualização em Lista
+## Plano: Lixeira discreta no TaskDetail + Toggle Card/Lista em Empresas e Projetos
 
-### 1. Cabeçalho com marca da agência (já funciona parcialmente)
+### 1. Lixeira mais discreta no TaskDetail
 
-O sistema já carrega logo/nome da agência no cabeçalho via `useAppSettings` para quem tem `agency_id`. O admin da agência já pode editar isso em Configurações. Preciso verificar e garantir que:
-- Clientes (`role: cliente`) tenham `agency_id` preenchido no perfil — isso deve ser definido ao aprovar o usuário
-- Na tela de aprovação de usuários (`AdminUsers.tsx`), ao aprovar um cliente, vincular automaticamente o `agency_id` do admin que está aprovando
+Atualmente o botão de excluir (lixeira vermelha) está ao lado do título, muito próximo do X de fechar. Mudança:
+- Mover o botão de excluir para o **final do dialog** (rodapé), com estilo `ghost` e texto "Excluir tarefa" em vermelho discreto
+- Manter o X de fechar no canto superior direito (padrão do Dialog)
+- Isso separa visualmente as duas ações e evita cliques acidentais
 
-**Mudança**: No `AdminUsers.tsx`, ao aprovar um usuário, setar `agency_id` do perfil com o `agency_id` do admin logado.
+### 2. Toggle Card/Lista em Empresas (`Companies.tsx`)
 
-### 2. Visualização em Lista no Kanban
+- Adicionar estado `viewMode` ("card" | "lista") com persistência em `localStorage` (chave `view-mode-empresas`)
+- Toggle com ícones `LayoutGrid` (Card) e `List` (Lista) no cabeçalho, ao lado do botão "Nova Empresa"
+- **Modo Card**: layout atual (grid de cards)
+- **Modo Lista**: tabela com colunas: Logo, Nome, Slug, Descrição, Ações
 
-Adicionar um toggle Kanban/Lista no canto superior da página de projeto, ao lado do botão "Nova Tarefa".
+### 3. Toggle Card/Lista em Projetos (`Projects.tsx`)
 
-**Modo Lista**: Tabela com colunas: Status (badge colorido), Título, Prioridade, Prazo, Mídia (ícone). Clicável para abrir `TaskDetail`.
+- Mesmo padrão: estado `viewMode` com `localStorage` (chave `view-mode-projetos`)
+- Toggle Card/Lista no cabeçalho
+- **Modo Card**: layout atual
+- **Modo Lista**: tabela com colunas: Nome, Empresa, Prazo, Descrição
 
-**Persistência**: Salvar a preferência no `localStorage` com chave `view-mode-{projectId}`. Ao abrir o projeto, carregar a última escolha do usuário.
+### 4. Renomear labels no KanbanBoard
 
-**Mudanças**:
-- `KanbanBoard.tsx`: Adicionar estado `viewMode` ("kanban" | "lista"), toggle com ícones `LayoutGrid` / `List`, renderizar condicionalmente o grid kanban ou a tabela
-- Componente de tabela inline usando `Table` do shadcn/ui
+- Trocar "Kanban" / "Lista" por "Card" / "Lista" nos botões de toggle existentes
 
 ### Resumo
 
 | Mudança | Arquivo |
 |---------|---------|
-| Vincular `agency_id` ao aprovar usuário | `AdminUsers.tsx` |
-| Toggle Kanban/Lista + tabela de tarefas | `KanbanBoard.tsx` |
-| Persistência da preferência via localStorage | `KanbanBoard.tsx` |
+| Lixeira para rodapé, separada do X | `TaskDetail.tsx` |
+| Toggle Card/Lista + tabela | `Companies.tsx` |
+| Toggle Card/Lista + tabela | `Projects.tsx` |
+| Renomear labels do toggle | `KanbanBoard.tsx` |
 
