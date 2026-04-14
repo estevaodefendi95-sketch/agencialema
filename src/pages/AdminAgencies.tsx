@@ -38,12 +38,8 @@ export default function AdminAgencies() {
 
   if (!isSuperAdmin) return <Navigate to="/" replace />;
 
-  const load = async () => {
-    const { data } = await supabase.from("agencies").select("*").order("created_at");
-    if (data) setAgencies(data);
-  };
 
-  useEffect(() => { load(); }, []);
+
 
   const openNew = () => {
     setEditingId(null);
