@@ -108,6 +108,12 @@ export default function KanbanBoard() {
     if (projectId) localStorage.setItem(`view-mode-${projectId}`, mode);
   };
 
+  const toggleSortPrazo = () => {
+    const newDir = sortPrazo === "asc" ? "desc" : "asc";
+    setSortPrazo(newDir);
+    if (projectId) localStorage.setItem(`sort-prazo-${projectId}`, newDir);
+  };
+
   const onDragEnd = async (result: DropResult) => {
     if (!result.destination) return;
     const taskId = result.draggableId;
