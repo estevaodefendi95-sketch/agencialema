@@ -1,76 +1,48 @@
 
 
-## Plano: Personalização, Mídias e Gestão Avançada de Usuários
+## Plano: Crop de Logo, Comentários no Histórico e Mídia nos Cards
 
-### 1. Configurações do Sistema (nome + logo)
+### 1. Componente de Crop/Redimensionamento de Imagem
 
-**Nova tabela `app_settings`** com campos `app_name` (text), `logo_url` (text). Uma única linha (singleton).
+Criar um componente `ImageCropper.tsx` usando a biblioteca `react-image-crop`:
+- Modal com preview da imagem e área de recorte arrastável
+- Formato circular (estilo Google/avatar) para logos
+- Aspecto quadrado (1:1) como padrão
+- Botões "Recortar" e "Cancelar"
+- Gera um Blob recortado via canvas e faz upload para o bucket `attachments`
 
-**Nova página `/admin/configuracoes`** onde o ADMIN pode:
-- Alterar o nome da aplicação (substitui "GestãoPro" no header e sidebar)
-- Fazer upload de uma logo (exibida no header e sidebar)
+Aplicar em 3 locais:
+- `AdminSettings.tsx` (logo do app)
+- `Companies.tsx` (logo da empresa)
 
-**Impacto nos componentes**: `AppLayout.tsx` e `AppSidebar.tsx` leem de `app_settings` para exibir nome/logo dinâmicos.
+### 2. Salvar Comentários no Histórico
 
----
+No `TaskDetail.tsx`, ao adicionar comentário (`addComment`), inserir também um registro em `task_history`:
+```
+action: "Comentou"
+details: { content: "texto do comentário" }
+```
 
-### 2. Logo da Empresa (upload pequeno)
+Isso já funciona com a tabela existente, sem mudanças no banco.
 
-No CRUD de empresas (`Companies.tsx`), adicionar campo de upload de logo:
-- Upload para o bucket `attachments` (já existente)
-- Salvar URL no campo `logo_url` da tabela `companies`
-- Exibir logo pequena (32x32) nos cards de empresa, substituindo o ícone genérico
+### 3. Mostrar Mídia nos Cards do Kanban
 
----
-
-### 3. Mídias nos Cards de Tarefas (banners, fotos, vídeos)
-
-**Nova tabela `task_media`**: `id`, `task_id`, `file_url`, `file_name`, `file_type` (image/video), `created_at`.
-
-No Kanban:
-- Cards exibem thumbnail da primeira imagem/banner (se houver)
-- No `TaskDetail`, seção de mídias com upload múltiplo e preview (imagens inline, vídeos com player)
-- Suporte a imagens (jpg, png, webp) e vídeos (mp4, webm)
-
----
-
-### 4. Permissões Granulares (editor, visualizador)
-
-Atualizar o enum `app_role` para incluir novos valores: `admin`, `editor`, `visualizador`, `cliente`.
-
-- **editor**: pode criar/editar tarefas e comentar nas empresas vinculadas
-- **visualizador**: apenas visualiza tarefas e projetos (sem editar)
-- **cliente**: mantém o comportamento atual (visualiza + aprova)
-
-Atualizar o select de perfil no `AdminUsers.tsx` com as 4 opções. Ajustar RLS e condicionais no frontend para respeitar os novos níveis.
-
----
-
-### 5. Admin Cria Novos Usuários (já aprovados)
-
-No `AdminUsers.tsx`, adicionar botão **"Novo Usuário"** que abre um formulário com:
-- Nome completo, email, senha temporária
-- Seleção de role (admin/editor/visualizador/cliente)
-- Vinculação a empresas
-
-Usar uma **Edge Function** que chama `supabase.auth.admin.createUser()` com a service role key para criar o usuário diretamente. O perfil já é criado com status `aprovado` e role definido.
-
----
+No `KanbanBoard.tsx`:
+- Carregar `task_media` junto com as tasks (query separada agrupada por task_id)
+- No card, se houver mídia, exibir thumbnail da primeira imagem acima do título
+- Se houver mais de 1 mídia, mostrar badge "+N" no canto da thumbnail
+- Vídeos: exibir ícone de play sobre um frame estático
 
 ### Resumo Técnico
 
-| Mudança | Tipo |
-|---------|------|
-| Tabela `app_settings` + RLS | Migration |
-| Tabela `task_media` + RLS | Migration |
-| Alterar enum `app_role` (adicionar editor, visualizador) | Migration |
-| Atualizar RLS para novos roles | Migration |
-| Edge Function `create-user` | Novo arquivo |
-| Página `AdminSettings.tsx` | Novo componente |
-| Atualizar `Companies.tsx` (upload logo) | Edição |
-| Atualizar `AdminUsers.tsx` (criar usuário + novos roles) | Edição |
-| Atualizar `TaskDetail.tsx` (upload de mídias) | Edição |
-| Atualizar `KanbanBoard.tsx` (thumbnail nos cards) | Edição |
-| Atualizar `AppSidebar.tsx` e `AppLayout.tsx` (nome/logo dinâmicos) | Edição |
-| Nova rota `/admin/configuracoes` em `App.tsx` | Edição |
+| Mudança | Arquivo |
+|---------|---------|
+| Instalar `react-image-crop` | package.json |
+| Criar `ImageCropper.tsx` | Novo componente |
+| Integrar crop em `AdminSettings.tsx` | Edição |
+| Integrar crop em `Companies.tsx` | Edição |
+| Comentário → histórico | `TaskDetail.tsx` |
+| Thumbnail + badge nos cards | `KanbanBoard.tsx` |
+
+Sem migrações de banco necessárias.
 
