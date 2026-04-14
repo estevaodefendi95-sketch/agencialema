@@ -11,7 +11,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { DragDropContext, Droppable, Draggable, type DropResult } from "@hello-pangea/dnd";
-import { Plus, GripVertical, Calendar, ThumbsUp, RotateCcw, ImageIcon, Play, LayoutGrid, List, ArrowUpDown, Pencil, Check, X } from "lucide-react";
+import { Plus, GripVertical, Calendar, ThumbsUp, RotateCcw, ImageIcon, Play, LayoutGrid, List, ArrowUpDown, Pencil, Check, X, Trash2 } from "lucide-react";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import TaskDetail from "@/components/TaskDetail";
 
 interface Task {
