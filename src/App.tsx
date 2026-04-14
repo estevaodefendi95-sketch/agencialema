@@ -13,6 +13,7 @@ import Companies from "@/pages/Companies";
 import Projects from "@/pages/Projects";
 import KanbanBoard from "@/pages/KanbanBoard";
 import AdminUsers from "@/pages/AdminUsers";
+import AdminSettings from "@/pages/AdminSettings";
 import Notifications from "@/pages/Notifications";
 import NotFound from "@/pages/NotFound";
 
@@ -36,7 +37,7 @@ function RequireAuth() {
 }
 
 function AppRoutes() {
-  const { user, loading, isAdmin } = useAuth();
+  const { user, loading } = useAuth();
 
   if (loading) {
     return (
@@ -56,6 +57,7 @@ function AppRoutes() {
           <Route path="/projetos" element={<Projects />} />
           <Route path="/projetos/:id" element={<KanbanBoard />} />
           <Route path="/admin/usuarios" element={<AdminUsers />} />
+          <Route path="/admin/configuracoes" element={<AdminSettings />} />
           <Route path="/notificacoes" element={<Notifications />} />
           <Route path="*" element={<NotFound />} />
         </Route>

@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
-import { Send, Plus, CheckSquare, Paperclip, History } from "lucide-react";
+import { Send, Plus, CheckSquare, History, Image, Film, Upload, X } from "lucide-react";
 
 interface Props {
   taskId: string;
@@ -20,6 +20,7 @@ interface Props {
 interface Comment { id: string; content: string; created_at: string; user_id: string; profiles?: { full_name: string | null } | null; }
 interface ChecklistItem { id: string; title: string; completed: boolean; position: number; }
 interface HistoryItem { id: string; action: string; details: any; created_at: string; profiles?: { full_name: string | null } | null; }
+interface MediaItem { id: string; file_url: string; file_name: string; file_type: string; created_at: string; }
 
 export default function TaskDetail({ taskId, onClose }: Props) {
   const { user } = useAuth();
@@ -28,8 +29,10 @@ export default function TaskDetail({ taskId, onClose }: Props) {
   const [comments, setComments] = useState<Comment[]>([]);
   const [checklist, setChecklist] = useState<ChecklistItem[]>([]);
   const [history, setHistory] = useState<HistoryItem[]>([]);
+  const [media, setMedia] = useState<MediaItem[]>([]);
   const [newComment, setNewComment] = useState("");
   const [newCheckItem, setNewCheckItem] = useState("");
+  const [uploading, setUploading] = useState(false);
 
   const load = async () => {
     const { data: t } = await supabase.from("tasks").select("*").eq("id", taskId).single();
@@ -43,6 +46,9 @@ export default function TaskDetail({ taskId, onClose }: Props) {
 
     const { data: h } = await supabase.from("task_history").select("*, profiles:user_id(full_name)").eq("task_id", taskId).order("created_at", { ascending: false });
     setHistory(h as any || []);
+
+    const { data: m } = await supabase.from("task_media").select("*").eq("task_id", taskId).order("created_at");
+    setMedia(m || []);
   };
 
   useEffect(() => { load(); }, [taskId]);
@@ -68,6 +74,38 @@ export default function TaskDetail({ taskId, onClose }: Props) {
     load();
   };
 
+  const uploadMedia = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    setUploading(true);
+
+    for (const file of Array.from(files)) {
+      const ext = file.name.split(".").pop()?.toLowerCase() || "";
+      const isVideo = ["mp4", "webm", "mov"].includes(ext);
+      const fileType = isVideo ? "video" : "image";
+      const path = `task-media/${taskId}/${Date.now()}-${file.name}`;
+
+      const { error } = await supabase.storage.from("attachments").upload(path, file);
+      if (error) {
+        toast({ title: `Erro ao enviar ${file.name}`, variant: "destructive" });
+        continue;
+      }
+
+      const { data: urlData } = supabase.storage.from("attachments").getPublicUrl(path);
+      await supabase.from("task_media").insert({
+        task_id: taskId,
+        file_url: urlData.publicUrl,
+        file_name: file.name,
+        file_type: fileType,
+      });
+    }
+
+    setUploading(false);
+    toast({ title: "Mídias enviadas" });
+    load();
+    e.target.value = "";
+  };
+
   if (!task) return null;
 
   const completedCount = checklist.filter((c) => c.completed).length;
@@ -80,13 +118,46 @@ export default function TaskDetail({ taskId, onClose }: Props) {
         </DialogHeader>
         <ScrollArea className="max-h-[65vh] pr-4">
           <div className="space-y-6">
-            {/* Description */}
             {task.description && (
               <div>
                 <Label className="text-xs text-muted-foreground">Descrição</Label>
                 <p className="text-sm mt-1">{task.description}</p>
               </div>
             )}
+
+            <Separator />
+
+            {/* Media */}
+            <div>
+              <div className="flex items-center gap-2 mb-2">
+                <Image className="h-4 w-4" />
+                <Label className="font-semibold">Mídias</Label>
+                {media.length > 0 && <span className="text-xs text-muted-foreground">({media.length})</span>}
+              </div>
+
+              {media.length > 0 && (
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-3">
+                  {media.map((m) => (
+                    <div key={m.id} className="relative group rounded-lg overflow-hidden border">
+                      {m.file_type === "video" ? (
+                        <video src={m.file_url} controls className="w-full h-24 object-cover" />
+                      ) : (
+                        <a href={m.file_url} target="_blank" rel="noopener noreferrer">
+                          <img src={m.file_url} alt={m.file_name} className="w-full h-24 object-cover hover:opacity-90 transition-opacity" />
+                        </a>
+                      )}
+                      <p className="text-[10px] text-muted-foreground truncate px-1 py-0.5">{m.file_name}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <label className="flex items-center gap-2 cursor-pointer text-sm text-muted-foreground hover:text-foreground transition-colors">
+                <Upload className="h-4 w-4" />
+                {uploading ? "Enviando..." : "Adicionar imagens ou vídeos"}
+                <input type="file" accept="image/*,video/mp4,video/webm" multiple className="hidden" onChange={uploadMedia} disabled={uploading} />
+              </label>
+            </div>
 
             <Separator />
 
