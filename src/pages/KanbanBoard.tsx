@@ -491,10 +491,14 @@ export default function KanbanBoard() {
                           <button className="h-4 w-4 rounded-full shrink-0 border border-border" style={{ backgroundColor: col.color }} />
                         </PopoverTrigger>
                         <PopoverContent className="w-auto p-2" align="start">
-                          <div className="flex gap-1.5">
+                          <div className="flex gap-1.5 items-center">
                             {COLOR_PALETTE.map((c) => (
                               <button key={c} className={`h-6 w-6 rounded-full border-2 ${col.color === c ? "border-foreground" : "border-transparent"}`} style={{ backgroundColor: c }} onClick={() => saveColumnColor(col.id, c)} />
                             ))}
+                            <label className="h-6 w-6 rounded-full border-2 border-dashed border-muted-foreground flex items-center justify-center cursor-pointer" title="Cor personalizada">
+                              <Pencil className="h-3 w-3 text-muted-foreground" />
+                              <input type="color" className="sr-only" value={col.color} onChange={(e) => saveColumnColor(col.id, e.target.value)} />
+                            </label>
                           </div>
                         </PopoverContent>
                       </Popover>
@@ -575,11 +579,15 @@ export default function KanbanBoard() {
                                               <button className="h-3.5 w-3.5 rounded-full shrink-0 border border-border ml-auto" style={{ backgroundColor: task.color || "transparent" }} />
                                             </PopoverTrigger>
                                             <PopoverContent className="w-auto p-2" align="start">
-                                              <div className="flex gap-1.5">
+                                              <div className="flex gap-1.5 items-center">
                                                 <button className="h-6 w-6 rounded-full border-2 border-dashed border-muted-foreground" onClick={() => saveTaskColor(task.id, null)} title="Sem cor" />
                                                 {COLOR_PALETTE.map((c) => (
                                                   <button key={c} className={`h-6 w-6 rounded-full border-2 ${task.color === c ? "border-foreground" : "border-transparent"}`} style={{ backgroundColor: c }} onClick={() => saveTaskColor(task.id, c)} />
                                                 ))}
+                                                <label className="h-6 w-6 rounded-full border-2 border-dashed border-muted-foreground flex items-center justify-center cursor-pointer" title="Cor personalizada">
+                                                  <Pencil className="h-3 w-3 text-muted-foreground" />
+                                                  <input type="color" className="sr-only" value={task.color || "#000000"} onChange={(e) => saveTaskColor(task.id, e.target.value)} />
+                                                </label>
                                               </div>
                                             </PopoverContent>
                                           </Popover>
