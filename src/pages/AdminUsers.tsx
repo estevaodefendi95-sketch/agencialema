@@ -77,7 +77,12 @@ export default function AdminUsers() {
 
   const approve = async () => {
     if (!selected) return;
-    await supabase.from("profiles").update({ status: "aprovado" as any }).eq("id", selected.id);
+    // Set status to approved and assign agency_id from the admin performing the approval
+    const updateData: Record<string, any> = { status: "aprovado" as any };
+    if (agencyId) {
+      updateData.agency_id = agencyId;
+    }
+    await supabase.from("profiles").update(updateData).eq("id", selected.id);
 
     const existingRole = roles.find((r) => r.user_id === selected.id);
     if (existingRole) {
