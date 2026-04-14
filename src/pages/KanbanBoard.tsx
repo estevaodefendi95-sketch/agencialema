@@ -282,7 +282,66 @@ export default function KanbanBoard() {
     setTasks((prev) => prev.map((t) => (t.id === taskId ? { ...t, color } : t)));
   };
 
-  return (
+  // History
+  const [history, setHistory] = useState<HistoryEntry[]>([]);
+  const [historyOpen, setHistoryOpen] = useState(false);
+
+  const loadHistory = useCallback(async () => {
+    if (!projectId) return;
+    const { data } = await (supabase.from as any)("project_history")
+      .select("*, profiles:user_id(full_name)")
+      .eq("project_id", projectId)
+      .order("created_at", { ascending: false })
+      .limit(50);
+    setHistory(data || []);
+  }, [projectId]);
+
+  useEffect(() => {
+    if (historyOpen) loadHistory();
+  }, [historyOpen, loadHistory]);
+
+  const undoHistory = async (entry: HistoryEntry) => {
+    if (!entry.previous_data || !projectId) return;
+    // Restore previous data
+    const updates: any = {};
+    if (entry.previous_data.name !== undefined) updates.name = entry.previous_data.name;
+    if (entry.previous_data.description !== undefined) updates.description = entry.previous_data.description;
+    if (entry.previous_data.due_date !== undefined) updates.due_date = entry.previous_data.due_date;
+    if (entry.previous_data.archived !== undefined) updates.archived = entry.previous_data.archived;
+
+    if (Object.keys(updates).length === 0) return;
+
+    await supabase.from("projects").update(updates).eq("id", projectId);
+    await (supabase.from as any)("project_history").insert({
+      project_id: projectId,
+      action: "undo",
+      previous_data: entry.new_data,
+      new_data: entry.previous_data,
+      user_id: user?.id,
+    });
+
+    if (updates.name) setProjectName(updates.name);
+    toast({ title: "Alteração desfeita" });
+    loadHistory();
+    load();
+  };
+
+  const formatHistoryDetails = (entry: HistoryEntry) => {
+    const parts: string[] = [];
+    if (entry.previous_data?.name && entry.new_data?.name) {
+      parts.push(`Nome: "${entry.previous_data.name}" → "${entry.new_data.name}"`);
+    }
+    if (entry.previous_data?.description !== undefined || entry.new_data?.description !== undefined) {
+      parts.push("Descrição alterada");
+    }
+    if (entry.previous_data?.due_date !== undefined || entry.new_data?.due_date !== undefined) {
+      const prev = entry.previous_data?.due_date ? new Date(entry.previous_data.due_date).toLocaleDateString("pt-BR") : "sem prazo";
+      const next = entry.new_data?.due_date ? new Date(entry.new_data.due_date).toLocaleDateString("pt-BR") : "sem prazo";
+      parts.push(`Prazo: ${prev} → ${next}`);
+    }
+    return parts.join(" | ") || ACTION_LABELS[entry.action] || entry.action;
+  };
+
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
