@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Building2, Pencil, Trash2 } from "lucide-react";
+import { Plus, Building2, Pencil, Trash2, Upload } from "lucide-react";
 
 interface Company {
   id: string;
@@ -27,6 +27,8 @@ export default function Companies() {
   const [editing, setEditing] = useState<Company | null>(null);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
 
   const load = async () => {
     const { data } = await supabase.from("companies").select("*").order("name");
@@ -35,16 +37,33 @@ export default function Companies() {
 
   useEffect(() => { load(); }, []);
 
-  const openNew = () => { setEditing(null); setName(""); setDescription(""); setOpen(true); };
-  const openEdit = (c: Company) => { setEditing(c); setName(c.name); setDescription(c.description || ""); setOpen(true); };
+  const openNew = () => { setEditing(null); setName(""); setDescription(""); setLogoUrl(null); setOpen(true); };
+  const openEdit = (c: Company) => { setEditing(c); setName(c.name); setDescription(c.description || ""); setLogoUrl(c.logo_url); setOpen(true); };
+
+  const uploadLogo = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    const ext = file.name.split(".").pop();
+    const path = `logos/company-${Date.now()}.${ext}`;
+    const { error } = await supabase.storage.from("attachments").upload(path, file);
+    if (error) {
+      toast({ title: "Erro ao enviar logo", variant: "destructive" });
+      setUploading(false);
+      return;
+    }
+    const { data: urlData } = supabase.storage.from("attachments").getPublicUrl(path);
+    setLogoUrl(urlData.publicUrl);
+    setUploading(false);
+  };
 
   const save = async () => {
     const slug = name.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
     if (editing) {
-      await supabase.from("companies").update({ name, description, slug }).eq("id", editing.id);
+      await supabase.from("companies").update({ name, description, slug, logo_url: logoUrl }).eq("id", editing.id);
       toast({ title: "Empresa atualizada" });
     } else {
-      await supabase.from("companies").insert({ name, description, slug });
+      await supabase.from("companies").insert({ name, description, slug, logo_url: logoUrl });
       toast({ title: "Empresa criada" });
     }
     setOpen(false);
@@ -73,9 +92,13 @@ export default function Companies() {
           <Card key={c.id}>
             <CardHeader className="flex flex-row items-start justify-between">
               <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-                  <Building2 className="h-5 w-5 text-primary" />
-                </div>
+                {c.logo_url ? (
+                  <img src={c.logo_url} alt={c.name} className="h-10 w-10 object-contain rounded-lg border" />
+                ) : (
+                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
+                    <Building2 className="h-5 w-5 text-primary" />
+                  </div>
+                )}
                 <div>
                   <CardTitle className="text-base">{c.name}</CardTitle>
                   <CardDescription className="text-xs">{c.slug}</CardDescription>
@@ -117,6 +140,21 @@ export default function Companies() {
             <div className="space-y-2">
               <Label>Descrição</Label>
               <Textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Breve descrição" />
+            </div>
+            <div className="space-y-2">
+              <Label>Logo</Label>
+              {logoUrl ? (
+                <div className="flex items-center gap-3">
+                  <img src={logoUrl} alt="Logo" className="h-10 w-10 object-contain rounded-lg border" />
+                  <Button variant="ghost" size="sm" onClick={() => setLogoUrl(null)}>Remover</Button>
+                </div>
+              ) : (
+                <label className="flex items-center gap-2 cursor-pointer text-sm text-muted-foreground hover:text-foreground transition-colors">
+                  <Upload className="h-4 w-4" />
+                  {uploading ? "Enviando..." : "Upload logo"}
+                  <input type="file" accept="image/*" className="hidden" onChange={uploadLogo} disabled={uploading} />
+                </label>
+              )}
             </div>
           </div>
           <DialogFooter>

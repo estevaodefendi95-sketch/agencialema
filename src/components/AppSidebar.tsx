@@ -1,9 +1,10 @@
 import {
-  LayoutDashboard, Building2, FolderKanban, Users, Bell, LogOut, Sun, Moon,
+  LayoutDashboard, Building2, FolderKanban, Users, Bell, LogOut, Sun, Moon, Settings,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/contexts/ThemeContext";
+import { useAppSettings } from "@/hooks/useAppSettings";
 import {
   Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupContent,
   SidebarGroupLabel, SidebarMenu, SidebarMenuButton, SidebarMenuItem, useSidebar,
@@ -14,6 +15,7 @@ export function AppSidebar() {
   const { isAdmin, signOut, user } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const { state } = useSidebar();
+  const { app_name, logo_url } = useAppSettings();
   const collapsed = state === "collapsed";
 
   const adminItems = [
@@ -22,6 +24,7 @@ export function AppSidebar() {
     { title: "Projetos", url: "/projetos", icon: FolderKanban },
     { title: "Usuários", url: "/admin/usuarios", icon: Users },
     { title: "Notificações", url: "/notificacoes", icon: Bell },
+    { title: "Configurações", url: "/admin/configuracoes", icon: Settings },
   ];
 
   const clientItems = [
@@ -37,8 +40,12 @@ export function AppSidebar() {
       <SidebarContent>
         <SidebarGroup>
           <SidebarGroupLabel className="flex items-center gap-2">
-            <LayoutDashboard className="h-4 w-4" />
-            {!collapsed && <span className="font-bold text-base">GestãoPro</span>}
+            {logo_url ? (
+              <img src={logo_url} alt="Logo" className="h-5 w-5 object-contain rounded" />
+            ) : (
+              <LayoutDashboard className="h-4 w-4" />
+            )}
+            {!collapsed && <span className="font-bold text-base">{app_name}</span>}
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
