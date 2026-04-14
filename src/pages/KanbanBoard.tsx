@@ -183,7 +183,7 @@ export default function KanbanBoard() {
               className="rounded-none gap-1.5"
               onClick={() => toggleViewMode("kanban")}
             >
-              <LayoutGrid className="h-4 w-4" /> Kanban
+              <LayoutGrid className="h-4 w-4" /> Card
             </Button>
             <Button
               variant={viewMode === "lista" ? "default" : "ghost"}
