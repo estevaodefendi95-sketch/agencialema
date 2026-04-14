@@ -521,7 +521,7 @@ export default function KanbanBoard() {
               </div>
             ))}
             {canEdit && (
-              <div className="rounded-lg border-2 border-dashed border-muted flex items-center justify-center min-h-[200px]">
+              <div className="rounded-lg border-2 border-dashed border-muted flex items-center justify-center min-h-[200px] min-w-[280px] w-[280px] shrink-0">
                 <Button variant="ghost" className="gap-1.5 text-muted-foreground" onClick={addColumn}>
                   <Plus className="h-4 w-4" /> Adicionar coluna
                 </Button>
