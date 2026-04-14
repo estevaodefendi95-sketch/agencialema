@@ -75,6 +75,7 @@ export default function KanbanBoard() {
   // Inline column editing
   const [editingColumnId, setEditingColumnId] = useState<string | null>(null);
   const [editColumnLabel, setEditColumnLabel] = useState("");
+  const [deleteColumnId, setDeleteColumnId] = useState<string | null>(null);
 
   const [viewMode, setViewMode] = useState<"kanban" | "lista">(() => {
     if (!projectId) return "kanban";
