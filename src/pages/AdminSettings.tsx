@@ -6,13 +6,14 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { Settings, Upload, X } from "lucide-react";
+import ImageCropper from "@/components/ImageCropper";
 
 export default function AdminSettings() {
   const { toast } = useToast();
   const [appName, setAppName] = useState("GestãoPro");
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [settingsId, setSettingsId] = useState<string | null>(null);
-  const [uploading, setUploading] = useState(false);
+  const [cropFile, setCropFile] = useState<File | null>(null);
 
   useEffect(() => {
     const load = async () => {
@@ -33,21 +34,10 @@ export default function AdminSettings() {
     window.dispatchEvent(new Event("app-settings-changed"));
   };
 
-  const uploadLogo = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
-    setUploading(true);
-    const ext = file.name.split(".").pop();
-    const path = `logos/app-logo-${Date.now()}.${ext}`;
-    const { error } = await supabase.storage.from("attachments").upload(path, file);
-    if (error) {
-      toast({ title: "Erro ao enviar logo", variant: "destructive" });
-      setUploading(false);
-      return;
-    }
-    const { data: urlData } = supabase.storage.from("attachments").getPublicUrl(path);
-    setLogoUrl(urlData.publicUrl);
-    setUploading(false);
+    if (file) setCropFile(file);
+    e.target.value = "";
   };
 
   return (
@@ -70,7 +60,7 @@ export default function AdminSettings() {
             <Label>Logo</Label>
             {logoUrl ? (
               <div className="flex items-center gap-3">
-                <img src={logoUrl} alt="Logo" className="h-12 w-12 object-contain rounded-lg border" />
+                <img src={logoUrl} alt="Logo" className="h-16 w-16 object-cover rounded-full border-2 border-border shadow-sm" />
                 <Button variant="ghost" size="sm" onClick={() => setLogoUrl(null)}>
                   <X className="h-4 w-4" /> Remover
                 </Button>
@@ -79,8 +69,8 @@ export default function AdminSettings() {
               <div>
                 <label className="flex items-center gap-2 cursor-pointer text-sm text-muted-foreground hover:text-foreground transition-colors">
                   <Upload className="h-4 w-4" />
-                  {uploading ? "Enviando..." : "Fazer upload da logo"}
-                  <input type="file" accept="image/*" className="hidden" onChange={uploadLogo} disabled={uploading} />
+                  Fazer upload da logo
+                  <input type="file" accept="image/*" className="hidden" onChange={handleFileSelect} />
                 </label>
               </div>
             )}
@@ -89,6 +79,17 @@ export default function AdminSettings() {
           <Button onClick={save} className="w-full">Salvar Configurações</Button>
         </CardContent>
       </Card>
+
+      {cropFile && (
+        <ImageCropper
+          file={cropFile}
+          open={!!cropFile}
+          onClose={() => setCropFile(null)}
+          onCropped={(url) => setLogoUrl(url)}
+          circular
+          uploadPath={`logos/app-logo-${Date.now()}.png`}
+        />
+      )}
     </div>
   );
 }

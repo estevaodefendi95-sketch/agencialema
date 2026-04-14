@@ -8,7 +8,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Building2, Pencil, Trash2, Upload } from "lucide-react";
+import { Plus, Building2, Pencil, Trash2, Upload, X } from "lucide-react";
+import ImageCropper from "@/components/ImageCropper";
 
 interface Company {
   id: string;
@@ -28,7 +29,7 @@ export default function Companies() {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
-  const [uploading, setUploading] = useState(false);
+  const [cropFile, setCropFile] = useState<File | null>(null);
 
   const load = async () => {
     const { data } = await supabase.from("companies").select("*").order("name");
@@ -40,21 +41,10 @@ export default function Companies() {
   const openNew = () => { setEditing(null); setName(""); setDescription(""); setLogoUrl(null); setOpen(true); };
   const openEdit = (c: Company) => { setEditing(c); setName(c.name); setDescription(c.description || ""); setLogoUrl(c.logo_url); setOpen(true); };
 
-  const uploadLogo = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
-    setUploading(true);
-    const ext = file.name.split(".").pop();
-    const path = `logos/company-${Date.now()}.${ext}`;
-    const { error } = await supabase.storage.from("attachments").upload(path, file);
-    if (error) {
-      toast({ title: "Erro ao enviar logo", variant: "destructive" });
-      setUploading(false);
-      return;
-    }
-    const { data: urlData } = supabase.storage.from("attachments").getPublicUrl(path);
-    setLogoUrl(urlData.publicUrl);
-    setUploading(false);
+    if (file) setCropFile(file);
+    e.target.value = "";
   };
 
   const save = async () => {
@@ -93,9 +83,9 @@ export default function Companies() {
             <CardHeader className="flex flex-row items-start justify-between">
               <div className="flex items-center gap-3">
                 {c.logo_url ? (
-                  <img src={c.logo_url} alt={c.name} className="h-10 w-10 object-contain rounded-lg border" />
+                  <img src={c.logo_url} alt={c.name} className="h-10 w-10 object-cover rounded-full border" />
                 ) : (
-                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
                     <Building2 className="h-5 w-5 text-primary" />
                   </div>
                 )}
@@ -145,14 +135,16 @@ export default function Companies() {
               <Label>Logo</Label>
               {logoUrl ? (
                 <div className="flex items-center gap-3">
-                  <img src={logoUrl} alt="Logo" className="h-10 w-10 object-contain rounded-lg border" />
-                  <Button variant="ghost" size="sm" onClick={() => setLogoUrl(null)}>Remover</Button>
+                  <img src={logoUrl} alt="Logo" className="h-12 w-12 object-cover rounded-full border-2 border-border shadow-sm" />
+                  <Button variant="ghost" size="sm" onClick={() => setLogoUrl(null)}>
+                    <X className="h-4 w-4 mr-1" /> Remover
+                  </Button>
                 </div>
               ) : (
                 <label className="flex items-center gap-2 cursor-pointer text-sm text-muted-foreground hover:text-foreground transition-colors">
                   <Upload className="h-4 w-4" />
-                  {uploading ? "Enviando..." : "Upload logo"}
-                  <input type="file" accept="image/*" className="hidden" onChange={uploadLogo} disabled={uploading} />
+                  Upload logo
+                  <input type="file" accept="image/*" className="hidden" onChange={handleFileSelect} />
                 </label>
               )}
             </div>
@@ -163,6 +155,17 @@ export default function Companies() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {cropFile && (
+        <ImageCropper
+          file={cropFile}
+          open={!!cropFile}
+          onClose={() => setCropFile(null)}
+          onCropped={(url) => setLogoUrl(url)}
+          circular
+          uploadPath={`logos/company-${Date.now()}.png`}
+        />
+      )}
     </div>
   );
 }

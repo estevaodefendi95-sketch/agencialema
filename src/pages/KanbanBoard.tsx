@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { DragDropContext, Droppable, Draggable, type DropResult } from "@hello-pangea/dnd";
-import { Plus, GripVertical, Calendar, MessageSquare, CheckSquare, ThumbsUp, RotateCcw } from "lucide-react";
+import { Plus, GripVertical, Calendar, ThumbsUp, RotateCcw, ImageIcon, Play } from "lucide-react";
 import TaskDetail from "@/components/TaskDetail";
 
 type TaskStatus = "a_fazer" | "em_andamento" | "concluido" | "aprovado";
@@ -26,6 +26,12 @@ interface Task {
   position: number;
   assigned_to: string | null;
   project_id: string;
+}
+
+interface MediaInfo {
+  file_url: string;
+  file_type: string;
+  count: number;
 }
 
 const COLUMNS: { id: TaskStatus; label: string; color: string }[] = [
@@ -47,6 +53,7 @@ export default function KanbanBoard() {
   const { isAdmin, user, canEdit } = useAuth();
   const { toast } = useToast();
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [taskMedia, setTaskMedia] = useState<Record<string, MediaInfo>>({});
   const [projectName, setProjectName] = useState("");
   const [newTaskOpen, setNewTaskOpen] = useState(false);
   const [selectedTask, setSelectedTask] = useState<string | null>(null);
@@ -61,7 +68,28 @@ export default function KanbanBoard() {
     const { data: proj } = await supabase.from("projects").select("name").eq("id", projectId).single();
     setProjectName(proj?.name || "");
     const { data } = await supabase.from("tasks").select("*").eq("project_id", projectId).order("position");
-    setTasks((data as Task[]) || []);
+    const taskList = (data as Task[]) || [];
+    setTasks(taskList);
+
+    // Load media for all tasks
+    const taskIds = taskList.map((t) => t.id);
+    if (taskIds.length > 0) {
+      const { data: mediaData } = await supabase
+        .from("task_media")
+        .select("task_id, file_url, file_type")
+        .in("task_id", taskIds)
+        .order("created_at");
+
+      const mediaMap: Record<string, MediaInfo> = {};
+      (mediaData || []).forEach((m) => {
+        if (!mediaMap[m.task_id]) {
+          mediaMap[m.task_id] = { file_url: m.file_url, file_type: m.file_type, count: 1 };
+        } else {
+          mediaMap[m.task_id].count++;
+        }
+      });
+      setTaskMedia(mediaMap);
+    }
   }, [projectId]);
 
   useEffect(() => { load(); }, [load]);
@@ -135,55 +163,88 @@ export default function KanbanBoard() {
               <Droppable droppableId={col.id}>
                 {(provided) => (
                   <div ref={provided.innerRef} {...provided.droppableProps} className="space-y-2 min-h-[100px]">
-                    {getColumnTasks(col.id).map((task, index) => (
-                      <Draggable key={task.id} draggableId={task.id} index={index}>
-                        {(provided, snapshot) => (
-                          <div
-                            ref={provided.innerRef}
-                            {...provided.draggableProps}
-                            className={`bg-card rounded-lg border p-3 shadow-sm transition-shadow ${
-                              snapshot.isDragging ? "shadow-lg" : "hover:shadow-md"
-                            }`}
-                          >
-                            <div className="flex items-start gap-2">
-                              <div {...provided.dragHandleProps} className="mt-0.5 cursor-grab">
-                                <GripVertical className="h-4 w-4 text-muted-foreground" />
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <p
-                                  className="font-medium text-sm cursor-pointer hover:text-primary truncate"
+                    {getColumnTasks(col.id).map((task, index) => {
+                      const media = taskMedia[task.id];
+                      return (
+                        <Draggable key={task.id} draggableId={task.id} index={index}>
+                          {(provided, snapshot) => (
+                            <div
+                              ref={provided.innerRef}
+                              {...provided.draggableProps}
+                              className={`bg-card rounded-lg border overflow-hidden shadow-sm transition-shadow ${
+                                snapshot.isDragging ? "shadow-lg" : "hover:shadow-md"
+                              }`}
+                            >
+                              {/* Media thumbnail */}
+                              {media && (
+                                <div
+                                  className="relative h-28 w-full cursor-pointer"
                                   onClick={() => setSelectedTask(task.id)}
                                 >
-                                  {task.title}
-                                </p>
-                                <div className="flex items-center gap-2 mt-2 flex-wrap">
-                                  <Badge className={`text-xs ${PRIORITY_COLORS[task.priority] || ""}`} variant="secondary">
-                                    {task.priority}
-                                  </Badge>
-                                  {task.due_date && (
-                                    <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                                      <Calendar className="h-3 w-3" />
-                                      {new Date(task.due_date).toLocaleDateString("pt-BR")}
-                                    </span>
+                                  {media.file_type === "video" ? (
+                                    <div className="relative h-full w-full bg-muted flex items-center justify-center">
+                                      <Play className="h-8 w-8 text-muted-foreground" />
+                                    </div>
+                                  ) : (
+                                    <img
+                                      src={media.file_url}
+                                      alt=""
+                                      className="w-full h-full object-cover"
+                                    />
+                                  )}
+                                  {media.count > 1 && (
+                                    <Badge
+                                      variant="secondary"
+                                      className="absolute top-1 right-1 text-[10px] px-1.5 py-0.5 bg-background/80 backdrop-blur-sm"
+                                    >
+                                      <ImageIcon className="h-3 w-3 mr-0.5" />
+                                      +{media.count - 1}
+                                    </Badge>
                                   )}
                                 </div>
-                                {/* Approval buttons for clients on "concluido" tasks */}
-                                {!isAdmin && task.status === "concluido" && (
-                                  <div className="flex gap-2 mt-2">
-                                    <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => approveTask(task.id)}>
-                                      <ThumbsUp className="h-3 w-3" /> Aprovar
-                                    </Button>
-                                    <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => requestAdjust(task.id)}>
-                                      <RotateCcw className="h-3 w-3" /> Ajuste
-                                    </Button>
+                              )}
+
+                              <div className="p-3">
+                                <div className="flex items-start gap-2">
+                                  <div {...provided.dragHandleProps} className="mt-0.5 cursor-grab">
+                                    <GripVertical className="h-4 w-4 text-muted-foreground" />
                                   </div>
-                                )}
+                                  <div className="flex-1 min-w-0">
+                                    <p
+                                      className="font-medium text-sm cursor-pointer hover:text-primary truncate"
+                                      onClick={() => setSelectedTask(task.id)}
+                                    >
+                                      {task.title}
+                                    </p>
+                                    <div className="flex items-center gap-2 mt-2 flex-wrap">
+                                      <Badge className={`text-xs ${PRIORITY_COLORS[task.priority] || ""}`} variant="secondary">
+                                        {task.priority}
+                                      </Badge>
+                                      {task.due_date && (
+                                        <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                                          <Calendar className="h-3 w-3" />
+                                          {new Date(task.due_date).toLocaleDateString("pt-BR")}
+                                        </span>
+                                      )}
+                                    </div>
+                                    {!isAdmin && task.status === "concluido" && (
+                                      <div className="flex gap-2 mt-2">
+                                        <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => approveTask(task.id)}>
+                                          <ThumbsUp className="h-3 w-3" /> Aprovar
+                                        </Button>
+                                        <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => requestAdjust(task.id)}>
+                                          <RotateCcw className="h-3 w-3" /> Ajuste
+                                        </Button>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
                               </div>
                             </div>
-                          </div>
-                        )}
-                      </Draggable>
-                    ))}
+                          )}
+                        </Draggable>
+                      );
+                    })}
                     {provided.placeholder}
                   </div>
                 )}
@@ -241,7 +302,6 @@ export default function KanbanBoard() {
         </DialogContent>
       </Dialog>
 
-      {/* Task Detail */}
       {selectedTask && (
         <TaskDetail taskId={selectedTask} onClose={() => { setSelectedTask(null); load(); }} />
       )}
