@@ -40,11 +40,9 @@ export default function AdminSettings() {
 
   const save = async () => {
     if (!settingsId) return;
-    const payload: Record<string, unknown> = { app_name: appName, logo_url: logoUrl };
-    if (isMaster) {
-      payload.login_app_name = loginAppName;
-      payload.login_logo_url = loginLogoUrl;
-    }
+    const payload = isMaster
+      ? { app_name: appName, logo_url: logoUrl, login_app_name: loginAppName, login_logo_url: loginLogoUrl }
+      : { app_name: appName, logo_url: logoUrl };
     await supabase.from("app_settings").update(payload).eq("id", settingsId);
     toast({ title: "Configurações salvas" });
     window.dispatchEvent(new Event("app-settings-changed"));

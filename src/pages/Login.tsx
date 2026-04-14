@@ -96,10 +96,14 @@ export default function Login() {
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
-          <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-lg bg-primary">
-            <LayoutDashboard className="h-6 w-6 text-primary-foreground" />
-          </div>
-          <CardTitle className="text-2xl">GestãoPro</CardTitle>
+          {loginSettings.login_logo_url ? (
+            <img src={loginSettings.login_logo_url} alt="Logo" className="mx-auto mb-2 h-12 w-12 object-cover rounded-full" />
+          ) : (
+            <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-lg bg-primary">
+              <LayoutDashboard className="h-6 w-6 text-primary-foreground" />
+            </div>
+          )}
+          <CardTitle className="text-2xl">{loginSettings.login_app_name}</CardTitle>
           <CardDescription>Gestão de projetos para prestadores de serviço</CardDescription>
         </CardHeader>
         <CardContent>
