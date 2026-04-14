@@ -1,38 +1,30 @@
 
 
-## Plano: Agrupamento por subcategorias + Filtros de ordenação
+## Plano: Logo do cliente nos Projetos + Nome do cliente no Kanban + Mover tarefas na lista
 
-### 1. Projetos (`Projects.tsx`) — Agrupar por empresa + filtros
+### 1. Logo do cliente na página de Projetos (`Projects.tsx`)
 
-**Agrupamento**: Em ambos os modos (card e lista), agrupar os projetos por empresa. Cada empresa vira uma seção com título (nome da empresa) e seus projetos abaixo.
+- Alterar a query para incluir `companies(name, logo_url)`
+- Atualizar interface `Project` para incluir `logo_url` na relação
+- No cabeçalho de cada grupo (empresa), exibir a logo ao lado do nome (substituir o ícone `Building2` pela imagem quando disponível)
+- No modo card, substituir o ícone `FolderKanban` pela logo da empresa quando disponível
 
-**Filtros de ordenação**: Adicionar dois botões de sort no cabeçalho:
-- **Empresa** (A-Z / Z-A) — ordena os grupos de empresa
-- **Prazo** (mais próximo primeiro / mais distante primeiro)
+### 2. Nome do cliente discreto no Kanban (`KanbanBoard.tsx`)
 
-Estado salvo em `localStorage` para persistência.
+- Alterar a query do projeto para incluir `companies(name)` via join: `projects.select("name, company_id, companies(name)")`
+- Exibir o nome da empresa em texto pequeno e discreto acima do título do projeto (ex: `text-xs text-muted-foreground`)
 
-**Implementação**:
-- Derivar `groupedProjects` a partir de `projects`, agrupando por `companies.name`
-- Estado `sortField` ("empresa" | "prazo") e `sortDir` ("asc" | "desc")
-- No modo card: renderizar seções com título da empresa + grid de cards
-- No modo lista: renderizar rows com header de seção (empresa) usando `TableRow` com `colSpan`
+### 3. Mover tarefas na visualização Lista (`KanbanBoard.tsx`)
 
-### 2. Kanban/Projeto (`KanbanBoard.tsx`) — Agrupar lista por status + filtro prazo
-
-**Modo Lista**: Agrupar tarefas por status (subcategorias). Cada status vira uma seção colapsável ou com título separador (ex: "A Fazer", "Em Andamento", etc.) com as tarefas daquele status abaixo.
-
-**Filtro de prazo**: Botão toggle no cabeçalho para ordenar por prazo crescente/decrescente dentro de cada grupo de status.
-
-**Implementação**:
-- No modo lista, iterar sobre `COLUMNS` e renderizar um bloco por status com título + badge de contagem
-- Dentro de cada bloco, listar as tarefas ordenadas por prazo conforme o filtro
-- Estado `sortPrazo` ("asc" | "desc") com botão de toggle (ícone `ArrowUpDown`)
+- Adicionar uma coluna "Status" na tabela com um `Select` inline (dropdown)
+- Ao alterar o status no dropdown, atualizar no banco e recarregar as tarefas
+- Isso permite mover tarefas entre colunas sem precisar arrastar no modo card
 
 ### Resumo
 
 | Mudança | Arquivo |
 |---------|---------|
-| Agrupar projetos por empresa + sort empresa/prazo | `Projects.tsx` |
-| Agrupar tarefas por status na lista + sort prazo | `KanbanBoard.tsx` |
+| Logo da empresa nos grupos e cards | `Projects.tsx` |
+| Nome da empresa discreto acima do título | `KanbanBoard.tsx` |
+| Select de status na tabela lista | `KanbanBoard.tsx` |
 
