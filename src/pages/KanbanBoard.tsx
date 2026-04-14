@@ -279,12 +279,12 @@ export default function KanbanBoard() {
                                  </SelectContent>
                                </Select>
                              </TableCell>
-                             <TableCell>
+                             <TableCell onClick={() => setSelectedTask(task.id)}>
                               <Badge className={`text-xs ${PRIORITY_COLORS[task.priority] || ""}`} variant="secondary">
                                 {task.priority}
                               </Badge>
                             </TableCell>
-                            <TableCell>
+                            <TableCell onClick={() => setSelectedTask(task.id)}>
                               {task.due_date ? (
                                 <span className="flex items-center gap-1 text-xs text-muted-foreground">
                                   <Calendar className="h-3 w-3" />
@@ -294,7 +294,7 @@ export default function KanbanBoard() {
                                 <span className="text-xs text-muted-foreground">—</span>
                               )}
                             </TableCell>
-                            <TableCell>
+                            <TableCell onClick={() => setSelectedTask(task.id)}>
                               {media ? (
                                 <Badge variant="secondary" className="text-xs gap-1">
                                   <ImageIcon className="h-3 w-3" /> {media.count}
