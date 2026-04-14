@@ -227,8 +227,47 @@ export type Database = {
           },
         ]
       }
+      project_history: {
+        Row: {
+          action: string
+          created_at: string
+          id: string
+          new_data: Json | null
+          previous_data: Json | null
+          project_id: string
+          user_id: string | null
+        }
+        Insert: {
+          action: string
+          created_at?: string
+          id?: string
+          new_data?: Json | null
+          previous_data?: Json | null
+          project_id: string
+          user_id?: string | null
+        }
+        Update: {
+          action?: string
+          created_at?: string
+          id?: string
+          new_data?: Json | null
+          previous_data?: Json | null
+          project_id?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_history_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       projects: {
         Row: {
+          archived: boolean
           company_id: string
           created_at: string
           created_by: string | null
@@ -239,6 +278,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          archived?: boolean
           company_id: string
           created_at?: string
           created_by?: string | null
@@ -249,6 +289,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          archived?: boolean
           company_id?: string
           created_at?: string
           created_by?: string | null

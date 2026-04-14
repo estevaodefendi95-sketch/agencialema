@@ -10,8 +10,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, FolderKanban, Calendar, LayoutGrid, List, ArrowUpDown, Building2 } from "lucide-react";
+import { Plus, FolderKanban, Calendar, LayoutGrid, List, ArrowUpDown, Building2, MoreVertical, Pencil, Archive, ArchiveRestore, Trash2, Eye, EyeOff } from "lucide-react";
 
 interface Project {
   id: string;
@@ -19,6 +21,7 @@ interface Project {
   description: string | null;
   due_date: string | null;
   company_id: string;
+  archived: boolean;
   companies?: { name: string; logo_url: string | null } | null;
 }
 
@@ -28,7 +31,7 @@ type SortField = "empresa" | "prazo";
 type SortDir = "asc" | "desc";
 
 export default function Projects() {
-  const { isAdmin } = useAuth();
+  const { isAdmin, canEdit, user } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
   const [projects, setProjects] = useState<Project[]>([]);
@@ -38,6 +41,18 @@ export default function Projects() {
   const [description, setDescription] = useState("");
   const [companyId, setCompanyId] = useState("");
   const [dueDate, setDueDate] = useState("");
+  const [showArchived, setShowArchived] = useState(false);
+
+  // Edit project dialog
+  const [editOpen, setEditOpen] = useState(false);
+  const [editProject, setEditProject] = useState<Project | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editDescription, setEditDescription] = useState("");
+  const [editDueDate, setEditDueDate] = useState("");
+
+  // Delete confirm
+  const [deleteProjectId, setDeleteProjectId] = useState<string | null>(null);
+
   const [viewMode, setViewMode] = useState<"card" | "lista">(() =>
     (localStorage.getItem("view-mode-projetos") as "card" | "lista") || "card"
   );
@@ -50,7 +65,7 @@ export default function Projects() {
 
   const load = async () => {
     const { data } = await supabase.from("projects").select("*, companies(name, logo_url)").order("created_at", { ascending: false });
-    setProjects(data || []);
+    setProjects((data as any[])?.map(d => ({ ...d, archived: d.archived ?? false })) || []);
     if (isAdmin) {
       const { data: c } = await supabase.from("companies").select("id, name").order("name");
       setCompanies(c || []);
@@ -77,15 +92,19 @@ export default function Projects() {
     }
   };
 
+  const filteredProjects = useMemo(() =>
+    projects.filter(p => showArchived ? p.archived : !p.archived),
+    [projects, showArchived]
+  );
+
   const groupedProjects = useMemo(() => {
     const groups: Record<string, { projects: Project[]; logoUrl: string | null }> = {};
-    projects.forEach((p) => {
+    filteredProjects.forEach((p) => {
       const companyName = (p.companies as any)?.name || "Sem empresa";
       if (!groups[companyName]) groups[companyName] = { projects: [], logoUrl: (p.companies as any)?.logo_url || null };
       groups[companyName].projects.push(p);
     });
 
-    // Sort projects within each group by prazo
     Object.values(groups).forEach((group) => {
       if (sortField === "prazo") {
         group.projects.sort((a, b) => {
@@ -96,30 +115,125 @@ export default function Projects() {
       }
     });
 
-    // Sort group names
     const sortedKeys = Object.keys(groups).sort((a, b) => {
       if (sortField === "empresa") {
         return sortDir === "asc" ? a.localeCompare(b) : b.localeCompare(a);
       }
-      // When sorting by prazo, sort groups by earliest due date in each group
       const earliest = (g: { projects: Project[] }) => {
         const dates = g.projects.filter(p => p.due_date).map(p => new Date(p.due_date!).getTime());
         return dates.length ? Math.min(...dates) : Infinity;
       };
-      const ea = earliest(groups[a]);
-      const eb = earliest(groups[b]);
-      return sortDir === "asc" ? ea - eb : eb - ea;
+      return sortDir === "asc" ? earliest(groups[a]) - earliest(groups[b]) : earliest(groups[b]) - earliest(groups[a]);
     });
 
     return sortedKeys.map((key) => ({ companyName: key, logoUrl: groups[key].logoUrl, projects: groups[key].projects }));
-  }, [projects, sortField, sortDir]);
+  }, [filteredProjects, sortField, sortDir]);
+
+  const logHistory = async (projectId: string, action: string, previousData: any, newData: any) => {
+    await (supabase.from as any)("project_history").insert({
+      project_id: projectId,
+      action,
+      previous_data: previousData,
+      new_data: newData,
+      user_id: user?.id,
+    });
+  };
 
   const save = async () => {
-    await supabase.from("projects").insert({ name, description, company_id: companyId, due_date: dueDate || null });
+    const { data } = await supabase.from("projects").insert({ name, description, company_id: companyId, due_date: dueDate || null }).select().single();
+    if (data) {
+      await logHistory(data.id, "create", null, { name, description, due_date: dueDate || null });
+    }
     toast({ title: "Projeto criado" });
     setOpen(false);
     setName(""); setDescription(""); setCompanyId(""); setDueDate("");
     load();
+  };
+
+  const openEdit = (p: Project) => {
+    setEditProject(p);
+    setEditName(p.name);
+    setEditDescription(p.description || "");
+    setEditDueDate(p.due_date || "");
+    setEditOpen(true);
+  };
+
+  const saveEdit = async () => {
+    if (!editProject) return;
+    const updates: any = {};
+    const prev: any = {};
+    const next: any = {};
+
+    if (editName !== editProject.name) {
+      updates.name = editName;
+      prev.name = editProject.name;
+      next.name = editName;
+    }
+    if (editDescription !== (editProject.description || "")) {
+      updates.description = editDescription || null;
+      prev.description = editProject.description;
+      next.description = editDescription || null;
+    }
+    const newDue = editDueDate || null;
+    if (newDue !== editProject.due_date) {
+      updates.due_date = newDue;
+      prev.due_date = editProject.due_date;
+      next.due_date = newDue;
+    }
+
+    if (Object.keys(updates).length === 0) {
+      setEditOpen(false);
+      return;
+    }
+
+    await supabase.from("projects").update(updates).eq("id", editProject.id);
+    await logHistory(editProject.id, "update", prev, next);
+    toast({ title: "Projeto atualizado" });
+    setEditOpen(false);
+    setEditProject(null);
+    load();
+  };
+
+  const archiveProject = async (p: Project) => {
+    const newArchived = !p.archived;
+    await supabase.from("projects").update({ archived: newArchived } as any).eq("id", p.id);
+    await logHistory(p.id, newArchived ? "archive" : "unarchive", { archived: p.archived }, { archived: newArchived });
+    toast({ title: newArchived ? "Projeto arquivado" : "Projeto desarquivado" });
+    load();
+  };
+
+  const deleteProject = async (id: string) => {
+    await logHistory(id, "delete", { id }, null);
+    await supabase.from("tasks").delete().eq("project_id", id);
+    await supabase.from("projects").delete().eq("id", id);
+    toast({ title: "Projeto excluído" });
+    setDeleteProjectId(null);
+    load();
+  };
+
+  const ProjectActions = ({ p }: { p: Project }) => {
+    if (!canEdit) return null;
+    return (
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={(e) => e.stopPropagation()}>
+            <MoreVertical className="h-4 w-4" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+          <DropdownMenuItem onClick={() => openEdit(p)}>
+            <Pencil className="h-4 w-4 mr-2" /> Editar
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => archiveProject(p)}>
+            {p.archived ? <ArchiveRestore className="h-4 w-4 mr-2" /> : <Archive className="h-4 w-4 mr-2" />}
+            {p.archived ? "Desarquivar" : "Arquivar"}
+          </DropdownMenuItem>
+          <DropdownMenuItem className="text-destructive" onClick={() => setDeleteProjectId(p.id)}>
+            <Trash2 className="h-4 w-4 mr-2" /> Excluir
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    );
   };
 
   return (
@@ -127,7 +241,15 @@ export default function Projects() {
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold">Projetos</h2>
         <div className="flex items-center gap-2">
-          {/* Sort buttons */}
+          <Button
+            variant={showArchived ? "secondary" : "ghost"}
+            size="sm"
+            className="gap-1.5 text-xs"
+            onClick={() => setShowArchived(!showArchived)}
+          >
+            {showArchived ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+            {showArchived ? "Arquivados" : "Ativos"}
+          </Button>
           <Button
             variant={sortField === "empresa" ? "secondary" : "ghost"}
             size="sm"
@@ -183,6 +305,7 @@ export default function Projects() {
                       <TableHead>Nome</TableHead>
                       <TableHead>Prazo</TableHead>
                       <TableHead>Descrição</TableHead>
+                      {canEdit && <TableHead className="w-10" />}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -200,6 +323,11 @@ export default function Projects() {
                           )}
                         </TableCell>
                         <TableCell className="text-muted-foreground text-sm max-w-[200px] truncate">{p.description || "—"}</TableCell>
+                        {canEdit && (
+                          <TableCell>
+                            <ProjectActions p={p} />
+                          </TableCell>
+                        )}
                       </TableRow>
                     ))}
                   </TableBody>
@@ -207,10 +335,10 @@ export default function Projects() {
               </div>
             </div>
           ))}
-          {projects.length === 0 && (
+          {filteredProjects.length === 0 && (
             <div className="text-center py-12 text-muted-foreground">
               <FolderKanban className="mx-auto h-12 w-12 mb-4 opacity-50" />
-              <p>Nenhum projeto encontrado</p>
+              <p>{showArchived ? "Nenhum projeto arquivado" : "Nenhum projeto encontrado"}</p>
             </div>
           )}
         </div>
@@ -229,7 +357,7 @@ export default function Projects() {
               </div>
               <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
                 {group.projects.map((p) => (
-                  <Card key={p.id} className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate(`/projetos/${p.id}`)}>
+                  <Card key={p.id} className="cursor-pointer hover:shadow-md transition-shadow relative" onClick={() => navigate(`/projetos/${p.id}`)}>
                     <CardHeader>
                       <div className="flex items-center gap-3">
                         {(p.companies as any)?.logo_url ? (
@@ -239,10 +367,11 @@ export default function Projects() {
                             <FolderKanban className="h-5 w-5 text-primary" />
                           </div>
                         )}
-                        <div>
+                        <div className="flex-1 min-w-0">
                           <CardTitle className="text-base">{p.name}</CardTitle>
                           <CardDescription>{(p.companies as any)?.name}</CardDescription>
                         </div>
+                        <ProjectActions p={p} />
                       </div>
                     </CardHeader>
                     <CardContent>
@@ -259,15 +388,16 @@ export default function Projects() {
             </div>
           ))}
 
-          {projects.length === 0 && (
+          {filteredProjects.length === 0 && (
             <div className="text-center py-12 text-muted-foreground">
               <FolderKanban className="mx-auto h-12 w-12 mb-4 opacity-50" />
-              <p>Nenhum projeto encontrado</p>
+              <p>{showArchived ? "Nenhum projeto arquivado" : "Nenhum projeto encontrado"}</p>
             </div>
           )}
         </>
       )}
 
+      {/* New Project Dialog */}
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>
           <DialogHeader><DialogTitle>Novo Projeto</DialogTitle></DialogHeader>
@@ -300,6 +430,47 @@ export default function Projects() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Edit Project Dialog */}
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Editar Projeto</DialogTitle></DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Nome do Projeto</Label>
+              <Input value={editName} onChange={(e) => setEditName(e.target.value)} placeholder="Nome do projeto" />
+            </div>
+            <div className="space-y-2">
+              <Label>Descrição</Label>
+              <Textarea value={editDescription} onChange={(e) => setEditDescription(e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label>Prazo</Label>
+              <Input type="date" value={editDueDate} onChange={(e) => setEditDueDate(e.target.value)} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditOpen(false)}>Cancelar</Button>
+            <Button onClick={saveEdit} disabled={!editName}>Salvar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirm */}
+      <AlertDialog open={!!deleteProjectId} onOpenChange={(open) => { if (!open) setDeleteProjectId(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir projeto?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta ação é irreversível. Todas as tarefas do projeto serão excluídas.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={() => deleteProjectId && deleteProject(deleteProjectId)}>Excluir</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

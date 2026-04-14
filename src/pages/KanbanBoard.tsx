@@ -12,8 +12,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useToast } from "@/hooks/use-toast";
 import { DragDropContext, Droppable, Draggable, type DropResult } from "@hello-pangea/dnd";
-import { Plus, GripVertical, Calendar, ThumbsUp, RotateCcw, ImageIcon, Play, LayoutGrid, List, ArrowUpDown, Pencil, Check, X, Trash2, Palette } from "lucide-react";
+import { Plus, GripVertical, Calendar, ThumbsUp, RotateCcw, ImageIcon, Play, LayoutGrid, List, ArrowUpDown, Pencil, Check, X, Trash2, Palette, History, Undo2 } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import TaskDetail from "@/components/TaskDetail";
 
 const COLOR_PALETTE = [
@@ -42,6 +44,25 @@ interface Column {
   position: number;
 }
 
+interface HistoryEntry {
+  id: string;
+  project_id: string;
+  action: string;
+  previous_data: any;
+  new_data: any;
+  user_id: string | null;
+  created_at: string;
+  profiles?: { full_name: string | null } | null;
+}
+
+const ACTION_LABELS: Record<string, string> = {
+  create: "Projeto criado",
+  update: "Projeto atualizado",
+  archive: "Projeto arquivado",
+  unarchive: "Projeto desarquivado",
+  delete: "Projeto excluído",
+  undo: "Alteração desfeita",
+};
 interface MediaInfo {
   file_url: string;
   file_type: string;
@@ -261,6 +282,66 @@ export default function KanbanBoard() {
     setTasks((prev) => prev.map((t) => (t.id === taskId ? { ...t, color } : t)));
   };
 
+  // History
+  const [history, setHistory] = useState<HistoryEntry[]>([]);
+  const [historyOpen, setHistoryOpen] = useState(false);
+
+  const loadHistory = useCallback(async () => {
+    if (!projectId) return;
+    const { data } = await (supabase.from as any)("project_history")
+      .select("*, profiles:user_id(full_name)")
+      .eq("project_id", projectId)
+      .order("created_at", { ascending: false })
+      .limit(50);
+    setHistory(data || []);
+  }, [projectId]);
+
+  useEffect(() => {
+    if (historyOpen) loadHistory();
+  }, [historyOpen, loadHistory]);
+
+  const undoHistory = async (entry: HistoryEntry) => {
+    if (!entry.previous_data || !projectId) return;
+    // Restore previous data
+    const updates: any = {};
+    if (entry.previous_data.name !== undefined) updates.name = entry.previous_data.name;
+    if (entry.previous_data.description !== undefined) updates.description = entry.previous_data.description;
+    if (entry.previous_data.due_date !== undefined) updates.due_date = entry.previous_data.due_date;
+    if (entry.previous_data.archived !== undefined) updates.archived = entry.previous_data.archived;
+
+    if (Object.keys(updates).length === 0) return;
+
+    await supabase.from("projects").update(updates).eq("id", projectId);
+    await (supabase.from as any)("project_history").insert({
+      project_id: projectId,
+      action: "undo",
+      previous_data: entry.new_data,
+      new_data: entry.previous_data,
+      user_id: user?.id,
+    });
+
+    if (updates.name) setProjectName(updates.name);
+    toast({ title: "Alteração desfeita" });
+    loadHistory();
+    load();
+  };
+
+  const formatHistoryDetails = (entry: HistoryEntry) => {
+    const parts: string[] = [];
+    if (entry.previous_data?.name && entry.new_data?.name) {
+      parts.push(`Nome: "${entry.previous_data.name}" → "${entry.new_data.name}"`);
+    }
+    if (entry.previous_data?.description !== undefined || entry.new_data?.description !== undefined) {
+      parts.push("Descrição alterada");
+    }
+    if (entry.previous_data?.due_date !== undefined || entry.new_data?.due_date !== undefined) {
+      const prev = entry.previous_data?.due_date ? new Date(entry.previous_data.due_date).toLocaleDateString("pt-BR") : "sem prazo";
+      const next = entry.new_data?.due_date ? new Date(entry.new_data.due_date).toLocaleDateString("pt-BR") : "sem prazo";
+      parts.push(`Prazo: ${prev} → ${next}`);
+    }
+    return parts.join(" | ") || ACTION_LABELS[entry.action] || entry.action;
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -293,6 +374,42 @@ export default function KanbanBoard() {
               Prazo {sortPrazo === "asc" ? "↑" : "↓"}
             </Button>
           )}
+          <Sheet open={historyOpen} onOpenChange={setHistoryOpen}>
+            <SheetTrigger asChild>
+              <Button variant="ghost" size="sm" className="gap-1.5 text-xs">
+                <History className="h-3.5 w-3.5" /> Histórico
+              </Button>
+            </SheetTrigger>
+            <SheetContent className="w-[400px] sm:w-[450px]">
+              <SheetHeader>
+                <SheetTitle>Histórico do Projeto</SheetTitle>
+              </SheetHeader>
+              <ScrollArea className="h-[calc(100vh-80px)] mt-4 pr-4">
+                <div className="space-y-3">
+                  {history.length === 0 && (
+                    <p className="text-sm text-muted-foreground text-center py-8">Nenhum registro</p>
+                  )}
+                  {history.map((entry) => (
+                    <div key={entry.id} className="border rounded-lg p-3 space-y-1">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium">{ACTION_LABELS[entry.action] || entry.action}</span>
+                        {entry.previous_data && entry.action !== "create" && entry.action !== "delete" && (
+                          <Button variant="ghost" size="sm" className="h-6 gap-1 text-xs" onClick={() => undoHistory(entry)}>
+                            <Undo2 className="h-3 w-3" /> Desfazer
+                          </Button>
+                        )}
+                      </div>
+                      <p className="text-xs text-muted-foreground">{formatHistoryDetails(entry)}</p>
+                      <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+                        <span>{(entry.profiles as any)?.full_name || "Sistema"}</span>
+                        <span>{new Date(entry.created_at).toLocaleString("pt-BR")}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </ScrollArea>
+            </SheetContent>
+          </Sheet>
           {canEdit && (
             <Button onClick={() => setNewTaskOpen(true)} className="gap-2">
               <Plus className="h-4 w-4" /> Nova Tarefa
