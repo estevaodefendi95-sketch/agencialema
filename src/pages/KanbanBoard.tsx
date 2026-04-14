@@ -582,6 +582,21 @@ export default function KanbanBoard() {
       {selectedTask && (
         <TaskDetail taskId={selectedTask} onClose={() => { setSelectedTask(null); load(); }} onTaskDeleted={load} />
       )}
+
+      <AlertDialog open={!!deleteColumnId} onOpenChange={(open) => { if (!open) setDeleteColumnId(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir coluna "{columns.find((c) => c.id === deleteColumnId)?.label}"?</AlertDialogTitle>
+            <AlertDialogDescription>
+              As tarefas desta coluna serão movidas para a primeira coluna restante.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={() => deleteColumnId && deleteColumn(deleteColumnId)}>Excluir</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
