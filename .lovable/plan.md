@@ -1,53 +1,41 @@
 
 
-## Plano: Editar e Excluir no Card e Mídias
+## Plano: Login Social (Google + Apple) e Admin Master
 
-### 1. Editar informações da tarefa no TaskDetail
+### 1. Login com Google e Apple
 
-Adicionar campos editáveis no topo do `TaskDetail.tsx`:
-- Título e descrição passam a ser editáveis inline (clique para editar)
-- Campos de prioridade, prazo e responsável editáveis
-- Botão "Salvar" ao detectar mudanças
-- Registrar alterações no `task_history`
+Adicionar botões "Google" e "Apple" na tela de login, seguindo o estilo da imagem de referência (botões lado a lado abaixo do formulário, separados por "OU CONTINUE COM").
 
-### 2. Excluir tarefa
+**Implementação:**
+- Usar `lovable.auth.signInWithOAuth("google")` e `lovable.auth.signInWithOAuth("apple")` (Lovable Cloud managed)
+- Chamar a ferramenta **Configure Social Auth** para gerar o módulo `src/integrations/lovable/`
+- Atualizar `Login.tsx` com os botões sociais e o separador visual
+- Redesenhar a tela de login seguindo o estilo dark da referência: fundo escuro, botão principal verde/emerald, ícones nos inputs, toggle de visibilidade da senha, link "Esqueceu a senha?"
+- Separar login e cadastro: login como view principal, link "Não tem conta? Cadastre-se" embaixo
 
-- Botão "Excluir Tarefa" com confirmação (AlertDialog) no `TaskDetail.tsx`
-- Remove a tarefa e fecha o dialog
-- Visível apenas para admin e editor (`canEdit`)
+### 2. Admin Master (estevaodefendi95@gmail.com)
 
-### 3. Excluir mídias individuais
+Garantir que **apenas** a conta `estevaodefendi95@gmail.com` tenha acesso completo de admin a todas as configurações e todos os usuários/empresas.
 
-- Botão X (já existe o ícone importado) sobre cada mídia no `TaskDetail.tsx`
-- Remove do `task_media` e do storage
-- Confirmação simples antes de deletar
+**Implementação:**
+- Criar uma migration que insere o role `admin` para esse email na tabela `user_roles` (via trigger ou verificação no signup)
+- Adicionar um trigger no banco: quando um usuário com esse email faz signup (inclusive via Google/Apple), automaticamente recebe status `aprovado` e role `admin`
+- Proteger as rotas `/admin/*` no frontend verificando `isAdmin`
+- Adicionar verificação no `AuthContext` ou nas páginas admin para garantir que apenas admins acessem
 
-### 4. Editar/excluir comentários
+### 3. Fluxo de usuários OAuth
 
-- Botão de excluir no comentário (apenas para o autor ou admin)
-- Botão de editar que transforma o texto em textarea inline
-
-### 5. Editar/excluir itens do checklist
-
-- Botão X para remover item do checklist
-- Clique no texto para editar inline
-
-### 6. Migração: adicionar DELETE policies
-
-Preciso adicionar políticas RLS de DELETE nas tabelas que ainda não permitem:
-- `task_media` — admin e editors podem deletar
-- `task_comments` — autor pode deletar, admin pode deletar
-- `task_checklists` — admin e editors podem deletar
-- `tasks` — admin e editors podem deletar
+Quando um usuário faz login via Google/Apple pela primeira vez:
+- O trigger existente de `handle_new_user` cria o perfil com status `pendente`
+- Exceto se for `estevaodefendi95@gmail.com` → status `aprovado` + role `admin` automaticamente
+- Demais usuários aguardam aprovação do admin
 
 ### Resumo Técnico
 
-| Mudança | Arquivo |
-|---------|---------|
-| Edição inline de título/descrição/prioridade/prazo | `TaskDetail.tsx` |
-| Botão excluir tarefa com confirmação | `TaskDetail.tsx` |
-| Botão X para excluir mídias | `TaskDetail.tsx` |
-| Editar/excluir comentários | `TaskDetail.tsx` |
-| Editar/excluir checklist items | `TaskDetail.tsx` |
-| DELETE RLS policies | Nova migration |
+| Mudança | Tipo |
+|---------|------|
+| Configurar Social Auth (Google + Apple) | Ferramenta |
+| Redesenhar `Login.tsx` com botões sociais | Edição |
+| Migration: trigger para auto-aprovar admin master | Migration |
+| Proteger rotas admin no frontend | Verificação |
 
