@@ -44,7 +44,7 @@ const PRIORITY_COLORS: Record<string, string> = {
 
 export default function KanbanBoard() {
   const { id: projectId } = useParams<{ id: string }>();
-  const { isAdmin, user } = useAuth();
+  const { isAdmin, user, canEdit } = useAuth();
   const { toast } = useToast();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [projectName, setProjectName] = useState("");
