@@ -19,7 +19,7 @@ interface Project {
   description: string | null;
   due_date: string | null;
   company_id: string;
-  companies?: { name: string } | null;
+  companies?: { name: string; logo_url: string | null } | null;
 }
 
 interface Company { id: string; name: string; }
@@ -49,7 +49,7 @@ export default function Projects() {
   );
 
   const load = async () => {
-    const { data } = await supabase.from("projects").select("*, companies(name)").order("created_at", { ascending: false });
+    const { data } = await supabase.from("projects").select("*, companies(name, logo_url)").order("created_at", { ascending: false });
     setProjects(data || []);
     if (isAdmin) {
       const { data: c } = await supabase.from("companies").select("id, name").order("name");
@@ -78,17 +78,17 @@ export default function Projects() {
   };
 
   const groupedProjects = useMemo(() => {
-    const groups: Record<string, Project[]> = {};
+    const groups: Record<string, { projects: Project[]; logoUrl: string | null }> = {};
     projects.forEach((p) => {
       const companyName = (p.companies as any)?.name || "Sem empresa";
-      if (!groups[companyName]) groups[companyName] = [];
-      groups[companyName].push(p);
+      if (!groups[companyName]) groups[companyName] = { projects: [], logoUrl: (p.companies as any)?.logo_url || null };
+      groups[companyName].projects.push(p);
     });
 
     // Sort projects within each group by prazo
-    Object.values(groups).forEach((list) => {
+    Object.values(groups).forEach((group) => {
       if (sortField === "prazo") {
-        list.sort((a, b) => {
+        group.projects.sort((a, b) => {
           const da = a.due_date ? new Date(a.due_date).getTime() : Infinity;
           const db = b.due_date ? new Date(b.due_date).getTime() : Infinity;
           return sortDir === "asc" ? da - db : db - da;
@@ -102,8 +102,8 @@ export default function Projects() {
         return sortDir === "asc" ? a.localeCompare(b) : b.localeCompare(a);
       }
       // When sorting by prazo, sort groups by earliest due date in each group
-      const earliest = (list: Project[]) => {
-        const dates = list.filter(p => p.due_date).map(p => new Date(p.due_date!).getTime());
+      const earliest = (g: { projects: Project[] }) => {
+        const dates = g.projects.filter(p => p.due_date).map(p => new Date(p.due_date!).getTime());
         return dates.length ? Math.min(...dates) : Infinity;
       };
       const ea = earliest(groups[a]);
@@ -111,7 +111,7 @@ export default function Projects() {
       return sortDir === "asc" ? ea - eb : eb - ea;
     });
 
-    return sortedKeys.map((key) => ({ companyName: key, projects: groups[key] }));
+    return sortedKeys.map((key) => ({ companyName: key, logoUrl: groups[key].logoUrl, projects: groups[key].projects }));
   }, [projects, sortField, sortDir]);
 
   const save = async () => {
@@ -168,7 +168,11 @@ export default function Projects() {
           {groupedProjects.map((group) => (
             <div key={group.companyName} className="space-y-1">
               <div className="flex items-center gap-2 px-2 py-1.5">
-                <Building2 className="h-4 w-4 text-muted-foreground" />
+                {group.logoUrl ? (
+                  <img src={group.logoUrl} alt={group.companyName} className="h-5 w-5 rounded object-cover" />
+                ) : (
+                  <Building2 className="h-4 w-4 text-muted-foreground" />
+                )}
                 <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">{group.companyName}</h3>
                 <span className="text-xs text-muted-foreground">({group.projects.length})</span>
               </div>
@@ -215,7 +219,11 @@ export default function Projects() {
           {groupedProjects.map((group) => (
             <div key={group.companyName} className="space-y-3">
               <div className="flex items-center gap-2 px-1">
-                <Building2 className="h-4 w-4 text-muted-foreground" />
+                {group.logoUrl ? (
+                  <img src={group.logoUrl} alt={group.companyName} className="h-5 w-5 rounded object-cover" />
+                ) : (
+                  <Building2 className="h-4 w-4 text-muted-foreground" />
+                )}
                 <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">{group.companyName}</h3>
                 <span className="text-xs text-muted-foreground">({group.projects.length})</span>
               </div>
@@ -224,9 +232,13 @@ export default function Projects() {
                   <Card key={p.id} className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate(`/projetos/${p.id}`)}>
                     <CardHeader>
                       <div className="flex items-center gap-3">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-                          <FolderKanban className="h-5 w-5 text-primary" />
-                        </div>
+                        {(p.companies as any)?.logo_url ? (
+                          <img src={(p.companies as any).logo_url} alt="" className="h-10 w-10 rounded-lg object-cover" />
+                        ) : (
+                          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
+                            <FolderKanban className="h-5 w-5 text-primary" />
+                          </div>
+                        )}
                         <div>
                           <CardTitle className="text-base">{p.name}</CardTitle>
                           <CardDescription>{(p.companies as any)?.name}</CardDescription>
