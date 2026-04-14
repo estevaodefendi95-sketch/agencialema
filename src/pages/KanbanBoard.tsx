@@ -342,6 +342,7 @@ export default function KanbanBoard() {
     return parts.join(" | ") || ACTION_LABELS[entry.action] || entry.action;
   };
 
+  return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
