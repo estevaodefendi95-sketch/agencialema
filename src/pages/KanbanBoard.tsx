@@ -244,78 +244,60 @@ export default function KanbanBoard() {
                   </Badge>
                   <span className="text-xs text-muted-foreground">({colTasks.length})</span>
                 </div>
-                <div className="rounded-lg border">
-                  <Table>
-                    <TableHeader>
-                    <TableRow>
-                         <TableHead>Título</TableHead>
-                         <TableHead>Status</TableHead>
-                         <TableHead>Prioridade</TableHead>
-                         <TableHead>Prazo</TableHead>
-                         <TableHead>Mídia</TableHead>
-                       </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {colTasks.map((task) => {
-                        const media = taskMedia[task.id];
-                        return (
-                          <TableRow key={task.id} className="cursor-pointer">
-                             <TableCell className="font-medium" onClick={() => setSelectedTask(task.id)}>{task.title}</TableCell>
-                             <TableCell onClick={(e) => e.stopPropagation()}>
-                               <Select
-                                 value={task.status}
-                                 onValueChange={async (v) => {
-                                   await supabase.from("tasks").update({ status: v as any }).eq("id", task.id);
-                                   load();
-                                 }}
-                               >
-                                 <SelectTrigger className="h-7 text-xs w-[130px]">
-                                   <SelectValue />
-                                 </SelectTrigger>
-                                 <SelectContent>
-                                   {COLUMNS.map((c) => (
-                                     <SelectItem key={c.id} value={c.id}>{c.label}</SelectItem>
-                                   ))}
-                                 </SelectContent>
-                               </Select>
-                             </TableCell>
-                             <TableCell onClick={() => setSelectedTask(task.id)}>
-                              <Badge className={`text-xs ${PRIORITY_COLORS[task.priority] || ""}`} variant="secondary">
-                                {task.priority}
-                              </Badge>
-                            </TableCell>
-                            <TableCell onClick={() => setSelectedTask(task.id)}>
-                              {task.due_date ? (
-                                <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                                  <Calendar className="h-3 w-3" />
-                                  {new Date(task.due_date).toLocaleDateString("pt-BR")}
-                                </span>
-                              ) : (
-                                <span className="text-xs text-muted-foreground">—</span>
-                              )}
-                            </TableCell>
-                            <TableCell onClick={() => setSelectedTask(task.id)}>
-                              {media ? (
-                                <Badge variant="secondary" className="text-xs gap-1">
-                                  <ImageIcon className="h-3 w-3" /> {media.count}
-                                </Badge>
-                              ) : (
-                                <span className="text-xs text-muted-foreground">—</span>
-                              )}
-                            </TableCell>
-                          </TableRow>
-                        );
-                      })}
-                      {colTasks.length === 0 && (
-                        <TableRow>
-                          <TableCell colSpan={5} className="text-center py-4 text-muted-foreground text-sm">
-                            Nenhuma tarefa
-                          </TableCell>
-                        </TableRow>
-                      )}
-                    </TableBody>
-                  </Table>
+                <div className="rounded-lg border divide-y">
+                  {colTasks.map((task) => (
+                    <div key={task.id} className="flex items-center gap-3 px-3 py-2 hover:bg-muted/50 cursor-pointer">
+                      <p
+                        className="flex-1 text-sm font-medium truncate hover:text-primary"
+                        onClick={() => setSelectedTask(task.id)}
+                      >
+                        {task.title}
+                      </p>
+                      <div className="flex items-center gap-2 shrink-0" onClick={(e) => e.stopPropagation()}>
+                        <Select
+                          value={task.status}
+                          onValueChange={async (v) => {
+                            await supabase.from("tasks").update({ status: v as any }).eq("id", task.id);
+                            load();
+                          }}
+                        >
+                          <SelectTrigger className="h-6 text-xs w-[120px] border-none bg-transparent shadow-none">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {COLUMNS.map((c) => (
+                              <SelectItem key={c.id} value={c.id}>{c.label}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <Badge className={`text-[10px] shrink-0 ${PRIORITY_COLORS[task.priority] || ""}`} variant="secondary">
+                        {task.priority}
+                      </Badge>
+                      {task.due_date ? (
+                        <span className="flex items-center gap-1 text-xs text-muted-foreground shrink-0" onClick={() => setSelectedTask(task.id)}>
+                          <Calendar className="h-3 w-3" />
+                          {new Date(task.due_date).toLocaleDateString("pt-BR")}
+                        </span>
+                      ) : null}
+                    </div>
+                  ))}
+                  {colTasks.length === 0 && (
+                    <div className="text-center py-4 text-muted-foreground text-sm">
+                      Nenhuma tarefa
+                    </div>
+                  )}
                 </div>
+                {canEdit && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="w-full text-xs text-muted-foreground gap-1 hover:text-foreground"
+                    onClick={() => { setNewStatus(col.id); setNewTaskOpen(true); }}
+                  >
+                    <Plus className="h-3 w-3" /> Nova tarefa
+                  </Button>
+                )}
               </div>
             );
           })}
