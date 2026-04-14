@@ -374,6 +374,42 @@ export default function KanbanBoard() {
               Prazo {sortPrazo === "asc" ? "↑" : "↓"}
             </Button>
           )}
+          <Sheet open={historyOpen} onOpenChange={setHistoryOpen}>
+            <SheetTrigger asChild>
+              <Button variant="ghost" size="sm" className="gap-1.5 text-xs">
+                <History className="h-3.5 w-3.5" /> Histórico
+              </Button>
+            </SheetTrigger>
+            <SheetContent className="w-[400px] sm:w-[450px]">
+              <SheetHeader>
+                <SheetTitle>Histórico do Projeto</SheetTitle>
+              </SheetHeader>
+              <ScrollArea className="h-[calc(100vh-80px)] mt-4 pr-4">
+                <div className="space-y-3">
+                  {history.length === 0 && (
+                    <p className="text-sm text-muted-foreground text-center py-8">Nenhum registro</p>
+                  )}
+                  {history.map((entry) => (
+                    <div key={entry.id} className="border rounded-lg p-3 space-y-1">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium">{ACTION_LABELS[entry.action] || entry.action}</span>
+                        {entry.previous_data && entry.action !== "create" && entry.action !== "delete" && (
+                          <Button variant="ghost" size="sm" className="h-6 gap-1 text-xs" onClick={() => undoHistory(entry)}>
+                            <Undo2 className="h-3 w-3" /> Desfazer
+                          </Button>
+                        )}
+                      </div>
+                      <p className="text-xs text-muted-foreground">{formatHistoryDetails(entry)}</p>
+                      <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+                        <span>{(entry.profiles as any)?.full_name || "Sistema"}</span>
+                        <span>{new Date(entry.created_at).toLocaleString("pt-BR")}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </ScrollArea>
+            </SheetContent>
+          </Sheet>
           {canEdit && (
             <Button onClick={() => setNewTaskOpen(true)} className="gap-2">
               <Plus className="h-4 w-4" /> Nova Tarefa
