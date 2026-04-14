@@ -56,6 +56,7 @@ export default function KanbanBoard() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [taskMedia, setTaskMedia] = useState<Record<string, MediaInfo>>({});
   const [projectName, setProjectName] = useState("");
+  const [companyName, setCompanyName] = useState("");
   const [newTaskOpen, setNewTaskOpen] = useState(false);
   const [selectedTask, setSelectedTask] = useState<string | null>(null);
   const [newTitle, setNewTitle] = useState("");
@@ -74,8 +75,9 @@ export default function KanbanBoard() {
 
   const load = useCallback(async () => {
     if (!projectId) return;
-    const { data: proj } = await supabase.from("projects").select("name").eq("id", projectId).single();
+    const { data: proj } = await supabase.from("projects").select("name, company_id, companies(name)").eq("id", projectId).single();
     setProjectName(proj?.name || "");
+    setCompanyName((proj?.companies as any)?.name || "");
     const { data } = await supabase.from("tasks").select("*").eq("project_id", projectId).order("position");
     const taskList = (data as Task[]) || [];
     setTasks(taskList);
@@ -183,7 +185,10 @@ export default function KanbanBoard() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold">{projectName}</h2>
+        <div>
+          {companyName && <p className="text-xs text-muted-foreground">{companyName}</p>}
+          <h2 className="text-2xl font-bold">{projectName}</h2>
+        </div>
         <div className="flex items-center gap-2">
           <div className="flex items-center border rounded-lg overflow-hidden">
             <Button
@@ -242,25 +247,44 @@ export default function KanbanBoard() {
                 <div className="rounded-lg border">
                   <Table>
                     <TableHeader>
-                      <TableRow>
-                        <TableHead>Título</TableHead>
-                        <TableHead>Prioridade</TableHead>
-                        <TableHead>Prazo</TableHead>
-                        <TableHead>Mídia</TableHead>
-                      </TableRow>
+                    <TableRow>
+                         <TableHead>Título</TableHead>
+                         <TableHead>Status</TableHead>
+                         <TableHead>Prioridade</TableHead>
+                         <TableHead>Prazo</TableHead>
+                         <TableHead>Mídia</TableHead>
+                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {colTasks.map((task) => {
                         const media = taskMedia[task.id];
                         return (
-                          <TableRow key={task.id} className="cursor-pointer" onClick={() => setSelectedTask(task.id)}>
-                            <TableCell className="font-medium">{task.title}</TableCell>
-                            <TableCell>
+                          <TableRow key={task.id} className="cursor-pointer">
+                             <TableCell className="font-medium" onClick={() => setSelectedTask(task.id)}>{task.title}</TableCell>
+                             <TableCell onClick={(e) => e.stopPropagation()}>
+                               <Select
+                                 value={task.status}
+                                 onValueChange={async (v) => {
+                                   await supabase.from("tasks").update({ status: v as any }).eq("id", task.id);
+                                   load();
+                                 }}
+                               >
+                                 <SelectTrigger className="h-7 text-xs w-[130px]">
+                                   <SelectValue />
+                                 </SelectTrigger>
+                                 <SelectContent>
+                                   {COLUMNS.map((c) => (
+                                     <SelectItem key={c.id} value={c.id}>{c.label}</SelectItem>
+                                   ))}
+                                 </SelectContent>
+                               </Select>
+                             </TableCell>
+                             <TableCell onClick={() => setSelectedTask(task.id)}>
                               <Badge className={`text-xs ${PRIORITY_COLORS[task.priority] || ""}`} variant="secondary">
                                 {task.priority}
                               </Badge>
                             </TableCell>
-                            <TableCell>
+                            <TableCell onClick={() => setSelectedTask(task.id)}>
                               {task.due_date ? (
                                 <span className="flex items-center gap-1 text-xs text-muted-foreground">
                                   <Calendar className="h-3 w-3" />
@@ -270,7 +294,7 @@ export default function KanbanBoard() {
                                 <span className="text-xs text-muted-foreground">—</span>
                               )}
                             </TableCell>
-                            <TableCell>
+                            <TableCell onClick={() => setSelectedTask(task.id)}>
                               {media ? (
                                 <Badge variant="secondary" className="text-xs gap-1">
                                   <ImageIcon className="h-3 w-3" /> {media.count}
@@ -284,7 +308,7 @@ export default function KanbanBoard() {
                       })}
                       {colTasks.length === 0 && (
                         <TableRow>
-                          <TableCell colSpan={4} className="text-center py-4 text-muted-foreground text-sm">
+                          <TableCell colSpan={5} className="text-center py-4 text-muted-foreground text-sm">
                             Nenhuma tarefa
                           </TableCell>
                         </TableRow>
