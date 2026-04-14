@@ -233,27 +233,8 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted }: Props) {
                 {editTitle || task.title}
               </DialogTitle>
             )}
-            {canEdit && (
-              <div className="flex items-center gap-1 shrink-0">
-                {hasChanges && (
-                  <Button size="sm" onClick={saveTaskEdits}><Save className="h-3 w-3 mr-1" />Salvar</Button>
-                )}
-                <AlertDialog>
-                  <AlertDialogTrigger asChild>
-                    <Button size="sm" variant="destructive"><Trash2 className="h-3 w-3" /></Button>
-                  </AlertDialogTrigger>
-                  <AlertDialogContent>
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>Excluir tarefa?</AlertDialogTitle>
-                      <AlertDialogDescription>Esta ação não pode ser desfeita. Todos os dados da tarefa serão removidos.</AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                      <AlertDialogAction onClick={deleteTask}>Excluir</AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
-              </div>
+            {canEdit && hasChanges && (
+              <Button size="sm" onClick={saveTaskEdits} className="shrink-0"><Save className="h-3 w-3 mr-1" />Salvar</Button>
             )}
           </div>
         </DialogHeader>
