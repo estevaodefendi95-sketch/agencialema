@@ -152,18 +152,121 @@ export default function KanbanBoard() {
   const getColumnTasks = (status: TaskStatus) =>
     tasks.filter((t) => t.status === status).sort((a, b) => a.position - b.position);
 
+  const STATUS_LABELS: Record<string, string> = {
+    a_fazer: "A Fazer",
+    em_andamento: "Em Andamento",
+    concluido: "Concluído",
+    aprovado: "Aprovado",
+  };
+
+  const STATUS_COLORS: Record<string, string> = {
+    a_fazer: "bg-muted text-muted-foreground",
+    em_andamento: "bg-primary/20 text-primary",
+    concluido: "bg-success/20 text-success",
+    aprovado: "bg-success/30 text-success",
+  };
+
+  const allTasksSorted = [...tasks].sort((a, b) => {
+    const statusOrder = ["a_fazer", "em_andamento", "concluido", "aprovado"];
+    return statusOrder.indexOf(a.status) - statusOrder.indexOf(b.status) || a.position - b.position;
+  });
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold">{projectName}</h2>
-        {canEdit && (
-          <Button onClick={() => setNewTaskOpen(true)} className="gap-2">
-            <Plus className="h-4 w-4" /> Nova Tarefa
-          </Button>
-        )}
+        <div className="flex items-center gap-2">
+          <div className="flex items-center border rounded-lg overflow-hidden">
+            <Button
+              variant={viewMode === "kanban" ? "default" : "ghost"}
+              size="sm"
+              className="rounded-none gap-1.5"
+              onClick={() => toggleViewMode("kanban")}
+            >
+              <LayoutGrid className="h-4 w-4" /> Kanban
+            </Button>
+            <Button
+              variant={viewMode === "lista" ? "default" : "ghost"}
+              size="sm"
+              className="rounded-none gap-1.5"
+              onClick={() => toggleViewMode("lista")}
+            >
+              <List className="h-4 w-4" /> Lista
+            </Button>
+          </div>
+          {canEdit && (
+            <Button onClick={() => setNewTaskOpen(true)} className="gap-2">
+              <Plus className="h-4 w-4" /> Nova Tarefa
+            </Button>
+          )}
+        </div>
       </div>
 
-      <DragDropContext onDragEnd={onDragEnd}>
+      {viewMode === "lista" ? (
+        <div className="rounded-lg border">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Status</TableHead>
+                <TableHead>Título</TableHead>
+                <TableHead>Prioridade</TableHead>
+                <TableHead>Prazo</TableHead>
+                <TableHead>Mídia</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {allTasksSorted.map((task) => {
+                const media = taskMedia[task.id];
+                return (
+                  <TableRow
+                    key={task.id}
+                    className="cursor-pointer"
+                    onClick={() => setSelectedTask(task.id)}
+                  >
+                    <TableCell>
+                      <Badge className={`text-xs ${STATUS_COLORS[task.status] || ""}`} variant="secondary">
+                        {STATUS_LABELS[task.status] || task.status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="font-medium">{task.title}</TableCell>
+                    <TableCell>
+                      <Badge className={`text-xs ${PRIORITY_COLORS[task.priority] || ""}`} variant="secondary">
+                        {task.priority}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      {task.due_date ? (
+                        <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                          <Calendar className="h-3 w-3" />
+                          {new Date(task.due_date).toLocaleDateString("pt-BR")}
+                        </span>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">—</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {media ? (
+                        <Badge variant="secondary" className="text-xs gap-1">
+                          <ImageIcon className="h-3 w-3" /> {media.count}
+                        </Badge>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">—</span>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+              {allTasksSorted.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                    Nenhuma tarefa encontrada
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </div>
+      ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           {COLUMNS.map((col) => (
             <div key={col.id} className={`rounded-lg p-3 ${col.color} min-h-[200px]`}>
