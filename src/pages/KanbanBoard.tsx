@@ -101,7 +101,7 @@ export default function KanbanBoard() {
         color: c.color,
         position: c.position,
       }));
-      const { data: created } = await supabase.from("project_columns").insert(inserts).select();
+      const { data: created } = await (supabase.from as any)("project_columns").insert(inserts).select();
       if (created) {
         setColumns(created.map((c: any) => ({ id: c.id, slug: c.slug, label: c.label, color: c.color, position: c.position })));
       }
