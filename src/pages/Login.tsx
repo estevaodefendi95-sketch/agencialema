@@ -12,6 +12,18 @@ import { lovable } from "@/integrations/lovable/index";
 
 export default function Login() {
   const { signIn, signUp } = useAuth();
+  const [loginSettings, setLoginSettings] = useState<{ login_logo_url: string | null; login_app_name: string }>({ login_logo_url: null, login_app_name: "GestãoPro" });
+
+  useState(() => {
+    (async () => {
+      const { data } = await (await import("@/integrations/supabase/client")).supabase
+        .from("app_settings")
+        .select("login_logo_url, login_app_name")
+        .limit(1)
+        .single();
+      if (data) setLoginSettings(data);
+    })();
+  });
   const navigate = useNavigate();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
