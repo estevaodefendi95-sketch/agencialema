@@ -1,30 +1,32 @@
 
 
-## Plano: Excluir colunas + Layout horizontal fixo + Remover select de status na lista
+## Plano: Cor das subcategorias + Cor dos cards + Mídia e descrição na lista
 
-### 1. Excluir coluna (`KanbanBoard.tsx`)
+### 1. Seletor de cor para subcategorias (colunas)
 
-- Adicionar ícone `Trash2` no cabeçalho de cada coluna (card e lista), visível ao hover
-- Ao clicar, exibir confirmação (AlertDialog): "Excluir coluna X? As tarefas serão movidas para a primeira coluna."
-- Ao confirmar: mover todas as tarefas da coluna excluída para a primeira coluna restante, depois deletar a coluna do banco
-- Não permitir excluir se restar apenas 1 coluna
+No cabeçalho de cada coluna (card e lista), ao clicar na cor ou em um ícone de paleta, abrir um popover com cores pré-definidas. Ao selecionar, atualizar `project_columns.color` no banco.
 
-### 2. Layout horizontal dos cards (modo Kanban)
+Cores disponíveis: cinza, azul, verde, amarelo, vermelho, roxo, rosa, laranja (~8 opções).
 
-- Atualmente o grid usa `grid-cols-1 md:grid-cols-2 lg:grid-cols-4`, o que quebra em linhas quando há mais de 4 colunas
-- Trocar para `flex overflow-x-auto` com largura fixa por coluna (`min-w-[280px] w-[280px]`), criando scroll horizontal estilo Trello
-- O botão "Adicionar coluna" também fica inline no final do flex
+### 2. Cor individual por card (tarefa)
 
-### 3. Remover select de status na lista
+- **Migração SQL**: adicionar coluna `color` (text, nullable) na tabela `tasks`
+- No card (modo kanban), aplicar a cor como borda lateral esquerda (`border-l-4`) ou como faixa sutil no topo
+- Na lista, aplicar como bolinha colorida ou borda esquerda
+- Para definir a cor: popover com as mesmas cores pré-definidas, acessível via clique direito ou ícone discreto no card
 
-- Remover o `Select` de status que aparece em cada linha da lista (linhas 342-358)
-- O usuário já pode arrastar para mudar de coluna, então o campo é redundante
+### 3. Indicador de mídia + descrição na lista
+
+Na visualização lista, entre o título e a prioridade:
+- Se a tarefa tem mídia (`taskMedia[task.id]`), exibir ícone `ImageIcon` com o count
+- Exibir a descrição truncada (1 linha) no centro da linha
 
 ### Resumo
 
 | Mudança | Detalhe |
 |---------|---------|
-| Excluir coluna com confirmação | `KanbanBoard.tsx` — AlertDialog + migração de tarefas |
-| Layout horizontal scroll | `KanbanBoard.tsx` — flex + overflow-x-auto no modo card |
-| Remover select status na lista | `KanbanBoard.tsx` — limpar linhas 342-358 |
+| Cor da subcategoria | Popover com paleta no header da coluna |
+| Cor do card | Migração `tasks.color` + borda colorida + popover |
+| Mídia na lista | Ícone `ImageIcon` + count inline |
+| Descrição na lista | Texto truncado entre título e badges |
 
