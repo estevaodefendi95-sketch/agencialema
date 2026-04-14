@@ -63,6 +63,7 @@ const ACTION_LABELS: Record<string, string> = {
   delete: "Projeto excluído",
   undo: "Alteração desfeita",
 };
+interface MediaInfo {
   file_url: string;
   file_type: string;
   count: number;
