@@ -267,106 +267,102 @@ export default function KanbanBoard() {
           </Table>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {COLUMNS.map((col) => (
-            <div key={col.id} className={`rounded-lg p-3 ${col.color} min-h-[200px]`}>
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="font-semibold text-sm">{col.label}</h3>
-                <Badge variant="secondary" className="text-xs">{getColumnTasks(col.id).length}</Badge>
-              </div>
-              <Droppable droppableId={col.id}>
-                {(provided) => (
-                  <div ref={provided.innerRef} {...provided.droppableProps} className="space-y-2 min-h-[100px]">
-                    {getColumnTasks(col.id).map((task, index) => {
-                      const media = taskMedia[task.id];
-                      return (
-                        <Draggable key={task.id} draggableId={task.id} index={index}>
-                          {(provided, snapshot) => (
-                            <div
-                              ref={provided.innerRef}
-                              {...provided.draggableProps}
-                              className={`bg-card rounded-lg border overflow-hidden shadow-sm transition-shadow ${
-                                snapshot.isDragging ? "shadow-lg" : "hover:shadow-md"
-                              }`}
-                            >
-                              {/* Media thumbnail */}
-                              {media && (
-                                <div
-                                  className="relative h-28 w-full cursor-pointer"
-                                  onClick={() => setSelectedTask(task.id)}
-                                >
-                                  {media.file_type === "video" ? (
-                                    <div className="relative h-full w-full bg-muted flex items-center justify-center">
-                                      <Play className="h-8 w-8 text-muted-foreground" />
-                                    </div>
-                                  ) : (
-                                    <img
-                                      src={media.file_url}
-                                      alt=""
-                                      className="w-full h-full object-cover"
-                                    />
-                                  )}
-                                  {media.count > 1 && (
-                                    <Badge
-                                      variant="secondary"
-                                      className="absolute top-1 right-1 text-[10px] px-1.5 py-0.5 bg-background/80 backdrop-blur-sm"
-                                    >
-                                      <ImageIcon className="h-3 w-3 mr-0.5" />
-                                      +{media.count - 1}
-                                    </Badge>
-                                  )}
-                                </div>
-                              )}
-
-                              <div className="p-3">
-                                <div className="flex items-start gap-2">
-                                  <div {...provided.dragHandleProps} className="mt-0.5 cursor-grab">
-                                    <GripVertical className="h-4 w-4 text-muted-foreground" />
-                                  </div>
-                                  <div className="flex-1 min-w-0">
-                                    <p
-                                      className="font-medium text-sm cursor-pointer hover:text-primary truncate"
-                                      onClick={() => setSelectedTask(task.id)}
-                                    >
-                                      {task.title}
-                                    </p>
-                                    <div className="flex items-center gap-2 mt-2 flex-wrap">
-                                      <Badge className={`text-xs ${PRIORITY_COLORS[task.priority] || ""}`} variant="secondary">
-                                        {task.priority}
+        <DragDropContext onDragEnd={onDragEnd}>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {COLUMNS.map((col) => (
+              <div key={col.id} className={`rounded-lg p-3 ${col.color} min-h-[200px]`}>
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="font-semibold text-sm">{col.label}</h3>
+                  <Badge variant="secondary" className="text-xs">{getColumnTasks(col.id).length}</Badge>
+                </div>
+                <Droppable droppableId={col.id}>
+                  {(provided) => (
+                    <div ref={provided.innerRef} {...provided.droppableProps} className="space-y-2 min-h-[100px]">
+                      {getColumnTasks(col.id).map((task, index) => {
+                        const media = taskMedia[task.id];
+                        return (
+                          <Draggable key={task.id} draggableId={task.id} index={index}>
+                            {(provided, snapshot) => (
+                              <div
+                                ref={provided.innerRef}
+                                {...provided.draggableProps}
+                                className={`bg-card rounded-lg border overflow-hidden shadow-sm transition-shadow ${
+                                  snapshot.isDragging ? "shadow-lg" : "hover:shadow-md"
+                                }`}
+                              >
+                                {media && (
+                                  <div
+                                    className="relative h-28 w-full cursor-pointer"
+                                    onClick={() => setSelectedTask(task.id)}
+                                  >
+                                    {media.file_type === "video" ? (
+                                      <div className="relative h-full w-full bg-muted flex items-center justify-center">
+                                        <Play className="h-8 w-8 text-muted-foreground" />
+                                      </div>
+                                    ) : (
+                                      <img src={media.file_url} alt="" className="w-full h-full object-cover" />
+                                    )}
+                                    {media.count > 1 && (
+                                      <Badge
+                                        variant="secondary"
+                                        className="absolute top-1 right-1 text-[10px] px-1.5 py-0.5 bg-background/80 backdrop-blur-sm"
+                                      >
+                                        <ImageIcon className="h-3 w-3 mr-0.5" />
+                                        +{media.count - 1}
                                       </Badge>
-                                      {task.due_date && (
-                                        <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                                          <Calendar className="h-3 w-3" />
-                                          {new Date(task.due_date).toLocaleDateString("pt-BR")}
-                                        </span>
+                                    )}
+                                  </div>
+                                )}
+                                <div className="p-3">
+                                  <div className="flex items-start gap-2">
+                                    <div {...provided.dragHandleProps} className="mt-0.5 cursor-grab">
+                                      <GripVertical className="h-4 w-4 text-muted-foreground" />
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                      <p
+                                        className="font-medium text-sm cursor-pointer hover:text-primary truncate"
+                                        onClick={() => setSelectedTask(task.id)}
+                                      >
+                                        {task.title}
+                                      </p>
+                                      <div className="flex items-center gap-2 mt-2 flex-wrap">
+                                        <Badge className={`text-xs ${PRIORITY_COLORS[task.priority] || ""}`} variant="secondary">
+                                          {task.priority}
+                                        </Badge>
+                                        {task.due_date && (
+                                          <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                                            <Calendar className="h-3 w-3" />
+                                            {new Date(task.due_date).toLocaleDateString("pt-BR")}
+                                          </span>
+                                        )}
+                                      </div>
+                                      {!isAdmin && task.status === "concluido" && (
+                                        <div className="flex gap-2 mt-2">
+                                          <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => approveTask(task.id)}>
+                                            <ThumbsUp className="h-3 w-3" /> Aprovar
+                                          </Button>
+                                          <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => requestAdjust(task.id)}>
+                                            <RotateCcw className="h-3 w-3" /> Ajuste
+                                          </Button>
+                                        </div>
                                       )}
                                     </div>
-                                    {!isAdmin && task.status === "concluido" && (
-                                      <div className="flex gap-2 mt-2">
-                                        <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => approveTask(task.id)}>
-                                          <ThumbsUp className="h-3 w-3" /> Aprovar
-                                        </Button>
-                                        <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => requestAdjust(task.id)}>
-                                          <RotateCcw className="h-3 w-3" /> Ajuste
-                                        </Button>
-                                      </div>
-                                    )}
                                   </div>
                                 </div>
                               </div>
-                            </div>
-                          )}
-                        </Draggable>
-                      );
-                    })}
-                    {provided.placeholder}
-                  </div>
-                )}
-              </Droppable>
-            </div>
-          ))}
-        </div>
-      </DragDropContext>
+                            )}
+                          </Draggable>
+                        );
+                      })}
+                      {provided.placeholder}
+                    </div>
+                  )}
+                </Droppable>
+              </div>
+            ))}
+          </div>
+        </DragDropContext>
+      )}
 
       {/* New Task Dialog */}
       <Dialog open={newTaskOpen} onOpenChange={setNewTaskOpen}>
