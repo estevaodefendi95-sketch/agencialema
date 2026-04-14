@@ -11,7 +11,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { DragDropContext, Droppable, Draggable, type DropResult } from "@hello-pangea/dnd";
-import { Plus, GripVertical, Calendar, ThumbsUp, RotateCcw, ImageIcon, Play, LayoutGrid, List, ArrowUpDown, Pencil, Check, X } from "lucide-react";
+import { Plus, GripVertical, Calendar, ThumbsUp, RotateCcw, ImageIcon, Play, LayoutGrid, List, ArrowUpDown, Pencil, Check, X, Trash2 } from "lucide-react";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import TaskDetail from "@/components/TaskDetail";
 
 interface Task {
@@ -74,6 +75,7 @@ export default function KanbanBoard() {
   // Inline column editing
   const [editingColumnId, setEditingColumnId] = useState<string | null>(null);
   const [editColumnLabel, setEditColumnLabel] = useState("");
+  const [deleteColumnId, setDeleteColumnId] = useState<string | null>(null);
 
   const [viewMode, setViewMode] = useState<"kanban" | "lista">(() => {
     if (!projectId) return "kanban";
@@ -221,6 +223,22 @@ export default function KanbanBoard() {
     loadColumns();
   };
 
+  const deleteColumn = async (colId: string) => {
+    const col = columns.find((c) => c.id === colId);
+    if (!col || columns.length <= 1) return;
+    const firstOther = columns.find((c) => c.id !== colId);
+    if (!firstOther) return;
+    // Move tasks to first remaining column
+    const colTasks = tasks.filter((t) => t.status === col.slug);
+    for (const task of colTasks) {
+      await (supabase.from("tasks").update as any)({ status: firstOther.slug }).eq("id", task.id);
+    }
+    await (supabase.from as any)("project_columns").delete().eq("id", colId);
+    setDeleteColumnId(null);
+    loadColumns();
+    load();
+  };
+
   const getColumnColor = (slug: string) => {
     const col = columns.find((c) => c.slug === slug);
     return col?.color || "#94a3b8";
@@ -282,7 +300,7 @@ export default function KanbanBoard() {
                 });
 
               return (
-                <div key={col.slug} className="space-y-1">
+                <div key={col.slug} className="space-y-1 group">
                   <div className="flex items-center gap-2 px-2 py-1.5">
                     {editingColumnId === col.id ? (
                       <div className="flex items-center gap-1">
@@ -311,9 +329,9 @@ export default function KanbanBoard() {
                           {col.label}
                         </Badge>
                         <span className="text-xs text-muted-foreground">({colTasks.length})</span>
-                        {canEdit && (
-                          <Button variant="ghost" size="icon" className="h-5 w-5 opacity-0 group-hover:opacity-100" onClick={() => { setEditingColumnId(col.id); setEditColumnLabel(col.label); }}>
-                            <Pencil className="h-3 w-3" />
+                        {canEdit && columns.length > 1 && (
+                          <Button variant="ghost" size="icon" className="h-5 w-5 opacity-0 group-hover:opacity-100 text-destructive" onClick={() => setDeleteColumnId(col.id)}>
+                            <Trash2 className="h-3 w-3" />
                           </Button>
                         )}
                       </>
@@ -339,24 +357,6 @@ export default function KanbanBoard() {
                                 >
                                   {task.title}
                                 </p>
-                                <div className="flex items-center gap-2 shrink-0" onClick={(e) => e.stopPropagation()}>
-                                  <Select
-                                    value={task.status}
-                                    onValueChange={async (v) => {
-                                      await (supabase.from("tasks").update as any)({ status: v }).eq("id", task.id);
-                                      load();
-                                    }}
-                                  >
-                                    <SelectTrigger className="h-6 text-xs w-[120px] border-none bg-transparent shadow-none">
-                                      <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      {columns.map((c) => (
-                                        <SelectItem key={c.slug} value={c.slug}>{c.label}</SelectItem>
-                                      ))}
-                                    </SelectContent>
-                                  </Select>
-                                </div>
                                 <Badge className={`text-[10px] shrink-0 ${PRIORITY_COLORS[task.priority] || ""}`} variant="secondary">
                                   {task.priority}
                                 </Badge>
@@ -401,9 +401,9 @@ export default function KanbanBoard() {
         </DragDropContext>
       ) : (
         <DragDropContext onDragEnd={onDragEnd}>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="flex gap-4 overflow-x-auto pb-4">
             {columns.map((col) => (
-              <div key={col.slug} className="rounded-lg p-3 min-h-[200px]" style={{ backgroundColor: `${col.color}10` }}>
+              <div key={col.slug} className="group rounded-lg p-3 min-h-[200px] min-w-[280px] w-[280px] shrink-0" style={{ backgroundColor: `${col.color}10` }}>
                 <div className="flex items-center justify-between mb-3">
                   {editingColumnId === col.id ? (
                     <div className="flex items-center gap-1">
@@ -426,7 +426,14 @@ export default function KanbanBoard() {
                       {col.label}
                     </h3>
                   )}
-                  <Badge variant="secondary" className="text-xs">{getColumnTasks(col.slug).length}</Badge>
+                  <div className="flex items-center gap-1">
+                    <Badge variant="secondary" className="text-xs">{getColumnTasks(col.slug).length}</Badge>
+                    {canEdit && columns.length > 1 && (
+                      <Button variant="ghost" size="icon" className="h-5 w-5 opacity-0 group-hover:opacity-100 text-destructive" onClick={() => setDeleteColumnId(col.id)}>
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    )}
+                  </div>
                 </div>
                 <Droppable droppableId={col.slug}>
                   {(provided) => (
@@ -514,7 +521,7 @@ export default function KanbanBoard() {
               </div>
             ))}
             {canEdit && (
-              <div className="rounded-lg border-2 border-dashed border-muted flex items-center justify-center min-h-[200px]">
+              <div className="rounded-lg border-2 border-dashed border-muted flex items-center justify-center min-h-[200px] min-w-[280px] w-[280px] shrink-0">
                 <Button variant="ghost" className="gap-1.5 text-muted-foreground" onClick={addColumn}>
                   <Plus className="h-4 w-4" /> Adicionar coluna
                 </Button>
@@ -575,6 +582,21 @@ export default function KanbanBoard() {
       {selectedTask && (
         <TaskDetail taskId={selectedTask} onClose={() => { setSelectedTask(null); load(); }} onTaskDeleted={load} />
       )}
+
+      <AlertDialog open={!!deleteColumnId} onOpenChange={(open) => { if (!open) setDeleteColumnId(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir coluna "{columns.find((c) => c.id === deleteColumnId)?.label}"?</AlertDialogTitle>
+            <AlertDialogDescription>
+              As tarefas desta coluna serão movidas para a primeira coluna restante.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={() => deleteColumnId && deleteColumn(deleteColumnId)}>Excluir</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
