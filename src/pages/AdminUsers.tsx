@@ -33,7 +33,7 @@ const ROLE_LABELS: Record<string, string> = {
 
 export default function AdminUsers() {
   const { toast } = useToast();
-  const { session } = useAuth();
+  const { session, agencyId } = useAuth();
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
   const [companies, setCompanies] = useState<Company[]>([]);
@@ -78,11 +78,10 @@ export default function AdminUsers() {
   const approve = async () => {
     if (!selected) return;
     // Set status to approved and assign agency_id from the admin performing the approval
-    const updateData: Record<string, any> = { status: "aprovado" as any };
-    if (agencyId) {
-      updateData.agency_id = agencyId;
-    }
-    await supabase.from("profiles").update(updateData).eq("id", selected.id);
+    await supabase.from("profiles").update({
+      status: "aprovado" as any,
+      ...(agencyId ? { agency_id: agencyId } : {}),
+    }).eq("id", selected.id);
 
     const existingRole = roles.find((r) => r.user_id === selected.id);
     if (existingRole) {
