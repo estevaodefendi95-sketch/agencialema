@@ -44,7 +44,25 @@ interface Column {
   position: number;
 }
 
-interface MediaInfo {
+interface HistoryEntry {
+  id: string;
+  project_id: string;
+  action: string;
+  previous_data: any;
+  new_data: any;
+  user_id: string | null;
+  created_at: string;
+  profiles?: { full_name: string | null } | null;
+}
+
+const ACTION_LABELS: Record<string, string> = {
+  create: "Projeto criado",
+  update: "Projeto atualizado",
+  archive: "Projeto arquivado",
+  unarchive: "Projeto desarquivado",
+  delete: "Projeto excluído",
+  undo: "Alteração desfeita",
+};
   file_url: string;
   file_type: string;
   count: number;
