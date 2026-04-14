@@ -413,7 +413,6 @@ export type Database = {
           position: number
           priority: Database["public"]["Enums"]["task_priority"]
           project_id: string
-          status: Database["public"]["Enums"]["task_status"]
           title: string
           updated_at: string
         }
@@ -427,7 +426,6 @@ export type Database = {
           position?: number
           priority?: Database["public"]["Enums"]["task_priority"]
           project_id: string
-          status?: Database["public"]["Enums"]["task_status"]
           title: string
           updated_at?: string
         }
@@ -441,7 +439,6 @@ export type Database = {
           position?: number
           priority?: Database["public"]["Enums"]["task_priority"]
           project_id?: string
-          status?: Database["public"]["Enums"]["task_status"]
           title?: string
           updated_at?: string
         }
@@ -528,7 +525,6 @@ export type Database = {
     Enums: {
       app_role: "admin" | "cliente" | "editor" | "visualizador" | "agency_admin"
       task_priority: "baixa" | "media" | "alta" | "urgente"
-      task_status: "a_fazer" | "em_andamento" | "concluido" | "aprovado"
       user_status: "pendente" | "aprovado" | "bloqueado"
     }
     CompositeTypes: {
@@ -659,7 +655,6 @@ export const Constants = {
     Enums: {
       app_role: ["admin", "cliente", "editor", "visualizador", "agency_admin"],
       task_priority: ["baixa", "media", "alta", "urgente"],
-      task_status: ["a_fazer", "em_andamento", "concluido", "aprovado"],
       user_status: ["pendente", "aprovado", "bloqueado"],
     },
   },

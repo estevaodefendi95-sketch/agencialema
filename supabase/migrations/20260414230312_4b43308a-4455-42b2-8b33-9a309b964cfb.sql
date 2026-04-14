@@ -1,0 +1,1 @@
+DROP TYPE IF EXISTS public.task_status CASCADE;
