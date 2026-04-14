@@ -403,7 +403,7 @@ export default function KanbanBoard() {
         <DragDropContext onDragEnd={onDragEnd}>
           <div className="flex gap-4 overflow-x-auto pb-4">
             {columns.map((col) => (
-              <div key={col.slug} className="rounded-lg p-3 min-h-[200px] min-w-[280px] w-[280px] shrink-0" style={{ backgroundColor: `${col.color}10` }}>
+              <div key={col.slug} className="group rounded-lg p-3 min-h-[200px] min-w-[280px] w-[280px] shrink-0" style={{ backgroundColor: `${col.color}10` }}>
                 <div className="flex items-center justify-between mb-3">
                   {editingColumnId === col.id ? (
                     <div className="flex items-center gap-1">
