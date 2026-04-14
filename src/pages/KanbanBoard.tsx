@@ -561,6 +561,21 @@ export default function KanbanBoard() {
                                             {new Date(task.due_date).toLocaleDateString("pt-BR")}
                                           </span>
                                         )}
+                                        {canEdit && (
+                                          <Popover>
+                                            <PopoverTrigger asChild>
+                                              <button className="h-3.5 w-3.5 rounded-full shrink-0 border border-border ml-auto" style={{ backgroundColor: task.color || "transparent" }} />
+                                            </PopoverTrigger>
+                                            <PopoverContent className="w-auto p-2" align="start">
+                                              <div className="flex gap-1.5">
+                                                <button className="h-6 w-6 rounded-full border-2 border-dashed border-muted-foreground" onClick={() => saveTaskColor(task.id, null)} title="Sem cor" />
+                                                {COLOR_PALETTE.map((c) => (
+                                                  <button key={c} className={`h-6 w-6 rounded-full border-2 ${task.color === c ? "border-foreground" : "border-transparent"}`} style={{ backgroundColor: c }} onClick={() => saveTaskColor(task.id, c)} />
+                                                ))}
+                                              </div>
+                                            </PopoverContent>
+                                          </Popover>
+                                        )}
                                       </div>
                                       {!isAdmin && task.status === "concluido" && (
                                         <div className="flex gap-2 mt-2">
