@@ -9,11 +9,17 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useToast } from "@/hooks/use-toast";
 import { DragDropContext, Droppable, Draggable, type DropResult } from "@hello-pangea/dnd";
-import { Plus, GripVertical, Calendar, ThumbsUp, RotateCcw, ImageIcon, Play, LayoutGrid, List, ArrowUpDown, Pencil, Check, X, Trash2 } from "lucide-react";
+import { Plus, GripVertical, Calendar, ThumbsUp, RotateCcw, ImageIcon, Play, LayoutGrid, List, ArrowUpDown, Pencil, Check, X, Trash2, Palette } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import TaskDetail from "@/components/TaskDetail";
+
+const COLOR_PALETTE = [
+  "#94a3b8", "#3B82F6", "#22c55e", "#eab308",
+  "#ef4444", "#a855f7", "#ec4899", "#f97316",
+];
 
 interface Task {
   id: string;
@@ -25,6 +31,7 @@ interface Task {
   position: number;
   assigned_to: string | null;
   project_id: string;
+  color: string | null;
 }
 
 interface Column {
