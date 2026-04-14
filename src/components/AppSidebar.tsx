@@ -1,0 +1,76 @@
+import {
+  LayoutDashboard, Building2, FolderKanban, Users, Bell, LogOut, Sun, Moon,
+} from "lucide-react";
+import { NavLink } from "@/components/NavLink";
+import { useAuth } from "@/contexts/AuthContext";
+import { useTheme } from "@/contexts/ThemeContext";
+import {
+  Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupContent,
+  SidebarGroupLabel, SidebarMenu, SidebarMenuButton, SidebarMenuItem, useSidebar,
+} from "@/components/ui/sidebar";
+import { Button } from "@/components/ui/button";
+
+export function AppSidebar() {
+  const { isAdmin, signOut, user } = useAuth();
+  const { theme, toggleTheme } = useTheme();
+  const { state } = useSidebar();
+  const collapsed = state === "collapsed";
+
+  const adminItems = [
+    { title: "Dashboard", url: "/", icon: LayoutDashboard },
+    { title: "Empresas", url: "/empresas", icon: Building2 },
+    { title: "Projetos", url: "/projetos", icon: FolderKanban },
+    { title: "Usuários", url: "/admin/usuarios", icon: Users },
+    { title: "Notificações", url: "/notificacoes", icon: Bell },
+  ];
+
+  const clientItems = [
+    { title: "Dashboard", url: "/", icon: LayoutDashboard },
+    { title: "Projetos", url: "/projetos", icon: FolderKanban },
+    { title: "Notificações", url: "/notificacoes", icon: Bell },
+  ];
+
+  const items = isAdmin ? adminItems : clientItems;
+
+  return (
+    <Sidebar collapsible="icon">
+      <SidebarContent>
+        <SidebarGroup>
+          <SidebarGroupLabel className="flex items-center gap-2">
+            <LayoutDashboard className="h-4 w-4" />
+            {!collapsed && <span className="font-bold text-base">GestãoPro</span>}
+          </SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {items.map((item) => (
+                <SidebarMenuItem key={item.title}>
+                  <SidebarMenuButton asChild>
+                    <NavLink
+                      to={item.url}
+                      end={item.url === "/"}
+                      className="hover:bg-sidebar-accent/50"
+                      activeClassName="bg-sidebar-accent text-sidebar-primary font-medium"
+                    >
+                      <item.icon className="mr-2 h-4 w-4" />
+                      {!collapsed && <span>{item.title}</span>}
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+      </SidebarContent>
+      <SidebarFooter className="space-y-1 p-2">
+        <Button variant="ghost" size="sm" className="w-full justify-start gap-2" onClick={toggleTheme}>
+          {theme === "light" ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
+          {!collapsed && (theme === "light" ? "Modo escuro" : "Modo claro")}
+        </Button>
+        <Button variant="ghost" size="sm" className="w-full justify-start gap-2 text-destructive" onClick={signOut}>
+          <LogOut className="h-4 w-4" />
+          {!collapsed && "Sair"}
+        </Button>
+      </SidebarFooter>
+    </Sidebar>
+  );
+}
