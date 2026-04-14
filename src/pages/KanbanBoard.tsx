@@ -329,9 +329,9 @@ export default function KanbanBoard() {
                           {col.label}
                         </Badge>
                         <span className="text-xs text-muted-foreground">({colTasks.length})</span>
-                        {canEdit && (
-                          <Button variant="ghost" size="icon" className="h-5 w-5 opacity-0 group-hover:opacity-100" onClick={() => { setEditingColumnId(col.id); setEditColumnLabel(col.label); }}>
-                            <Pencil className="h-3 w-3" />
+                        {canEdit && columns.length > 1 && (
+                          <Button variant="ghost" size="icon" className="h-5 w-5 opacity-0 group-hover:opacity-100 text-destructive" onClick={() => setDeleteColumnId(col.id)}>
+                            <Trash2 className="h-3 w-3" />
                           </Button>
                         )}
                       </>
