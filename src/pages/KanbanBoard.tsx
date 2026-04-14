@@ -68,6 +68,9 @@ export default function KanbanBoard() {
     if (!projectId) return "kanban";
     return (localStorage.getItem(`view-mode-${projectId}`) as "kanban" | "lista") || "kanban";
   });
+  const [sortPrazo, setSortPrazo] = useState<"asc" | "desc">(() =>
+    (localStorage.getItem(`sort-prazo-${projectId}`) as "asc" | "desc") || "asc"
+  );
 
   const load = useCallback(async () => {
     if (!projectId) return;
