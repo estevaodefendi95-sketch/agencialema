@@ -64,6 +64,11 @@ export default function KanbanBoard() {
   const [newDueDate, setNewDueDate] = useState("");
   const [newStatus, setNewStatus] = useState<TaskStatus>("a_fazer");
 
+  const [viewMode, setViewMode] = useState<"kanban" | "lista">(() => {
+    if (!projectId) return "kanban";
+    return (localStorage.getItem(`view-mode-${projectId}`) as "kanban" | "lista") || "kanban";
+  });
+
   const load = useCallback(async () => {
     if (!projectId) return;
     const { data: proj } = await supabase.from("projects").select("name").eq("id", projectId).single();
