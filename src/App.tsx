@@ -14,6 +14,7 @@ import Projects from "@/pages/Projects";
 import KanbanBoard from "@/pages/KanbanBoard";
 import AdminUsers from "@/pages/AdminUsers";
 import AdminSettings from "@/pages/AdminSettings";
+import AdminAgencies from "@/pages/AdminAgencies";
 import Notifications from "@/pages/Notifications";
 import NotFound from "@/pages/NotFound";
 
