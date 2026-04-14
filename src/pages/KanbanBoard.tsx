@@ -300,7 +300,7 @@ export default function KanbanBoard() {
                 });
 
               return (
-                <div key={col.slug} className="space-y-1">
+                <div key={col.slug} className="space-y-1 group">
                   <div className="flex items-center gap-2 px-2 py-1.5">
                     {editingColumnId === col.id ? (
                       <div className="flex items-center gap-1">
