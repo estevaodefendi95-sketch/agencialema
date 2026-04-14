@@ -85,8 +85,7 @@ export default function KanbanBoard() {
 
   const loadColumns = useCallback(async () => {
     if (!projectId) return;
-    const { data } = await supabase
-      .from("project_columns")
+    const { data } = await (supabase.from as any)("project_columns")
       .select("*")
       .eq("project_id", projectId)
       .order("position");
