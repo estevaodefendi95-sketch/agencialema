@@ -100,6 +100,11 @@ export default function KanbanBoard() {
 
   useEffect(() => { load(); }, [load]);
 
+  const toggleViewMode = (mode: "kanban" | "lista") => {
+    setViewMode(mode);
+    if (projectId) localStorage.setItem(`view-mode-${projectId}`, mode);
+  };
+
   const onDragEnd = async (result: DropResult) => {
     if (!result.destination) return;
     const taskId = result.draggableId;
