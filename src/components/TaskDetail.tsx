@@ -417,53 +417,15 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted, projectMemb
 
             <Separator />
 
-            {/* Comments */}
+            {/* Unified Timeline: Comments + History */}
             <div>
               <div className="flex items-center gap-2 mb-2">
-                <Send className="h-4 w-4" />
-                <Label className="font-semibold">Comentários</Label>
+                <History className="h-4 w-4" />
+                <Label className="font-semibold">Atividade</Label>
               </div>
-              <div className="space-y-3">
-                {comments.map((c) => (
-                  <div key={c.id} className="bg-muted/50 rounded-lg p-3 group">
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-xs font-medium">{(c.profiles as any)?.full_name || "Usuário"}</span>
-                      <div className="flex items-center gap-1">
-                        <span className="text-xs text-muted-foreground">{new Date(c.created_at).toLocaleString("pt-BR")}</span>
-                        {(c.user_id === user?.id || isAdmin) && (
-                          <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                            {c.user_id === user?.id && (
-                              <button onClick={() => { setEditingCommentId(c.id); setEditCommentContent(c.content); }} className="text-muted-foreground hover:text-foreground">
-                                <Pencil className="h-3 w-3" />
-                              </button>
-                            )}
-                            <button onClick={() => deleteComment(c.id)} className="text-muted-foreground hover:text-destructive">
-                              <X className="h-3 w-3" />
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                    {editingCommentId === c.id ? (
-                      <div className="flex gap-2">
-                        <Textarea
-                          value={editCommentContent}
-                          onChange={(e) => setEditCommentContent(e.target.value)}
-                          className="min-h-[40px] text-sm flex-1"
-                          autoFocus
-                        />
-                        <div className="flex flex-col gap-1">
-                          <Button size="sm" onClick={() => updateComment(c.id)}><Save className="h-3 w-3" /></Button>
-                          <Button size="sm" variant="outline" onClick={() => setEditingCommentId(null)}><X className="h-3 w-3" /></Button>
-                        </div>
-                      </div>
-                    ) : (
-                      <p className="text-sm">{c.content}</p>
-                    )}
-                  </div>
-                ))}
-              </div>
-              <div className="flex gap-2 mt-3">
+
+              {/* New comment input */}
+              <div className="flex gap-2 mb-4">
                 <Textarea
                   placeholder="Escreva um comentário..."
                   value={newComment}
@@ -472,25 +434,72 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted, projectMemb
                 />
                 <Button size="sm" onClick={addComment} className="self-end"><Send className="h-4 w-4" /></Button>
               </div>
-            </div>
 
-            <Separator />
+              {/* Timeline */}
+              <div className="space-y-3">
+                {(() => {
+                  // Merge comments and history into one timeline
+                  const timeline: Array<{ type: "comment" | "history"; id: string; created_at: string; data: any }> = [];
+                  comments.forEach((c) => timeline.push({ type: "comment", id: c.id, created_at: c.created_at, data: c }));
+                  // Filter out "Comentou" from history to avoid duplicates
+                  history.filter((h) => h.action !== "Comentou").forEach((h) => timeline.push({ type: "history", id: h.id, created_at: h.created_at, data: h }));
+                  timeline.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
-            {/* History */}
-            <div>
-              <div className="flex items-center gap-2 mb-2">
-                <History className="h-4 w-4" />
-                <Label className="font-semibold">Histórico</Label>
-              </div>
-              <div className="space-y-2">
-                {history.map((h) => (
-                  <div key={h.id} className="flex items-start gap-2 text-xs text-muted-foreground">
-                    <span className="font-medium">{(h.profiles as any)?.full_name || "Sistema"}</span>
-                    <span>— {h.action}</span>
-                    <span className="ml-auto">{new Date(h.created_at).toLocaleString("pt-BR")}</span>
-                  </div>
-                ))}
-                {history.length === 0 && <p className="text-xs text-muted-foreground">Nenhum histórico</p>}
+                  if (timeline.length === 0) return <p className="text-xs text-muted-foreground">Nenhuma atividade</p>;
+
+                  return timeline.map((entry) => {
+                    if (entry.type === "comment") {
+                      const c = entry.data as Comment;
+                      return (
+                        <div key={`c-${c.id}`} className="bg-muted/50 rounded-lg p-3 group">
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-xs font-medium">{(c.profiles as any)?.full_name || "Usuário"}</span>
+                            <div className="flex items-center gap-1">
+                              <span className="text-xs text-muted-foreground">{new Date(c.created_at).toLocaleString("pt-BR")}</span>
+                              {(c.user_id === user?.id || isAdmin) && (
+                                <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                                  {c.user_id === user?.id && (
+                                    <button onClick={() => { setEditingCommentId(c.id); setEditCommentContent(c.content); }} className="text-muted-foreground hover:text-foreground">
+                                      <Pencil className="h-3 w-3" />
+                                    </button>
+                                  )}
+                                  <button onClick={() => deleteComment(c.id)} className="text-muted-foreground hover:text-destructive">
+                                    <X className="h-3 w-3" />
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                          {editingCommentId === c.id ? (
+                            <div className="flex gap-2">
+                              <Textarea
+                                value={editCommentContent}
+                                onChange={(e) => setEditCommentContent(e.target.value)}
+                                className="min-h-[40px] text-sm flex-1"
+                                autoFocus
+                              />
+                              <div className="flex flex-col gap-1">
+                                <Button size="sm" onClick={() => updateComment(c.id)}><Save className="h-3 w-3" /></Button>
+                                <Button size="sm" variant="outline" onClick={() => setEditingCommentId(null)}><X className="h-3 w-3" /></Button>
+                              </div>
+                            </div>
+                          ) : (
+                            <p className="text-sm">{c.content}</p>
+                          )}
+                        </div>
+                      );
+                    } else {
+                      const h = entry.data as HistoryItem;
+                      return (
+                        <div key={`h-${h.id}`} className="flex items-start gap-2 text-xs text-muted-foreground px-1">
+                          <span className="font-medium">{(h.profiles as any)?.full_name || "Sistema"}</span>
+                          <span>— {h.action}</span>
+                          <span className="ml-auto shrink-0">{new Date(h.created_at).toLocaleString("pt-BR")}</span>
+                        </div>
+                      );
+                    }
+                  });
+                })()}
               </div>
             </div>
           </div>

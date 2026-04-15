@@ -12,7 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useToast } from "@/hooks/use-toast";
 import { DragDropContext, Droppable, Draggable, type DropResult } from "@hello-pangea/dnd";
-import { Plus, GripVertical, Calendar, ThumbsUp, RotateCcw, ImageIcon, Play, LayoutGrid, List, ArrowUpDown, Pencil, Check, X, Trash2, Palette, History, Undo2, Users, UserPlus, FileText } from "lucide-react";
+import { Plus, GripVertical, Calendar, ThumbsUp, RotateCcw, ImageIcon, Play, LayoutGrid, List, ArrowUpDown, Pencil, Check, X, Trash2, Palette, History, Undo2, Users, UserPlus, FileText, CheckSquare, Upload } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -108,6 +108,11 @@ export default function KanbanBoard() {
   const [newPriority, setNewPriority] = useState<string>("media");
   const [newDueDate, setNewDueDate] = useState("");
   const [newStatus, setNewStatus] = useState<string>("a_fazer");
+  const [newAssignedTo, setNewAssignedTo] = useState("");
+  const [newColor, setNewColor] = useState<string | null>(null);
+  const [newCheckItems, setNewCheckItems] = useState<string[]>([]);
+  const [newCheckInput, setNewCheckInput] = useState("");
+  const [newFiles, setNewFiles] = useState<File[]>([]);
 
   // Team management
   const [members, setMembers] = useState<ProjectMember[]>([]);
@@ -249,7 +254,7 @@ export default function KanbanBoard() {
     if (!projectId) return;
     const colTasks = tasks.filter((t) => t.status === newStatus);
     const maxPos = colTasks.reduce((max, t) => Math.max(max, t.position), -1);
-    await (supabase.from("tasks") as any).insert({
+    const { data: created } = await (supabase.from("tasks") as any).insert({
       project_id: projectId,
       title: newTitle,
       description: newDesc || null,
@@ -258,9 +263,34 @@ export default function KanbanBoard() {
       status: newStatus,
       position: maxPos + 1,
       created_by: user?.id,
-    });
+      assigned_to: newAssignedTo || null,
+      color: newColor,
+    }).select().single();
+
+    if (created) {
+      // Create checklist items
+      if (newCheckItems.length > 0) {
+        const items = newCheckItems.map((title, i) => ({ task_id: created.id, title, position: i }));
+        await supabase.from("task_checklists").insert(items);
+      }
+      // Upload files
+      for (const file of newFiles) {
+        const ext = file.name.split(".").pop()?.toLowerCase() || "";
+        const videoExts = ["mp4", "webm", "mov"];
+        const docExts = ["pdf", "doc", "docx", "ppt", "pptx", "xls", "xlsx", "txt", "csv"];
+        const fileType = videoExts.includes(ext) ? "video" : docExts.includes(ext) ? "document" : "image";
+        const path = `task-media/${created.id}/${Date.now()}-${file.name}`;
+        const { error } = await supabase.storage.from("attachments").upload(path, file);
+        if (!error) {
+          const { data: urlData } = supabase.storage.from("attachments").getPublicUrl(path);
+          await supabase.from("task_media").insert({ task_id: created.id, file_url: urlData.publicUrl, file_name: file.name, file_type: fileType });
+        }
+      }
+    }
+
     setNewTaskOpen(false);
     setNewTitle(""); setNewDesc(""); setNewPriority("media"); setNewDueDate(""); setNewStatus("a_fazer");
+    setNewAssignedTo(""); setNewColor(null); setNewCheckItems([]); setNewCheckInput(""); setNewFiles([]);
     toast({ title: "Tarefa criada" });
     load();
   };
@@ -892,45 +922,150 @@ export default function KanbanBoard() {
 
       {/* New Task Dialog */}
       <Dialog open={newTaskOpen} onOpenChange={setNewTaskOpen}>
-        <DialogContent>
+        <DialogContent className="max-w-2xl max-h-[85vh]">
           <DialogHeader><DialogTitle>Nova Tarefa</DialogTitle></DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label>Título</Label>
-              <Input value={newTitle} onChange={(e) => setNewTitle(e.target.value)} placeholder="Título da tarefa" />
-            </div>
-            <div className="space-y-2">
-              <Label>Descrição</Label>
-              <Textarea value={newDesc} onChange={(e) => setNewDesc(e.target.value)} />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
+          <ScrollArea className="max-h-[65vh] pr-4">
+            <div className="space-y-4">
               <div className="space-y-2">
-                <Label>Prioridade</Label>
-                <Select value={newPriority} onValueChange={setNewPriority}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="baixa">Baixa</SelectItem>
-                    <SelectItem value="media">Média</SelectItem>
-                    <SelectItem value="alta">Alta</SelectItem>
-                    <SelectItem value="urgente">Urgente</SelectItem>
-                  </SelectContent>
-                </Select>
+                <Label>Título</Label>
+                <Input value={newTitle} onChange={(e) => setNewTitle(e.target.value)} placeholder="Título da tarefa" />
               </div>
               <div className="space-y-2">
-                <Label>Coluna</Label>
-                <Select value={newStatus} onValueChange={setNewStatus}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {columns.map((c) => <SelectItem key={c.slug} value={c.slug}>{c.label}</SelectItem>)}
-                  </SelectContent>
-                </Select>
+                <Label>Descrição</Label>
+                <Textarea value={newDesc} onChange={(e) => setNewDesc(e.target.value)} />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Prioridade</Label>
+                  <Select value={newPriority} onValueChange={setNewPriority}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="baixa">Baixa</SelectItem>
+                      <SelectItem value="media">Média</SelectItem>
+                      <SelectItem value="alta">Alta</SelectItem>
+                      <SelectItem value="urgente">Urgente</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Coluna</Label>
+                  <Select value={newStatus} onValueChange={setNewStatus}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {columns.map((c) => <SelectItem key={c.slug} value={c.slug}>{c.label}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Prazo</Label>
+                  <Input type="date" value={newDueDate} onChange={(e) => setNewDueDate(e.target.value)} />
+                </div>
+                {members.length > 0 && (
+                  <div className="space-y-2">
+                    <Label>Responsável</Label>
+                    <Select value={newAssignedTo} onValueChange={setNewAssignedTo}>
+                      <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Nenhum</SelectItem>
+                        {members.map((m) => (
+                          <SelectItem key={m.user_id} value={m.user_id}>
+                            {(m.profiles as any)?.full_name || (m.profiles as any)?.email || "Sem nome"}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+              </div>
+
+              {/* Color */}
+              <div className="space-y-2">
+                <Label>Cor da tarefa</Label>
+                <div className="flex gap-1.5 items-center">
+                  <button
+                    className={`h-6 w-6 rounded-full border-2 ${!newColor ? "border-foreground" : "border-transparent"} bg-muted`}
+                    onClick={() => setNewColor(null)}
+                    title="Sem cor"
+                  />
+                  {COLOR_PALETTE.map((c) => (
+                    <button key={c} className={`h-6 w-6 rounded-full border-2 ${newColor === c ? "border-foreground" : "border-transparent"}`} style={{ backgroundColor: c }} onClick={() => setNewColor(c)} />
+                  ))}
+                </div>
+              </div>
+
+              {/* Checklist */}
+              <div className="space-y-2">
+                <Label>Checklist</Label>
+                {newCheckItems.length > 0 && (
+                  <div className="space-y-1">
+                    {newCheckItems.map((item, i) => (
+                      <div key={i} className="flex items-center gap-2 text-sm">
+                        <CheckSquare className="h-3.5 w-3.5 text-muted-foreground" />
+                        <span className="flex-1">{item}</span>
+                        <button onClick={() => setNewCheckItems((prev) => prev.filter((_, idx) => idx !== i))} className="text-muted-foreground hover:text-destructive">
+                          <X className="h-3 w-3" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="Novo item..."
+                    value={newCheckInput}
+                    onChange={(e) => setNewCheckInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && newCheckInput.trim()) {
+                        e.preventDefault();
+                        setNewCheckItems((prev) => [...prev, newCheckInput.trim()]);
+                        setNewCheckInput("");
+                      }
+                    }}
+                    className="h-8 text-sm"
+                  />
+                  <Button size="sm" variant="outline" onClick={() => { if (newCheckInput.trim()) { setNewCheckItems((prev) => [...prev, newCheckInput.trim()]); setNewCheckInput(""); } }}>
+                    <Plus className="h-3 w-3" />
+                  </Button>
+                </div>
+              </div>
+
+              {/* File Upload */}
+              <div className="space-y-2">
+                <Label>Mídias e Documentos</Label>
+                {newFiles.length > 0 && (
+                  <div className="space-y-1">
+                    {newFiles.map((f, i) => (
+                      <div key={i} className="flex items-center gap-2 text-sm">
+                        <FileText className="h-3.5 w-3.5 text-muted-foreground" />
+                        <span className="flex-1 truncate">{f.name}</span>
+                        <button onClick={() => setNewFiles((prev) => prev.filter((_, idx) => idx !== i))} className="text-muted-foreground hover:text-destructive">
+                          <X className="h-3 w-3" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <label className="flex items-center gap-2 cursor-pointer text-sm text-muted-foreground hover:text-foreground transition-colors">
+                  <Upload className="h-4 w-4" />
+                  Adicionar arquivos
+                  <input
+                    type="file"
+                    accept="image/*,video/mp4,video/webm,.pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt,.csv"
+                    multiple
+                    className="hidden"
+                    onChange={(e) => {
+                      if (e.target.files) {
+                        setNewFiles((prev) => [...prev, ...Array.from(e.target.files!)]);
+                      }
+                      e.target.value = "";
+                    }}
+                  />
+                </label>
               </div>
             </div>
-            <div className="space-y-2">
-              <Label>Prazo</Label>
-              <Input type="date" value={newDueDate} onChange={(e) => setNewDueDate(e.target.value)} />
-            </div>
-          </div>
+          </ScrollArea>
           <DialogFooter>
             <Button variant="outline" onClick={() => setNewTaskOpen(false)}>Cancelar</Button>
             <Button onClick={createTask} disabled={!newTitle}>Criar</Button>
