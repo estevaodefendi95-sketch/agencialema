@@ -33,7 +33,7 @@ interface ChecklistItem { id: string; title: string; completed: boolean; positio
 interface HistoryItem { id: string; action: string; details: any; created_at: string; profiles?: { full_name: string | null } | null; }
 interface MediaItem { id: string; file_url: string; file_name: string; file_type: string; created_at: string; }
 
-export default function TaskDetail({ taskId, onClose, onTaskDeleted }: Props) {
+export default function TaskDetail({ taskId, onClose, onTaskDeleted, projectMembers = [] }: Props) {
   const { user, isAdmin, canEdit } = useAuth();
   const { toast } = useToast();
   const [task, setTask] = useState<any>(null);
