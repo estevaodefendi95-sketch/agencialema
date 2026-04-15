@@ -586,7 +586,7 @@ export default function KanbanBoard() {
         <DragDropContext onDragEnd={onDragEnd}>
           <div className="flex gap-4 overflow-x-auto pb-4 snap-x snap-proximity scrollbar-hide px-1" style={{ WebkitOverflowScrolling: 'touch' }}>
             {columns.map((col) => (
-              <div key={col.slug} className="group rounded-lg p-3 min-h-[200px] min-w-[280px] w-[280px] shrink-0 snap-start" style={{ backgroundColor: `${col.color}10` }}>
+              <div key={col.slug} className="group rounded-lg p-3 min-h-[200px] min-w-[280px] w-[280px] shrink-0 snap-start flex flex-col" style={{ backgroundColor: `${col.color}10` }}>
                 <div className="flex items-center justify-between mb-3">
                   {editingColumnId === col.id ? (
                     <div className="flex items-center gap-1">
@@ -733,21 +733,23 @@ export default function KanbanBoard() {
                   )}
                 </Droppable>
                 {canEdit && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-7 w-7 p-0 mt-2 text-muted-foreground hover:text-foreground"
-                    onClick={() => { setNewStatus(col.slug); setNewTaskOpen(true); }}
-                  >
-                    <Plus className="h-3.5 w-3.5" />
-                  </Button>
+                  <div className="flex justify-center mt-auto pt-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
+                      onClick={() => { setNewStatus(col.slug); setNewTaskOpen(true); }}
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
                 )}
               </div>
             ))}
             {canEdit && (
-              <div className="rounded-lg border-2 border-dashed border-muted flex items-center justify-center min-h-[200px] min-w-[280px] w-[280px] shrink-0">
-                <Button variant="ghost" className="gap-1.5 text-muted-foreground" onClick={addColumn}>
-                  <Plus className="h-4 w-4" /> Adicionar coluna
+              <div className="flex items-start pt-3 shrink-0">
+                <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full border-2 border-dashed border-muted text-muted-foreground hover:text-foreground hover:border-foreground" onClick={addColumn}>
+                  <Plus className="h-4 w-4" />
                 </Button>
               </div>
             )}
