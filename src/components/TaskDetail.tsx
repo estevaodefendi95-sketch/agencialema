@@ -318,11 +318,11 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted, projectMemb
 
             <Separator />
 
-            {/* Media */}
+            {/* Media & Documents */}
             <div>
               <div className="flex items-center gap-2 mb-2">
                 <Image className="h-4 w-4" />
-                <Label className="font-semibold">Mídias</Label>
+                <Label className="font-semibold">Mídias e Documentos</Label>
                 {media.length > 0 && <span className="text-xs text-muted-foreground">({media.length})</span>}
               </div>
 
@@ -332,6 +332,11 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted, projectMemb
                     <div key={m.id} className="relative group rounded-lg overflow-hidden border">
                       {m.file_type === "video" ? (
                         <video src={m.file_url} controls className="w-full h-24 object-cover" />
+                      ) : m.file_type === "document" ? (
+                        <a href={m.file_url} target="_blank" rel="noopener noreferrer" className="flex flex-col items-center justify-center h-24 bg-muted/50 hover:bg-muted transition-colors">
+                          <FileText className="h-8 w-8 text-muted-foreground mb-1" />
+                          <span className="text-[10px] text-muted-foreground">Abrir</span>
+                        </a>
                       ) : (
                         <a href={m.file_url} target="_blank" rel="noopener noreferrer">
                           <img src={m.file_url} alt={m.file_name} className="w-full h-24 object-cover hover:opacity-90 transition-opacity" />
@@ -353,8 +358,8 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted, projectMemb
 
               <label className="flex items-center gap-2 cursor-pointer text-sm text-muted-foreground hover:text-foreground transition-colors">
                 <Upload className="h-4 w-4" />
-                {uploading ? "Enviando..." : "Adicionar imagens ou vídeos"}
-                <input type="file" accept="image/*,video/mp4,video/webm" multiple className="hidden" onChange={uploadMedia} disabled={uploading} />
+                {uploading ? "Enviando..." : "Adicionar mídias ou documentos"}
+                <input type="file" accept="image/*,video/mp4,video/webm,.pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt,.csv" multiple className="hidden" onChange={uploadMedia} disabled={uploading} />
               </label>
             </div>
 
