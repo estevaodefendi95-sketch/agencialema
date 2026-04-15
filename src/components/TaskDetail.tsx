@@ -220,6 +220,7 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted, projectMemb
   const checkFieldChange = (field: string, value: string) => {
     if (field === "priority") setEditPriority(value);
     if (field === "due_date") setEditDueDate(value);
+    if (field === "assigned_to") setEditAssignedTo(value);
     setHasChanges(true);
   };
 
