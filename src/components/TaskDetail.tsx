@@ -71,6 +71,7 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted, projectMemb
       setEditDesc(t.description || "");
       setEditPriority(t.priority);
       setEditDueDate(t.due_date || "");
+      setEditAssignedTo(t.assigned_to || "");
     }
 
     const { data: c } = await supabase.from("task_comments").select("*, profiles(full_name)").eq("task_id", taskId).order("created_at");
