@@ -12,12 +12,20 @@ import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Send, Plus, CheckSquare, History, Image, Upload, X, Trash2, Pencil, Save } from "lucide-react";
+import { Send, Plus, CheckSquare, History, Image, Upload, X, Trash2, Pencil, Save, FileText, Download } from "lucide-react";
+
+interface ProjectMember {
+  id: string;
+  user_id: string;
+  role: string;
+  profiles?: { full_name: string | null; email: string | null; avatar_url: string | null } | null;
+}
 
 interface Props {
   taskId: string;
   onClose: () => void;
   onTaskDeleted?: () => void;
+  projectMembers?: ProjectMember[];
 }
 
 interface Comment { id: string; content: string; created_at: string; user_id: string; profiles?: { full_name: string | null } | null; }
@@ -25,7 +33,7 @@ interface ChecklistItem { id: string; title: string; completed: boolean; positio
 interface HistoryItem { id: string; action: string; details: any; created_at: string; profiles?: { full_name: string | null } | null; }
 interface MediaItem { id: string; file_url: string; file_name: string; file_type: string; created_at: string; }
 
-export default function TaskDetail({ taskId, onClose, onTaskDeleted }: Props) {
+export default function TaskDetail({ taskId, onClose, onTaskDeleted, projectMembers = [] }: Props) {
   const { user, isAdmin, canEdit } = useAuth();
   const { toast } = useToast();
   const [task, setTask] = useState<any>(null);
@@ -44,6 +52,7 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted }: Props) {
   const [editDesc, setEditDesc] = useState("");
   const [editPriority, setEditPriority] = useState("");
   const [editDueDate, setEditDueDate] = useState("");
+  const [editAssignedTo, setEditAssignedTo] = useState("");
   const [hasChanges, setHasChanges] = useState(false);
 
   // Comment editing
@@ -62,6 +71,7 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted }: Props) {
       setEditDesc(t.description || "");
       setEditPriority(t.priority);
       setEditDueDate(t.due_date || "");
+      setEditAssignedTo(t.assigned_to || "");
     }
 
     const { data: c } = await supabase.from("task_comments").select("*, profiles(full_name)").eq("task_id", taskId).order("created_at");
@@ -88,6 +98,7 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted }: Props) {
     if (editDesc !== (task.description || "")) { updates.description = editDesc || null; changes.push("Descrição atualizada"); }
     if (editPriority !== task.priority) { updates.priority = editPriority; changes.push(`Prioridade: ${task.priority} → ${editPriority}`); }
     if (editDueDate !== (task.due_date || "")) { updates.due_date = editDueDate || null; changes.push("Prazo atualizado"); }
+    if (editAssignedTo !== (task.assigned_to || "")) { updates.assigned_to = editAssignedTo || null; changes.push("Responsável atualizado"); }
 
     if (Object.keys(updates).length === 0) return;
     await supabase.from("tasks").update(updates).eq("id", taskId);
@@ -175,8 +186,9 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted }: Props) {
 
     for (const file of Array.from(files)) {
       const ext = file.name.split(".").pop()?.toLowerCase() || "";
-      const isVideo = ["mp4", "webm", "mov"].includes(ext);
-      const fileType = isVideo ? "video" : "image";
+      const videoExts = ["mp4", "webm", "mov"];
+      const docExts = ["pdf", "doc", "docx", "ppt", "pptx", "xls", "xlsx", "txt", "csv"];
+      const fileType = videoExts.includes(ext) ? "video" : docExts.includes(ext) ? "document" : "image";
       const path = `task-media/${taskId}/${Date.now()}-${file.name}`;
 
       const { error } = await supabase.storage.from("attachments").upload(path, file);
@@ -208,6 +220,7 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted }: Props) {
   const checkFieldChange = (field: string, value: string) => {
     if (field === "priority") setEditPriority(value);
     if (field === "due_date") setEditDueDate(value);
+    if (field === "assigned_to") setEditAssignedTo(value);
     setHasChanges(true);
   };
 
@@ -261,10 +274,10 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted }: Props) {
               )}
             </div>
 
-            {/* Priority & Due Date */}
+            {/* Priority, Due Date & Assignee */}
             {canEdit && (
-              <div className="flex gap-4">
-                <div className="flex-1">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
                   <Label className="text-xs text-muted-foreground">Prioridade</Label>
                   <Select value={editPriority} onValueChange={(v) => checkFieldChange("priority", v)}>
                     <SelectTrigger className="h-8 text-sm mt-1"><SelectValue /></SelectTrigger>
@@ -275,7 +288,7 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted }: Props) {
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="flex-1">
+                <div>
                   <Label className="text-xs text-muted-foreground">Prazo</Label>
                   <Input
                     type="date"
@@ -284,16 +297,32 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted }: Props) {
                     className="h-8 text-sm mt-1"
                   />
                 </div>
+                {projectMembers.length > 0 && (
+                  <div className="col-span-2">
+                    <Label className="text-xs text-muted-foreground">Responsável</Label>
+                    <Select value={editAssignedTo} onValueChange={(v) => checkFieldChange("assigned_to", v === "none" ? "" : v)}>
+                      <SelectTrigger className="h-8 text-sm mt-1"><SelectValue placeholder="Selecione..." /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Nenhum</SelectItem>
+                        {projectMembers.map((m) => (
+                          <SelectItem key={m.user_id} value={m.user_id}>
+                            {(m.profiles as any)?.full_name || (m.profiles as any)?.email || "Sem nome"}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
               </div>
             )}
 
             <Separator />
 
-            {/* Media */}
+            {/* Media & Documents */}
             <div>
               <div className="flex items-center gap-2 mb-2">
                 <Image className="h-4 w-4" />
-                <Label className="font-semibold">Mídias</Label>
+                <Label className="font-semibold">Mídias e Documentos</Label>
                 {media.length > 0 && <span className="text-xs text-muted-foreground">({media.length})</span>}
               </div>
 
@@ -303,6 +332,11 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted }: Props) {
                     <div key={m.id} className="relative group rounded-lg overflow-hidden border">
                       {m.file_type === "video" ? (
                         <video src={m.file_url} controls className="w-full h-24 object-cover" />
+                      ) : m.file_type === "document" ? (
+                        <a href={m.file_url} target="_blank" rel="noopener noreferrer" className="flex flex-col items-center justify-center h-24 bg-muted/50 hover:bg-muted transition-colors">
+                          <FileText className="h-8 w-8 text-muted-foreground mb-1" />
+                          <span className="text-[10px] text-muted-foreground">Abrir</span>
+                        </a>
                       ) : (
                         <a href={m.file_url} target="_blank" rel="noopener noreferrer">
                           <img src={m.file_url} alt={m.file_name} className="w-full h-24 object-cover hover:opacity-90 transition-opacity" />
@@ -324,8 +358,8 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted }: Props) {
 
               <label className="flex items-center gap-2 cursor-pointer text-sm text-muted-foreground hover:text-foreground transition-colors">
                 <Upload className="h-4 w-4" />
-                {uploading ? "Enviando..." : "Adicionar imagens ou vídeos"}
-                <input type="file" accept="image/*,video/mp4,video/webm" multiple className="hidden" onChange={uploadMedia} disabled={uploading} />
+                {uploading ? "Enviando..." : "Adicionar mídias ou documentos"}
+                <input type="file" accept="image/*,video/mp4,video/webm,.pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt,.csv" multiple className="hidden" onChange={uploadMedia} disabled={uploading} />
               </label>
             </div>
 

@@ -12,10 +12,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useToast } from "@/hooks/use-toast";
 import { DragDropContext, Droppable, Draggable, type DropResult } from "@hello-pangea/dnd";
-import { Plus, GripVertical, Calendar, ThumbsUp, RotateCcw, ImageIcon, Play, LayoutGrid, List, ArrowUpDown, Pencil, Check, X, Trash2, Palette, History, Undo2 } from "lucide-react";
+import { Plus, GripVertical, Calendar, ThumbsUp, RotateCcw, ImageIcon, Play, LayoutGrid, List, ArrowUpDown, Pencil, Check, X, Trash2, Palette, History, Undo2, Users, UserPlus, FileText } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import TaskDetail from "@/components/TaskDetail";
 
 const COLOR_PALETTE = [
@@ -53,6 +55,13 @@ interface HistoryEntry {
   user_id: string | null;
   created_at: string;
   profiles?: { full_name: string | null } | null;
+}
+
+interface ProjectMember {
+  id: string;
+  user_id: string;
+  role: string;
+  profiles?: { full_name: string | null; email: string | null; avatar_url: string | null } | null;
 }
 
 const ACTION_LABELS: Record<string, string> = {
@@ -99,6 +108,12 @@ export default function KanbanBoard() {
   const [newPriority, setNewPriority] = useState<string>("media");
   const [newDueDate, setNewDueDate] = useState("");
   const [newStatus, setNewStatus] = useState<string>("a_fazer");
+
+  // Team management
+  const [members, setMembers] = useState<ProjectMember[]>([]);
+  const [teamOpen, setTeamOpen] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviting, setInviting] = useState(false);
 
   // Inline column editing
   const [editingColumnId, setEditingColumnId] = useState<string | null>(null);
@@ -167,8 +182,44 @@ export default function KanbanBoard() {
     }
   }, [projectId]);
 
+  const loadMembers = useCallback(async () => {
+    if (!projectId) return;
+    const { data } = await (supabase.from as any)("project_members")
+      .select("*, profiles:user_id(full_name, email, avatar_url)")
+      .eq("project_id", projectId);
+    setMembers(data || []);
+  }, [projectId]);
+
+  const inviteMember = async () => {
+    if (!inviteEmail.trim() || !projectId) return;
+    setInviting(true);
+    const { data: profile } = await supabase.from("profiles").select("id, full_name").eq("email", inviteEmail.trim()).single();
+    if (!profile) {
+      toast({ title: "Usuário não encontrado", description: "Nenhum usuário com este e-mail.", variant: "destructive" });
+      setInviting(false);
+      return;
+    }
+    const exists = members.some((m) => m.user_id === profile.id);
+    if (exists) {
+      toast({ title: "Já é membro", variant: "destructive" });
+      setInviting(false);
+      return;
+    }
+    await (supabase.from as any)("project_members").insert({ project_id: projectId, user_id: profile.id });
+    setInviteEmail("");
+    toast({ title: `${profile.full_name || inviteEmail} adicionado à equipe` });
+    setInviting(false);
+    loadMembers();
+  };
+
+  const removeMember = async (memberId: string) => {
+    await (supabase.from as any)("project_members").delete().eq("id", memberId);
+    toast({ title: "Membro removido" });
+    loadMembers();
+  };
+
   useEffect(() => { loadColumns(); }, [loadColumns]);
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { loadMembers(); }, [loadMembers]);
 
   const toggleViewMode = (mode: "kanban" | "lista") => {
     setViewMode(mode);
@@ -344,10 +395,37 @@ export default function KanbanBoard() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div>
-          {companyName && <p className="text-xs text-muted-foreground">{companyName}</p>}
-          <h2 className="text-2xl font-bold">{projectName}</h2>
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <div className="flex items-center gap-3">
+          <div>
+            {companyName && <p className="text-xs text-muted-foreground">{companyName}</p>}
+            <h2 className="text-2xl font-bold">{projectName}</h2>
+          </div>
+          {/* Team Avatars */}
+          {members.length > 0 && (
+            <TooltipProvider>
+              <div className="flex -space-x-2">
+                {members.slice(0, 5).map((m) => (
+                  <Tooltip key={m.id}>
+                    <TooltipTrigger asChild>
+                      <Avatar className="h-7 w-7 border-2 border-background">
+                        <AvatarImage src={(m.profiles as any)?.avatar_url || ""} />
+                        <AvatarFallback className="text-[10px]">
+                          {((m.profiles as any)?.full_name || "?").charAt(0).toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
+                    </TooltipTrigger>
+                    <TooltipContent><p>{(m.profiles as any)?.full_name || (m.profiles as any)?.email}</p></TooltipContent>
+                  </Tooltip>
+                ))}
+                {members.length > 5 && (
+                  <Avatar className="h-7 w-7 border-2 border-background">
+                    <AvatarFallback className="text-[10px]">+{members.length - 5}</AvatarFallback>
+                  </Avatar>
+                )}
+              </div>
+            </TooltipProvider>
+          )}
         </div>
         <div className="flex items-center gap-2">
           <div className="flex items-center border rounded-lg overflow-hidden">
@@ -374,6 +452,61 @@ export default function KanbanBoard() {
               Prazo {sortPrazo === "asc" ? "↑" : "↓"}
             </Button>
           )}
+          {/* Team Sheet */}
+          <Sheet open={teamOpen} onOpenChange={setTeamOpen}>
+            <SheetTrigger asChild>
+              <Button variant="ghost" size="sm" className="gap-1.5 text-xs">
+                <Users className="h-3.5 w-3.5" /> Equipe
+              </Button>
+            </SheetTrigger>
+            <SheetContent className="w-[400px] sm:w-[450px]">
+              <SheetHeader>
+                <SheetTitle>Equipe do Projeto</SheetTitle>
+              </SheetHeader>
+              <div className="mt-4 space-y-4">
+                {canEdit && (
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="E-mail do usuário..."
+                      value={inviteEmail}
+                      onChange={(e) => setInviteEmail(e.target.value)}
+                      onKeyDown={(e) => e.key === "Enter" && inviteMember()}
+                      className="text-sm"
+                    />
+                    <Button size="sm" onClick={inviteMember} disabled={inviting}>
+                      <UserPlus className="h-4 w-4" />
+                    </Button>
+                  </div>
+                )}
+                <ScrollArea className="h-[calc(100vh-160px)]">
+                  <div className="space-y-2">
+                    {members.length === 0 && (
+                      <p className="text-sm text-muted-foreground text-center py-8">Nenhum membro adicionado</p>
+                    )}
+                    {members.map((m) => (
+                      <div key={m.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50">
+                        <Avatar className="h-8 w-8">
+                          <AvatarImage src={(m.profiles as any)?.avatar_url || ""} />
+                          <AvatarFallback className="text-xs">
+                            {((m.profiles as any)?.full_name || "?").charAt(0).toUpperCase()}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate">{(m.profiles as any)?.full_name || "Sem nome"}</p>
+                          <p className="text-xs text-muted-foreground truncate">{(m.profiles as any)?.email}</p>
+                        </div>
+                        {canEdit && (
+                          <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => removeMember(m.id)}>
+                            <X className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </ScrollArea>
+              </div>
+            </SheetContent>
+          </Sheet>
           <Sheet open={historyOpen} onOpenChange={setHistoryOpen}>
             <SheetTrigger asChild>
               <Button variant="ghost" size="sm" className="gap-1.5 text-xs">
@@ -806,7 +939,7 @@ export default function KanbanBoard() {
       </Dialog>
 
       {selectedTask && (
-        <TaskDetail taskId={selectedTask} onClose={() => { setSelectedTask(null); load(); }} onTaskDeleted={load} />
+        <TaskDetail taskId={selectedTask} onClose={() => { setSelectedTask(null); load(); }} onTaskDeleted={load} projectMembers={members} />
       )}
 
       <AlertDialog open={!!deleteColumnId} onOpenChange={(open) => { if (!open) setDeleteColumnId(null); }}>
