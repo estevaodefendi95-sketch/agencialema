@@ -939,7 +939,7 @@ export default function KanbanBoard() {
       </Dialog>
 
       {selectedTask && (
-        <TaskDetail taskId={selectedTask} onClose={() => { setSelectedTask(null); load(); }} onTaskDeleted={load} />
+        <TaskDetail taskId={selectedTask} onClose={() => { setSelectedTask(null); load(); }} onTaskDeleted={load} projectMembers={members} />
       )}
 
       <AlertDialog open={!!deleteColumnId} onOpenChange={(open) => { if (!open) setDeleteColumnId(null); }}>
