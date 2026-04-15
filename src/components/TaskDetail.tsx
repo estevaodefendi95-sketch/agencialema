@@ -186,8 +186,9 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted, projectMemb
 
     for (const file of Array.from(files)) {
       const ext = file.name.split(".").pop()?.toLowerCase() || "";
-      const isVideo = ["mp4", "webm", "mov"].includes(ext);
-      const fileType = isVideo ? "video" : "image";
+      const videoExts = ["mp4", "webm", "mov"];
+      const docExts = ["pdf", "doc", "docx", "ppt", "pptx", "xls", "xlsx", "txt", "csv"];
+      const fileType = videoExts.includes(ext) ? "video" : docExts.includes(ext) ? "document" : "image";
       const path = `task-media/${taskId}/${Date.now()}-${file.name}`;
 
       const { error } = await supabase.storage.from("attachments").upload(path, file);
