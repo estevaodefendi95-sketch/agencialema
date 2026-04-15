@@ -274,10 +274,10 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted, projectMemb
               )}
             </div>
 
-            {/* Priority & Due Date */}
+            {/* Priority, Due Date & Assignee */}
             {canEdit && (
-              <div className="flex gap-4">
-                <div className="flex-1">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
                   <Label className="text-xs text-muted-foreground">Prioridade</Label>
                   <Select value={editPriority} onValueChange={(v) => checkFieldChange("priority", v)}>
                     <SelectTrigger className="h-8 text-sm mt-1"><SelectValue /></SelectTrigger>
@@ -288,7 +288,7 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted, projectMemb
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="flex-1">
+                <div>
                   <Label className="text-xs text-muted-foreground">Prazo</Label>
                   <Input
                     type="date"
@@ -297,6 +297,22 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted, projectMemb
                     className="h-8 text-sm mt-1"
                   />
                 </div>
+                {projectMembers.length > 0 && (
+                  <div className="col-span-2">
+                    <Label className="text-xs text-muted-foreground">Responsável</Label>
+                    <Select value={editAssignedTo} onValueChange={(v) => checkFieldChange("assigned_to", v === "none" ? "" : v)}>
+                      <SelectTrigger className="h-8 text-sm mt-1"><SelectValue placeholder="Selecione..." /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Nenhum</SelectItem>
+                        {projectMembers.map((m) => (
+                          <SelectItem key={m.user_id} value={m.user_id}>
+                            {(m.profiles as any)?.full_name || (m.profiles as any)?.email || "Sem nome"}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
               </div>
             )}
 
