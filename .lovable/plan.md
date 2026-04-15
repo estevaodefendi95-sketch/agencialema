@@ -1,54 +1,46 @@
 
 
-## Plano: Renomear/Excluir/Arquivar projetos + Histórico de versões
+## Plano: Equipe no projeto + Responsável na tarefa + Documentos no upload
 
-### 1. Migração SQL
+### 1. Migração SQL: tabela `project_members`
 
-- Adicionar coluna `archived` (boolean, default false) na tabela `projects`
-- Criar tabela `project_history` para registrar alterações:
-  - `id` uuid PK
-  - `project_id` uuid NOT NULL
-  - `action` text NOT NULL (ex: "rename", "archive", "update_description", "update_due_date")
-  - `previous_data` jsonb (snapshot do estado anterior)
-  - `new_data` jsonb (novo estado)
-  - `user_id` uuid
-  - `created_at` timestamptz default now()
-- RLS na `project_history`: mesmas regras de acesso do projeto (admin, agency_admin, editor view, client view)
+Criar tabela `project_members` para gerenciar membros do projeto:
+- `id` uuid PK
+- `project_id` uuid NOT NULL
+- `user_id` uuid NOT NULL
+- `role` text DEFAULT 'membro' (ex: membro, responsável)
+- `created_at` timestamptz
+- UNIQUE(project_id, user_id)
 
-### 2. Renomear projeto (`Projects.tsx`)
+RLS: admin/agency_admin/editor podem gerenciar; membros podem ver.
 
-- Adicionar ícone de edição (Pencil) nos cards e linhas da lista de projetos
-- Ao clicar, abrir dialog simples com campo de nome editável
-- Ao salvar: gravar no banco + inserir registro em `project_history` com `previous_data` e `new_data`
-- Somente admin/editor pode renomear
+### 2. UI de equipe no projeto (`KanbanBoard.tsx`)
 
-### 3. Excluir ou Arquivar projeto (`Projects.tsx`)
+- Adicionar botão "Equipe" no header do projeto (ícone `Users`)
+- Ao clicar, abrir Sheet/Dialog lateral listando membros atuais com opção de remover
+- Campo para convidar por e-mail: busca na tabela `profiles` por e-mail, se encontrar adiciona em `project_members`
+- Mostrar avatares dos membros no header do projeto
 
-- Adicionar menu de ações (dropdown ou ícones) em cada projeto com:
-  - **Arquivar**: seta `archived = true`, projeto some da listagem principal
-  - **Excluir**: confirmação via AlertDialog, depois deleta o projeto e tarefas associadas
-- Filtro para mostrar/esconder projetos arquivados (toggle ou aba)
-- Opção de desarquivar projetos arquivados
+### 3. Campo "Responsável" na tarefa (`TaskDetail.tsx` + `KanbanBoard.tsx`)
 
-### 4. Histórico do projeto (`KanbanBoard.tsx` ou nova seção)
+- No detalhe da tarefa, adicionar campo Select "Responsável" (opcional)
+- Listar membros do projeto (de `project_members` + profiles) como opções
+- Salvar em `tasks.assigned_to` (coluna já existe)
+- Exibir avatar/nome do responsável nos cards do kanban e na visualização lista
 
-- Adicionar aba/seção "Histórico" na página do projeto (KanbanBoard)
-- Listar registros de `project_history` em ordem cronológica reversa
-- Cada entrada mostra: ação, dados anteriores, quem fez, quando
-- Botão "Desfazer" em cada entrada: restaura `previous_data` no projeto e registra nova entrada de histórico
+### 4. Expandir upload para documentos (`TaskDetail.tsx`)
 
-### 5. Registrar alterações automaticamente
-
-- Toda alteração no projeto (nome, descrição, prazo, arquivamento) grava em `project_history` antes de aplicar
+- Alterar o `accept` do input de arquivo para incluir documentos: `image/*,video/mp4,video/webm,.pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt`
+- Ajustar lógica de `file_type`: adicionar tipo "document" além de "image" e "video"
+- Na exibição de mídia, para documentos mostrar ícone (FileText) + nome do arquivo com link de download em vez de preview de imagem
+- Atualizar o texto do botão: "Adicionar mídias ou documentos"
 
 ### Resumo
 
 | Mudança | Onde |
 |---------|------|
-| Coluna `archived` em `projects` | Migration SQL |
-| Tabela `project_history` + RLS | Migration SQL |
-| Renomear projeto inline | `Projects.tsx` |
-| Arquivar/Excluir com confirmação | `Projects.tsx` |
-| Filtro de arquivados | `Projects.tsx` |
-| Seção histórico + desfazer | `KanbanBoard.tsx` |
+| Tabela `project_members` + RLS | Migration SQL |
+| UI equipe + convite por e-mail | `KanbanBoard.tsx` (Sheet) |
+| Select responsável na tarefa | `TaskDetail.tsx` + cards |
+| Upload de documentos | `TaskDetail.tsx` (accept + renderização) |
 
