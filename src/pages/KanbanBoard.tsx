@@ -109,6 +109,12 @@ export default function KanbanBoard() {
   const [newDueDate, setNewDueDate] = useState("");
   const [newStatus, setNewStatus] = useState<string>("a_fazer");
 
+  // Team management
+  const [members, setMembers] = useState<ProjectMember[]>([]);
+  const [teamOpen, setTeamOpen] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviting, setInviting] = useState(false);
+
   // Inline column editing
   const [editingColumnId, setEditingColumnId] = useState<string | null>(null);
   const [editColumnLabel, setEditColumnLabel] = useState("");
