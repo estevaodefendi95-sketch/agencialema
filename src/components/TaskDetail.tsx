@@ -12,12 +12,20 @@ import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Send, Plus, CheckSquare, History, Image, Upload, X, Trash2, Pencil, Save } from "lucide-react";
+import { Send, Plus, CheckSquare, History, Image, Upload, X, Trash2, Pencil, Save, FileText, Download } from "lucide-react";
+
+interface ProjectMember {
+  id: string;
+  user_id: string;
+  role: string;
+  profiles?: { full_name: string | null; email: string | null; avatar_url: string | null } | null;
+}
 
 interface Props {
   taskId: string;
   onClose: () => void;
   onTaskDeleted?: () => void;
+  projectMembers?: ProjectMember[];
 }
 
 interface Comment { id: string; content: string; created_at: string; user_id: string; profiles?: { full_name: string | null } | null; }
