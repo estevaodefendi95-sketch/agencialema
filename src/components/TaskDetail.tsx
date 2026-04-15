@@ -98,6 +98,7 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted, projectMemb
     if (editDesc !== (task.description || "")) { updates.description = editDesc || null; changes.push("Descrição atualizada"); }
     if (editPriority !== task.priority) { updates.priority = editPriority; changes.push(`Prioridade: ${task.priority} → ${editPriority}`); }
     if (editDueDate !== (task.due_date || "")) { updates.due_date = editDueDate || null; changes.push("Prazo atualizado"); }
+    if (editAssignedTo !== (task.assigned_to || "")) { updates.assigned_to = editAssignedTo || null; changes.push("Responsável atualizado"); }
 
     if (Object.keys(updates).length === 0) return;
     await supabase.from("tasks").update(updates).eq("id", taskId);
