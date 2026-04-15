@@ -182,8 +182,44 @@ export default function KanbanBoard() {
     }
   }, [projectId]);
 
+  const loadMembers = useCallback(async () => {
+    if (!projectId) return;
+    const { data } = await (supabase.from as any)("project_members")
+      .select("*, profiles:user_id(full_name, email, avatar_url)")
+      .eq("project_id", projectId);
+    setMembers(data || []);
+  }, [projectId]);
+
+  const inviteMember = async () => {
+    if (!inviteEmail.trim() || !projectId) return;
+    setInviting(true);
+    const { data: profile } = await supabase.from("profiles").select("id, full_name").eq("email", inviteEmail.trim()).single();
+    if (!profile) {
+      toast({ title: "Usuário não encontrado", description: "Nenhum usuário com este e-mail.", variant: "destructive" });
+      setInviting(false);
+      return;
+    }
+    const exists = members.some((m) => m.user_id === profile.id);
+    if (exists) {
+      toast({ title: "Já é membro", variant: "destructive" });
+      setInviting(false);
+      return;
+    }
+    await (supabase.from as any)("project_members").insert({ project_id: projectId, user_id: profile.id });
+    setInviteEmail("");
+    toast({ title: `${profile.full_name || inviteEmail} adicionado à equipe` });
+    setInviting(false);
+    loadMembers();
+  };
+
+  const removeMember = async (memberId: string) => {
+    await (supabase.from as any)("project_members").delete().eq("id", memberId);
+    toast({ title: "Membro removido" });
+    loadMembers();
+  };
+
   useEffect(() => { loadColumns(); }, [loadColumns]);
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { loadMembers(); }, [loadMembers]);
 
   const toggleViewMode = (mode: "kanban" | "lista") => {
     setViewMode(mode);
