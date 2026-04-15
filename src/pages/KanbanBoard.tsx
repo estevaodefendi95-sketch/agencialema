@@ -747,7 +747,7 @@ export default function KanbanBoard() {
               </div>
             ))}
             {canEdit && (
-              <div className="flex items-start pt-3 shrink-0">
+              <div className="flex items-center justify-center shrink-0 min-h-[200px]">
                 <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full border-2 border-dashed border-muted text-muted-foreground hover:text-foreground hover:border-foreground" onClick={addColumn}>
                   <Plus className="h-4 w-4" />
                 </Button>
