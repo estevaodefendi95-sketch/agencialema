@@ -395,10 +395,37 @@ export default function KanbanBoard() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div>
-          {companyName && <p className="text-xs text-muted-foreground">{companyName}</p>}
-          <h2 className="text-2xl font-bold">{projectName}</h2>
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <div className="flex items-center gap-3">
+          <div>
+            {companyName && <p className="text-xs text-muted-foreground">{companyName}</p>}
+            <h2 className="text-2xl font-bold">{projectName}</h2>
+          </div>
+          {/* Team Avatars */}
+          {members.length > 0 && (
+            <TooltipProvider>
+              <div className="flex -space-x-2">
+                {members.slice(0, 5).map((m) => (
+                  <Tooltip key={m.id}>
+                    <TooltipTrigger asChild>
+                      <Avatar className="h-7 w-7 border-2 border-background">
+                        <AvatarImage src={(m.profiles as any)?.avatar_url || ""} />
+                        <AvatarFallback className="text-[10px]">
+                          {((m.profiles as any)?.full_name || "?").charAt(0).toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
+                    </TooltipTrigger>
+                    <TooltipContent><p>{(m.profiles as any)?.full_name || (m.profiles as any)?.email}</p></TooltipContent>
+                  </Tooltip>
+                ))}
+                {members.length > 5 && (
+                  <Avatar className="h-7 w-7 border-2 border-background">
+                    <AvatarFallback className="text-[10px]">+{members.length - 5}</AvatarFallback>
+                  </Avatar>
+                )}
+              </div>
+            </TooltipProvider>
+          )}
         </div>
         <div className="flex items-center gap-2">
           <div className="flex items-center border rounded-lg overflow-hidden">
@@ -425,6 +452,61 @@ export default function KanbanBoard() {
               Prazo {sortPrazo === "asc" ? "↑" : "↓"}
             </Button>
           )}
+          {/* Team Sheet */}
+          <Sheet open={teamOpen} onOpenChange={setTeamOpen}>
+            <SheetTrigger asChild>
+              <Button variant="ghost" size="sm" className="gap-1.5 text-xs">
+                <Users className="h-3.5 w-3.5" /> Equipe
+              </Button>
+            </SheetTrigger>
+            <SheetContent className="w-[400px] sm:w-[450px]">
+              <SheetHeader>
+                <SheetTitle>Equipe do Projeto</SheetTitle>
+              </SheetHeader>
+              <div className="mt-4 space-y-4">
+                {canEdit && (
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="E-mail do usuário..."
+                      value={inviteEmail}
+                      onChange={(e) => setInviteEmail(e.target.value)}
+                      onKeyDown={(e) => e.key === "Enter" && inviteMember()}
+                      className="text-sm"
+                    />
+                    <Button size="sm" onClick={inviteMember} disabled={inviting}>
+                      <UserPlus className="h-4 w-4" />
+                    </Button>
+                  </div>
+                )}
+                <ScrollArea className="h-[calc(100vh-160px)]">
+                  <div className="space-y-2">
+                    {members.length === 0 && (
+                      <p className="text-sm text-muted-foreground text-center py-8">Nenhum membro adicionado</p>
+                    )}
+                    {members.map((m) => (
+                      <div key={m.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50">
+                        <Avatar className="h-8 w-8">
+                          <AvatarImage src={(m.profiles as any)?.avatar_url || ""} />
+                          <AvatarFallback className="text-xs">
+                            {((m.profiles as any)?.full_name || "?").charAt(0).toUpperCase()}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate">{(m.profiles as any)?.full_name || "Sem nome"}</p>
+                          <p className="text-xs text-muted-foreground truncate">{(m.profiles as any)?.email}</p>
+                        </div>
+                        {canEdit && (
+                          <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => removeMember(m.id)}>
+                            <X className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </ScrollArea>
+              </div>
+            </SheetContent>
+          </Sheet>
           <Sheet open={historyOpen} onOpenChange={setHistoryOpen}>
             <SheetTrigger asChild>
               <Button variant="ghost" size="sm" className="gap-1.5 text-xs">
