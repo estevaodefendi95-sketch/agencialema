@@ -57,6 +57,13 @@ interface HistoryEntry {
   profiles?: { full_name: string | null } | null;
 }
 
+interface ProjectMember {
+  id: string;
+  user_id: string;
+  role: string;
+  profiles?: { full_name: string | null; email: string | null; avatar_url: string | null } | null;
+}
+
 const ACTION_LABELS: Record<string, string> = {
   create: "Projeto criado",
   update: "Projeto atualizado",
