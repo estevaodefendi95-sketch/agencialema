@@ -52,6 +52,7 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted, projectMemb
   const [editDesc, setEditDesc] = useState("");
   const [editPriority, setEditPriority] = useState("");
   const [editDueDate, setEditDueDate] = useState("");
+  const [editAssignedTo, setEditAssignedTo] = useState("");
   const [hasChanges, setHasChanges] = useState(false);
 
   // Comment editing
