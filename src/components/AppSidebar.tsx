@@ -1,5 +1,5 @@
 import {
-  LayoutDashboard, Building2, FolderKanban, Users, Bell, LogOut, Sun, Moon, Settings, Building,
+  LayoutDashboard, Building2, FolderKanban, Users, Bell, LogOut, Sun, Moon, Settings, Building, CalendarDays,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/contexts/AuthContext";
@@ -24,6 +24,7 @@ export function AppSidebar() {
     { title: "Dashboard", url: "/", icon: LayoutDashboard },
     { title: "Empresas", url: "/empresas", icon: Building2 },
     { title: "Projetos", url: "/projetos", icon: FolderKanban },
+    { title: "Calendário", url: "/calendario", icon: CalendarDays },
   ];
 
   const managerItems = canManage

@@ -12,6 +12,7 @@ import Dashboard from "@/pages/Dashboard";
 import Companies from "@/pages/Companies";
 import Projects from "@/pages/Projects";
 import KanbanBoard from "@/pages/KanbanBoard";
+import TaskCalendar from "@/pages/TaskCalendar";
 import AdminUsers from "@/pages/AdminUsers";
 import AdminSettings from "@/pages/AdminSettings";
 import AdminAgencies from "@/pages/AdminAgencies";
@@ -57,6 +58,7 @@ function AppRoutes() {
           <Route path="/empresas" element={<Companies />} />
           <Route path="/projetos" element={<Projects />} />
           <Route path="/projetos/:id" element={<KanbanBoard />} />
+          <Route path="/calendario" element={<TaskCalendar />} />
           <Route path="/admin/usuarios" element={<AdminUsers />} />
           <Route path="/admin/configuracoes" element={<AdminSettings />} />
           <Route path="/admin/agencias" element={<AdminAgencies />} />
