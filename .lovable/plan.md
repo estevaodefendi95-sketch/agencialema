@@ -1,35 +1,38 @@
 
 
-## Plano: Formulário completo na criação de tarefa + Responsável + Comentários no histórico
+## Plano: Aba Calendário de Tarefas
 
-### 1. Expandir o dialog "Nova Tarefa" (`KanbanBoard.tsx`)
+### Visão geral
+Criar uma nova página "Calendário" acessível pelo sidebar, exibindo todas as tarefas com prazo (`due_date`) em um calendário mensal. A visualização respeita automaticamente as permissões do usuário via RLS (só vê tarefas de empresas permitidas).
 
-O dialog atual tem: Título, Descrição, Prioridade, Coluna, Prazo.
+### 1. Nova página `src/pages/TaskCalendar.tsx`
 
-Adicionar:
-- **Responsável(is)**: campo Select com membros do projeto (`projectMembers`), igual ao que já existe no `TaskDetail.tsx`
-- **Checklist**: campo para adicionar itens iniciais de checklist
-- **Upload de mídias/documentos**: input de arquivo igual ao do `TaskDetail`
-- **Cor da tarefa**: seletor de cor (paleta já existente)
+- Buscar todas as tarefas com `due_date` não nulo, junto com dados do projeto (`projects.name`, `projects.company_id`) e empresa (`companies.name`)
+- RLS já filtra por empresas permitidas, sem lógica extra necessária
+- Usar o componente `Calendar` (react-day-picker) já existente para navegação mensal
+- Abaixo/ao lado do calendário, marcar os dias que têm tarefas com indicadores visuais (dots coloridos por prioridade)
+- Ao clicar em um dia, listar as tarefas daquele dia com: título, projeto, empresa, prioridade, responsável
+- Clicar na tarefa navega para o kanban do projeto (`/projetos/:projectId`)
 
-Ao criar a tarefa, salvar também: `assigned_to`, criar itens de checklist e fazer upload de mídias associadas.
+### 2. Rota e sidebar
 
-Adicionar estado `newAssignedTo` e resetar ao fechar.
+- Adicionar rota `/calendario` em `App.tsx`
+- Adicionar item "Calendário" no sidebar (`AppSidebar.tsx`) com ícone `Calendar`, entre Projetos e os itens de admin
 
-### 2. Comentários visíveis no histórico (`TaskDetail.tsx`)
+### 3. Layout do calendário
 
-Atualmente comentários e histórico são seções separadas. Os comentários já são registrados no `task_history` com action "Comentou".
-
-Ajuste: na seção Histórico, exibir os comentários inline junto com as ações, mostrando o conteúdo do comentário (de `details.content`) em destaque, para que todos vejam o fluxo completo de atividade da tarefa.
-
-Alternativamente, mesclar comentários e histórico em uma única timeline unificada ordenada por `created_at`.
+- Calendário mensal grande ocupando a largura da página
+- Dias com tarefas exibem pequenos dots coloridos (cor da prioridade ou do projeto)
+- Painel lateral ou seção abaixo mostra detalhes das tarefas do dia selecionado
+- Cards de tarefa mostram: título, badge de prioridade, nome do projeto, nome da empresa, avatar do responsável
 
 ### Resumo
 
 | Mudança | Onde |
 |---------|------|
-| Adicionar campo Responsável no dialog Nova Tarefa | `KanbanBoard.tsx` |
-| Adicionar checklist, upload e cor no dialog Nova Tarefa | `KanbanBoard.tsx` |
-| Salvar assigned_to + checklist + mídia ao criar | `KanbanBoard.tsx` |
-| Unificar comentários + histórico em timeline | `TaskDetail.tsx` |
+| Nova página calendário | `src/pages/TaskCalendar.tsx` |
+| Rota `/calendario` | `App.tsx` |
+| Item no sidebar | `AppSidebar.tsx` |
+
+Nenhuma migração SQL necessária - RLS existente já garante a filtragem por empresa.
 
