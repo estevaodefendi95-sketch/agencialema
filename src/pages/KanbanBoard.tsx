@@ -1021,15 +1021,15 @@ export default function KanbanBoard() {
                   <Label>Prazo</Label>
                   <Input type="date" value={newDueDate} onChange={(e) => setNewDueDate(e.target.value)} />
                 </div>
-                {members.length > 0 && (
+                {members.filter((m) => m.user_id && m.status !== "pendente").length > 0 && (
                   <div className="space-y-2">
                     <Label>Responsável</Label>
                     <Select value={newAssignedTo} onValueChange={setNewAssignedTo}>
                       <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="none">Nenhum</SelectItem>
-                        {members.map((m) => (
-                          <SelectItem key={m.user_id} value={m.user_id}>
+                        {members.filter((m) => m.user_id && m.status !== "pendente").map((m) => (
+                          <SelectItem key={m.user_id} value={m.user_id!}>
                             {(m.profiles as any)?.full_name || (m.profiles as any)?.email || "Sem nome"}
                           </SelectItem>
                         ))}
