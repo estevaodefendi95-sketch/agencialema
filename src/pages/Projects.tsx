@@ -396,10 +396,41 @@ export default function Projects() {
                     <CardContent>
                       {p.description && <p className="text-sm text-muted-foreground mb-2 line-clamp-2">{p.description}</p>}
                       {p.due_date && (
-                        <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                        <div className="flex items-center gap-1 text-xs text-muted-foreground mb-2">
                           <Calendar className="h-3 w-3" /> Prazo: {new Date(p.due_date).toLocaleDateString("pt-BR")}
                         </div>
                       )}
+                      {(() => {
+                        const tasks = tasksByProject[p.id] || [];
+                        if (tasks.length === 0) {
+                          return <p className="text-xs text-muted-foreground italic">Nenhuma tarefa ainda</p>;
+                        }
+                        const priorityColor: Record<string, string> = {
+                          urgente: "bg-destructive",
+                          alta: "bg-orange-500",
+                          media: "bg-yellow-500",
+                          baixa: "bg-emerald-500",
+                        };
+                        return (
+                          <div className="space-y-1.5 mt-2 border-t pt-2">
+                            <div className="flex items-center justify-between text-xs text-muted-foreground">
+                              <span className="font-medium">Tarefas</span>
+                              <span>{tasks.length}</span>
+                            </div>
+                            <ul className="space-y-1">
+                              {tasks.slice(0, 4).map((t) => (
+                                <li key={t.id} className="flex items-center gap-2 text-xs">
+                                  <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${priorityColor[t.priority] || "bg-muted-foreground"}`} />
+                                  <span className="truncate flex-1">{t.title}</span>
+                                </li>
+                              ))}
+                              {tasks.length > 4 && (
+                                <li className="text-xs text-muted-foreground pl-3.5">+ {tasks.length - 4} outras</li>
+                              )}
+                            </ul>
+                          </div>
+                        );
+                      })()}
                     </CardContent>
                   </Card>
                 ))}
