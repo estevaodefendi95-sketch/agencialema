@@ -106,6 +106,7 @@ export default function KanbanBoard() {
   // Print
   const [printOpen, setPrintOpen] = useState(false);
   const [selectedPrintIds, setSelectedPrintIds] = useState<Set<string>>(new Set());
+  const [printMediaByTask, setPrintMediaByTask] = useState<Record<string, { id: string; file_url: string; file_name: string; file_type: string }[]>>({});
   const [tasks, setTasks] = useState<Task[]>([]);
   const [columns, setColumns] = useState<Column[]>([]);
   const [taskMedia, setTaskMedia] = useState<Record<string, MediaInfo>>({});
