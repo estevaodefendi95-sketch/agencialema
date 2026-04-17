@@ -60,11 +60,23 @@ export default function PrintProjectView({
   tasks,
   columns,
   members,
+  mediaByTask = {},
 }: Props) {
   const memberName = (userId: string | null) => {
     if (!userId) return null;
     const m = members.find((mm) => mm.user_id === userId);
     return m?.profiles?.full_name || m?.profiles?.email || null;
+  };
+
+  const getMediaKind = (m: MediaItem): "image" | "video" | "pdf" | "other" => {
+    const name = (m.file_name || "").toLowerCase();
+    const url = (m.file_url || "").toLowerCase();
+    const type = (m.file_type || "").toLowerCase();
+    const ext = name.split(".").pop() || url.split("?")[0].split(".").pop() || "";
+    if (type.startsWith("image") || ["jpg", "jpeg", "png", "webp", "gif", "bmp", "svg"].includes(ext)) return "image";
+    if (type === "video" || type.startsWith("video") || ["mp4", "mov", "webm", "mkv", "avi"].includes(ext)) return "video";
+    if (ext === "pdf" || type === "pdf") return "pdf";
+    return "other";
   };
 
   const formatDate = (d: string | null) =>
