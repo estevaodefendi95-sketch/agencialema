@@ -640,6 +640,17 @@ export default function KanbanBoard() {
               </ScrollArea>
             </SheetContent>
           </Sheet>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="gap-1.5 text-xs"
+            onClick={() => {
+              setSelectedPrintIds(new Set(tasks.map((t) => t.id)));
+              setPrintOpen(true);
+            }}
+          >
+            <Printer className="h-3.5 w-3.5" /> Imprimir
+          </Button>
           {canEdit && (
             <Button onClick={() => setNewTaskOpen(true)} className="gap-2">
               <Plus className="h-4 w-4" /> Nova Tarefa
