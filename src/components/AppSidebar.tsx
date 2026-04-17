@@ -1,5 +1,5 @@
 import {
-  LayoutDashboard, Building2, FolderKanban, Users, Bell, LogOut, Sun, Moon, Settings, Building, CalendarDays,
+  LayoutDashboard, Building2, FolderKanban, Users, Bell, LogOut, Sun, Moon, Settings, CalendarDays,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/contexts/AuthContext";
@@ -12,13 +12,11 @@ import {
 import { Button } from "@/components/ui/button";
 
 export function AppSidebar() {
-  const { isAdmin, isAgencyAdmin, isSuperAdmin, signOut } = useAuth();
+  const { isAdmin, signOut } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const { state } = useSidebar();
   const { app_name, logo_url } = useAppSettings();
   const collapsed = state === "collapsed";
-
-  const canManage = isAdmin || isAgencyAdmin;
 
   const baseItems = [
     { title: "Dashboard", url: "/", icon: LayoutDashboard },
@@ -27,7 +25,7 @@ export function AppSidebar() {
     { title: "Calendário", url: "/calendario", icon: CalendarDays },
   ];
 
-  const managerItems = canManage
+  const managerItems = isAdmin
     ? [
         { title: "Usuários", url: "/admin/usuarios", icon: Users },
         { title: "Notificações", url: "/notificacoes", icon: Bell },
@@ -35,11 +33,7 @@ export function AppSidebar() {
       ]
     : [{ title: "Notificações", url: "/notificacoes", icon: Bell }];
 
-  const superAdminItems = isSuperAdmin
-    ? [{ title: "Agências", url: "/admin/agencias", icon: Building }]
-    : [];
-
-  const items = [...baseItems, ...managerItems, ...superAdminItems];
+  const items = [...baseItems, ...managerItems];
 
   return (
     <Sidebar collapsible="icon">
