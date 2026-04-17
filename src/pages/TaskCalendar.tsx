@@ -138,6 +138,45 @@ export default function TaskCalendar() {
         </div>
       </div>
 
+      <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center">
+        <Select value={companyFilter} onValueChange={setCompanyFilter}>
+          <SelectTrigger className="w-full sm:w-[240px]">
+            <SelectValue placeholder="Empresa" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todas as empresas</SelectItem>
+            {companyOptions.map((c) => (
+              <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Select value={assigneeFilter} onValueChange={setAssigneeFilter}>
+          <SelectTrigger className="w-full sm:w-[240px]">
+            <SelectValue placeholder="Responsável" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos os responsáveis</SelectItem>
+            {assigneeOptions.hasUnassigned && (
+              <SelectItem value="none">Sem responsável</SelectItem>
+            )}
+            {assigneeOptions.list.map((a) => (
+              <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        {hasFilters && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => { setCompanyFilter("all"); setAssigneeFilter("all"); }}
+          >
+            <X className="h-4 w-4 mr-1" /> Limpar filtros
+          </Button>
+        )}
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-[auto_1fr] gap-6">
         <Card>
           <CardContent className="p-3">
