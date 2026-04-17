@@ -279,6 +279,28 @@ export default function KanbanBoard() {
   useEffect(() => { loadColumns(); }, [loadColumns]);
   useEffect(() => { loadMembers(); }, [loadMembers]);
 
+  useEffect(() => {
+    if (!printOpen) return;
+    const taskIds = tasks.map((t) => t.id);
+    if (taskIds.length === 0) {
+      setPrintMediaByTask({});
+      return;
+    }
+    (async () => {
+      const { data } = await supabase
+        .from("task_media")
+        .select("id, task_id, file_url, file_name, file_type")
+        .in("task_id", taskIds)
+        .order("created_at");
+      const map: Record<string, { id: string; file_url: string; file_name: string; file_type: string }[]> = {};
+      (data || []).forEach((m: any) => {
+        if (!map[m.task_id]) map[m.task_id] = [];
+        map[m.task_id].push({ id: m.id, file_url: m.file_url, file_name: m.file_name, file_type: m.file_type });
+      });
+      setPrintMediaByTask(map);
+    })();
+  }, [printOpen, tasks]);
+
   const toggleViewMode = (mode: "kanban" | "lista") => {
     setViewMode(mode);
     if (projectId) localStorage.setItem(`view-mode-${projectId}`, mode);
