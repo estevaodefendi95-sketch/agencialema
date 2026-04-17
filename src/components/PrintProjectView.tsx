@@ -55,7 +55,7 @@ export default function PrintProjectView({
     d ? new Date(d).toLocaleDateString("pt-BR") : null;
 
   return (
-    <div className="print-area" style={{ display: "none" }}>
+    <div className="print-area print-only">
       <header
         style={{
           borderBottom: "2px solid #000",

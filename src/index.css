@@ -111,10 +111,17 @@
   display: none;
 }
 
-/* Print styles */
+/* Print-only area: hidden on screen, visible when printing */
+.print-only {
+  display: none;
+}
+
 @media print {
   body * {
     visibility: hidden;
+  }
+  .print-only {
+    display: block !important;
   }
   .print-area, .print-area * {
     visibility: visible;
@@ -139,4 +146,5 @@
     break-inside: avoid-page;
   }
 }
+
 
