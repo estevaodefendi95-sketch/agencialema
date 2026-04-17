@@ -20,6 +20,13 @@ interface Member {
   profiles?: { full_name: string | null; email: string | null } | null;
 }
 
+interface MediaItem {
+  id: string;
+  file_url: string;
+  file_name: string;
+  file_type: string;
+}
+
 interface Props {
   projectName: string;
   companyName: string;
@@ -28,6 +35,7 @@ interface Props {
   tasks: Task[];
   columns: Column[];
   members: Member[];
+  mediaByTask?: Record<string, MediaItem[]>;
 }
 
 const PRIORITY_LABELS: Record<string, string> = {
