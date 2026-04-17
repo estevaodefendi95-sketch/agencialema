@@ -63,12 +63,31 @@ export default function Projects() {
     (localStorage.getItem("sort-dir-projetos") as SortDir) || "asc"
   );
 
+  const [tasksByProject, setTasksByProject] = useState<Record<string, { id: string; title: string; status: string; priority: string; due_date: string | null }[]>>({});
+
   const load = async () => {
     const { data } = await supabase.from("projects").select("*, companies(name, logo_url)").order("created_at", { ascending: false });
-    setProjects((data as any[])?.map(d => ({ ...d, archived: d.archived ?? false })) || []);
+    const list = (data as any[])?.map(d => ({ ...d, archived: d.archived ?? false })) || [];
+    setProjects(list);
     if (isAdmin) {
       const { data: c } = await supabase.from("companies").select("id, name").order("name");
       setCompanies(c || []);
+    }
+    const ids = list.map((p) => p.id);
+    if (ids.length) {
+      const { data: tasks } = await supabase
+        .from("tasks")
+        .select("id, title, status, priority, due_date, project_id, position")
+        .in("project_id", ids)
+        .order("position", { ascending: true });
+      const grouped: Record<string, any[]> = {};
+      (tasks || []).forEach((t: any) => {
+        if (!grouped[t.project_id]) grouped[t.project_id] = [];
+        grouped[t.project_id].push(t);
+      });
+      setTasksByProject(grouped);
+    } else {
+      setTasksByProject({});
     }
   };
 
@@ -303,33 +322,47 @@ export default function Projects() {
                   <TableHeader>
                     <TableRow>
                       <TableHead>Nome</TableHead>
+                      <TableHead>Tarefas</TableHead>
                       <TableHead>Prazo</TableHead>
                       <TableHead>Descrição</TableHead>
                       {canEdit && <TableHead className="w-10" />}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {group.projects.map((p) => (
-                      <TableRow key={p.id} className="cursor-pointer" onClick={() => navigate(`/projetos/${p.id}`)}>
-                        <TableCell className="font-medium">{p.name}</TableCell>
-                        <TableCell>
-                          {p.due_date ? (
-                            <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                              <Calendar className="h-3 w-3" />
-                              {new Date(p.due_date).toLocaleDateString("pt-BR")}
-                            </span>
-                          ) : (
-                            <span className="text-xs text-muted-foreground">—</span>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-muted-foreground text-sm max-w-[200px] truncate">{p.description || "—"}</TableCell>
-                        {canEdit && (
+                    {group.projects.map((p) => {
+                      const tasks = tasksByProject[p.id] || [];
+                      return (
+                        <TableRow key={p.id} className="cursor-pointer" onClick={() => navigate(`/projetos/${p.id}`)}>
+                          <TableCell className="font-medium">{p.name}</TableCell>
                           <TableCell>
-                            <ProjectActions p={p} />
+                            {tasks.length === 0 ? (
+                              <span className="text-xs text-muted-foreground">—</span>
+                            ) : (
+                              <div className="flex flex-col gap-0.5 max-w-[260px]">
+                                <span className="text-xs font-medium text-muted-foreground">{tasks.length} tarefa{tasks.length > 1 ? "s" : ""}</span>
+                                <span className="text-xs truncate">{tasks.slice(0, 2).map(t => t.title).join(", ")}{tasks.length > 2 ? "…" : ""}</span>
+                              </div>
+                            )}
                           </TableCell>
-                        )}
-                      </TableRow>
-                    ))}
+                          <TableCell>
+                            {p.due_date ? (
+                              <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                                <Calendar className="h-3 w-3" />
+                                {new Date(p.due_date).toLocaleDateString("pt-BR")}
+                              </span>
+                            ) : (
+                              <span className="text-xs text-muted-foreground">—</span>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-muted-foreground text-sm max-w-[200px] truncate">{p.description || "—"}</TableCell>
+                          {canEdit && (
+                            <TableCell>
+                              <ProjectActions p={p} />
+                            </TableCell>
+                          )}
+                        </TableRow>
+                      );
+                    })}
                   </TableBody>
                 </Table>
               </div>
@@ -377,10 +410,41 @@ export default function Projects() {
                     <CardContent>
                       {p.description && <p className="text-sm text-muted-foreground mb-2 line-clamp-2">{p.description}</p>}
                       {p.due_date && (
-                        <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                        <div className="flex items-center gap-1 text-xs text-muted-foreground mb-2">
                           <Calendar className="h-3 w-3" /> Prazo: {new Date(p.due_date).toLocaleDateString("pt-BR")}
                         </div>
                       )}
+                      {(() => {
+                        const tasks = tasksByProject[p.id] || [];
+                        if (tasks.length === 0) {
+                          return <p className="text-xs text-muted-foreground italic">Nenhuma tarefa ainda</p>;
+                        }
+                        const priorityColor: Record<string, string> = {
+                          urgente: "bg-destructive",
+                          alta: "bg-orange-500",
+                          media: "bg-yellow-500",
+                          baixa: "bg-emerald-500",
+                        };
+                        return (
+                          <div className="space-y-1.5 mt-2 border-t pt-2">
+                            <div className="flex items-center justify-between text-xs text-muted-foreground">
+                              <span className="font-medium">Tarefas</span>
+                              <span>{tasks.length}</span>
+                            </div>
+                            <ul className="space-y-1">
+                              {tasks.slice(0, 4).map((t) => (
+                                <li key={t.id} className="flex items-center gap-2 text-xs">
+                                  <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${priorityColor[t.priority] || "bg-muted-foreground"}`} />
+                                  <span className="truncate flex-1">{t.title}</span>
+                                </li>
+                              ))}
+                              {tasks.length > 4 && (
+                                <li className="text-xs text-muted-foreground pl-3.5">+ {tasks.length - 4} outras</li>
+                              )}
+                            </ul>
+                          </div>
+                        );
+                      })()}
                     </CardContent>
                   </Card>
                 ))}
