@@ -12,13 +12,16 @@ import { Textarea } from "@/components/ui/textarea";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useToast } from "@/hooks/use-toast";
 import { DragDropContext, Droppable, Draggable, type DropResult } from "@hello-pangea/dnd";
-import { Plus, GripVertical, Calendar, ThumbsUp, RotateCcw, ImageIcon, Play, LayoutGrid, List, ArrowUpDown, Pencil, Check, X, Trash2, Palette, History, Undo2, Users, UserPlus, FileText, CheckSquare, Upload } from "lucide-react";
+import { Plus, GripVertical, Calendar, ThumbsUp, RotateCcw, ImageIcon, Play, LayoutGrid, List, ArrowUpDown, Pencil, Check, X, Trash2, Palette, History, Undo2, Users, UserPlus, FileText, CheckSquare, Upload, Printer } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Checkbox } from "@/components/ui/checkbox";
 import TaskDetail from "@/components/TaskDetail";
+import PrintProjectView from "@/components/PrintProjectView";
+import { useAppSettings } from "@/hooks/useAppSettings";
 
 const COLOR_PALETTE = [
   "#94a3b8", "#3B82F6", "#22c55e", "#eab308",
@@ -98,6 +101,11 @@ export default function KanbanBoard() {
   const { id: projectId } = useParams<{ id: string }>();
   const { isAdmin, user, canEdit } = useAuth();
   const { toast } = useToast();
+  const appSettings = useAppSettings();
+
+  // Print
+  const [printOpen, setPrintOpen] = useState(false);
+  const [selectedPrintIds, setSelectedPrintIds] = useState<Set<string>>(new Set());
   const [tasks, setTasks] = useState<Task[]>([]);
   const [columns, setColumns] = useState<Column[]>([]);
   const [taskMedia, setTaskMedia] = useState<Record<string, MediaInfo>>({});
@@ -632,6 +640,17 @@ export default function KanbanBoard() {
               </ScrollArea>
             </SheetContent>
           </Sheet>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="gap-1.5 text-xs"
+            onClick={() => {
+              setSelectedPrintIds(new Set(tasks.map((t) => t.id)));
+              setPrintOpen(true);
+            }}
+          >
+            <Printer className="h-3.5 w-3.5" /> Imprimir
+          </Button>
           {canEdit && (
             <Button onClick={() => setNewTaskOpen(true)} className="gap-2">
               <Plus className="h-4 w-4" /> Nova Tarefa
@@ -1153,6 +1172,101 @@ export default function KanbanBoard() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Print selection dialog */}
+      <Dialog open={printOpen} onOpenChange={setPrintOpen}>
+        <DialogContent className="max-w-2xl max-h-[80vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle>Preparar impressão</DialogTitle>
+          </DialogHeader>
+          <div className="flex items-center gap-2 pb-2">
+            <Button variant="outline" size="sm" onClick={() => setSelectedPrintIds(new Set(tasks.map((t) => t.id)))}>
+              Selecionar todas
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => setSelectedPrintIds(new Set())}>
+              Limpar seleção
+            </Button>
+            <span className="text-xs text-muted-foreground ml-auto">
+              {selectedPrintIds.size} de {tasks.length} selecionadas
+            </span>
+          </div>
+          <ScrollArea className="flex-1 pr-3 -mr-3">
+            <div className="space-y-4">
+              {columns.map((col) => {
+                const colTasks = tasks.filter((t) => t.status === col.slug);
+                if (colTasks.length === 0) return null;
+                const allSelected = colTasks.every((t) => selectedPrintIds.has(t.id));
+                return (
+                  <div key={col.id} className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <Checkbox
+                        checked={allSelected}
+                        onCheckedChange={(checked) => {
+                          setSelectedPrintIds((prev) => {
+                            const next = new Set(prev);
+                            colTasks.forEach((t) => {
+                              if (checked) next.add(t.id);
+                              else next.delete(t.id);
+                            });
+                            return next;
+                          });
+                        }}
+                      />
+                      <span className="font-medium text-sm" style={{ color: col.color }}>
+                        {col.label}
+                      </span>
+                      <span className="text-xs text-muted-foreground">({colTasks.length})</span>
+                    </div>
+                    <div className="ml-6 space-y-1">
+                      {colTasks.map((t) => (
+                        <label
+                          key={t.id}
+                          className="flex items-start gap-2 text-sm cursor-pointer hover:bg-muted/50 rounded px-2 py-1"
+                        >
+                          <Checkbox
+                            checked={selectedPrintIds.has(t.id)}
+                            onCheckedChange={(checked) => {
+                              setSelectedPrintIds((prev) => {
+                                const next = new Set(prev);
+                                if (checked) next.add(t.id);
+                                else next.delete(t.id);
+                                return next;
+                              });
+                            }}
+                          />
+                          <span className="flex-1">{t.title}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </ScrollArea>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPrintOpen(false)}>Cancelar</Button>
+            <Button
+              disabled={selectedPrintIds.size === 0}
+              onClick={() => {
+                setPrintOpen(false);
+                setTimeout(() => window.print(), 200);
+              }}
+            >
+              <Printer className="h-4 w-4 mr-2" /> Gerar PDF
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <PrintProjectView
+        projectName={projectName}
+        companyName={companyName}
+        appName={appSettings.app_name}
+        logoUrl={appSettings.logo_url}
+        tasks={tasks.filter((t) => selectedPrintIds.has(t.id))}
+        columns={columns}
+        members={members}
+      />
     </div>
   );
 }

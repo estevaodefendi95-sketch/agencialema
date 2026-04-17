@@ -110,3 +110,41 @@
 .scrollbar-hide::-webkit-scrollbar {
   display: none;
 }
+
+/* Print-only area: hidden on screen, visible when printing */
+.print-only {
+  display: none;
+}
+
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  .print-only {
+    display: block !important;
+  }
+  .print-area, .print-area * {
+    visibility: visible;
+  }
+  .print-area {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    padding: 16px;
+    background: white;
+    color: black;
+  }
+  .print-hide {
+    display: none !important;
+  }
+  .print-card {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+  .print-column {
+    break-inside: avoid-page;
+  }
+}
+
+

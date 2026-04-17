@@ -2,23 +2,18 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from "
 import { supabase } from "@/integrations/supabase/client";
 import type { User, Session } from "@supabase/supabase-js";
 
-type UserRole = "admin" | "agency_admin" | "editor" | "visualizador" | "cliente" | null;
+type UserRole = "admin" | "editor" | "visualizador" | "cliente" | null;
 type UserStatus = "pendente" | "aprovado" | "bloqueado" | null;
-
-const MASTER_EMAIL = "estevaodefendi95@gmail.com";
 
 interface AuthContextType {
   user: User | null;
   session: Session | null;
   role: UserRole;
   status: UserStatus;
-  agencyId: string | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
   signUp: (email: string, password: string, fullName: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
-  isSuperAdmin: boolean;
-  isAgencyAdmin: boolean;
   isAdmin: boolean;
   isEditor: boolean;
   isViewer: boolean;
@@ -32,17 +27,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [role, setRole] = useState<UserRole>(null);
   const [status, setStatus] = useState<UserStatus>(null);
-  const [agencyId, setAgencyId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   const fetchUserMeta = async (userId: string) => {
     const { data: profile } = await supabase
       .from("profiles")
-      .select("status, agency_id")
+      .select("status")
       .eq("id", userId)
       .single();
     setStatus((profile?.status as UserStatus) ?? null);
-    setAgencyId(profile?.agency_id ?? null);
 
     const { data: roleData } = await supabase
       .from("user_roles")
@@ -62,7 +55,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         } else {
           setRole(null);
           setStatus(null);
-          setAgencyId(null);
         }
         setLoading(false);
       }
@@ -100,19 +92,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setSession(null);
     setRole(null);
     setStatus(null);
-    setAgencyId(null);
   };
 
-  const isSuperAdmin = user?.email === MASTER_EMAIL;
-  const isAgencyAdmin = role === "agency_admin";
-  const isAdmin = role === "admin" || isSuperAdmin;
+  const isAdmin = role === "admin";
   const isEditor = role === "editor";
   const isViewer = role === "visualizador";
-  const canEdit = isAdmin || isAgencyAdmin || isEditor;
+  const canEdit = isAdmin || isEditor;
 
   return (
     <AuthContext.Provider
-      value={{ user, session, role, status, agencyId, loading, signIn, signUp, signOut, isSuperAdmin, isAgencyAdmin, isAdmin, isEditor, isViewer, canEdit }}
+      value={{ user, session, role, status, loading, signIn, signUp, signOut, isAdmin, isEditor, isViewer, canEdit }}
     >
       {children}
     </AuthContext.Provider>

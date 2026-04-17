@@ -14,36 +14,6 @@ export type Database = {
   }
   public: {
     Tables: {
-      agencies: {
-        Row: {
-          app_name: string
-          created_at: string
-          id: string
-          logo_url: string | null
-          name: string
-          slug: string | null
-          updated_at: string
-        }
-        Insert: {
-          app_name?: string
-          created_at?: string
-          id?: string
-          logo_url?: string | null
-          name: string
-          slug?: string | null
-          updated_at?: string
-        }
-        Update: {
-          app_name?: string
-          created_at?: string
-          id?: string
-          logo_url?: string | null
-          name?: string
-          slug?: string | null
-          updated_at?: string
-        }
-        Relationships: []
-      }
       app_settings: {
         Row: {
           app_name: string
@@ -76,7 +46,6 @@ export type Database = {
       }
       companies: {
         Row: {
-          agency_id: string | null
           created_at: string
           description: string | null
           id: string
@@ -86,7 +55,6 @@ export type Database = {
           updated_at: string
         }
         Insert: {
-          agency_id?: string | null
           created_at?: string
           description?: string | null
           id?: string
@@ -96,7 +64,6 @@ export type Database = {
           updated_at?: string
         }
         Update: {
-          agency_id?: string | null
           created_at?: string
           description?: string | null
           id?: string
@@ -105,15 +72,7 @@ export type Database = {
           slug?: string | null
           updated_at?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "companies_agency_id_fkey"
-            columns: ["agency_id"]
-            isOneToOne: false
-            referencedRelation: "agencies"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       notifications: {
         Row: {
@@ -147,7 +106,6 @@ export type Database = {
       }
       profiles: {
         Row: {
-          agency_id: string | null
           avatar_url: string | null
           created_at: string
           email: string | null
@@ -157,7 +115,6 @@ export type Database = {
           updated_at: string
         }
         Insert: {
-          agency_id?: string | null
           avatar_url?: string | null
           created_at?: string
           email?: string | null
@@ -167,7 +124,6 @@ export type Database = {
           updated_at?: string
         }
         Update: {
-          agency_id?: string | null
           avatar_url?: string | null
           created_at?: string
           email?: string | null
@@ -176,15 +132,7 @@ export type Database = {
           status?: Database["public"]["Enums"]["user_status"]
           updated_at?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "profiles_agency_id_fkey"
-            columns: ["agency_id"]
-            isOneToOne: false
-            referencedRelation: "agencies"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       project_columns: {
         Row: {
@@ -636,7 +584,6 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      get_user_agency_id: { Args: { _user_id: string }; Returns: string }
       has_company_access: {
         Args: { _company_id: string; _user_id: string }
         Returns: boolean
@@ -649,7 +596,6 @@ export type Database = {
         Returns: boolean
       }
       is_approved: { Args: { _user_id: string }; Returns: boolean }
-      is_super_admin: { Args: never; Returns: boolean }
     }
     Enums: {
       app_role: "admin" | "cliente" | "editor" | "visualizador" | "agency_admin"
