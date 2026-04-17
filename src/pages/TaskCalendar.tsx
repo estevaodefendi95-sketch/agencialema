@@ -43,6 +43,8 @@ export default function TaskCalendar() {
   const [tasks, setTasks] = useState<TaskWithRelations[]>([]);
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
   const [loading, setLoading] = useState(true);
+  const [companyFilter, setCompanyFilter] = useState<string>("all");
+  const [assigneeFilter, setAssigneeFilter] = useState<string>("all");
 
   useEffect(() => {
     loadTasks();
