@@ -1021,22 +1021,25 @@ export default function KanbanBoard() {
                   <Label>Prazo</Label>
                   <Input type="date" value={newDueDate} onChange={(e) => setNewDueDate(e.target.value)} />
                 </div>
-                {members.filter((m) => m.user_id && m.status !== "pendente").length > 0 && (
-                  <div className="space-y-2">
-                    <Label>Responsável</Label>
-                    <Select value={newAssignedTo} onValueChange={setNewAssignedTo}>
-                      <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none">Nenhum</SelectItem>
-                        {members.filter((m) => m.user_id && m.status !== "pendente").map((m) => (
-                          <SelectItem key={m.user_id} value={m.user_id!}>
-                            {(m.profiles as any)?.full_name || (m.profiles as any)?.email || "Sem nome"}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
+                <div className="space-y-2">
+                  <Label>Responsável</Label>
+                  <Select value={newAssignedTo} onValueChange={setNewAssignedTo}>
+                    <SelectTrigger><SelectValue placeholder="Selecione um responsável..." /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Nenhum</SelectItem>
+                      {members.filter((m) => m.user_id && m.status !== "pendente").map((m) => (
+                        <SelectItem key={m.user_id} value={m.user_id!}>
+                          {(m.profiles as any)?.full_name || (m.profiles as any)?.email || "Sem nome"}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {members.filter((m) => m.user_id && m.status !== "pendente").length === 0 && (
+                    <p className="text-xs text-muted-foreground">
+                      Nenhum membro ativo. Adicione membros à equipe do projeto.
+                    </p>
+                  )}
+                </div>
               </div>
 
               {/* Color */}
