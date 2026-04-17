@@ -59,8 +59,10 @@ interface HistoryEntry {
 
 interface ProjectMember {
   id: string;
-  user_id: string;
+  user_id: string | null;
   role: string;
+  status?: string;
+  invited_email?: string | null;
   profiles?: { full_name: string | null; email: string | null; avatar_url: string | null } | null;
 }
 
