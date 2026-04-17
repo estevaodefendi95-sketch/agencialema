@@ -8,7 +8,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { CalendarDays, Building2, FolderKanban } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
+import { CalendarDays, Building2, FolderKanban, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type TaskWithRelations = {
@@ -41,6 +43,8 @@ export default function TaskCalendar() {
   const [tasks, setTasks] = useState<TaskWithRelations[]>([]);
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
   const [loading, setLoading] = useState(true);
+  const [companyFilter, setCompanyFilter] = useState<string>("all");
+  const [assigneeFilter, setAssigneeFilter] = useState<string>("all");
 
   useEffect(() => {
     loadTasks();
@@ -80,25 +84,47 @@ export default function TaskCalendar() {
     setLoading(false);
   }
 
-  const tasksByDate = useMemo(() => {
-    const map = new Map<string, TaskWithRelations[]>();
+  const companyOptions = useMemo(() => {
+    const map = new Map<string, string>();
     tasks.forEach((t) => {
-      const key = t.due_date;
-      if (!map.has(key)) map.set(key, []);
-      map.get(key)!.push(t);
+      const c = t.projects?.companies;
+      const id = t.projects?.company_id;
+      if (id && c?.name) map.set(id, c.name);
     });
-    return map;
+    return Array.from(map.entries()).map(([id, name]) => ({ id, name }));
   }, [tasks]);
 
+  const assigneeOptions = useMemo(() => {
+    const map = new Map<string, string>();
+    let hasUnassigned = false;
+    tasks.forEach((t) => {
+      if (!t.assigned_to) { hasUnassigned = true; return; }
+      map.set(t.assigned_to, t.assignee?.full_name || "Sem nome");
+    });
+    const list = Array.from(map.entries()).map(([id, name]) => ({ id, name }));
+    return { list, hasUnassigned };
+  }, [tasks]);
+
+  const filteredTasks = useMemo(() => {
+    return tasks.filter((t) => {
+      if (companyFilter !== "all" && t.projects?.company_id !== companyFilter) return false;
+      if (assigneeFilter === "none" && t.assigned_to) return false;
+      if (assigneeFilter !== "all" && assigneeFilter !== "none" && t.assigned_to !== assigneeFilter) return false;
+      return true;
+    });
+  }, [tasks, companyFilter, assigneeFilter]);
+
   const datesWithTasks = useMemo(
-    () => tasks.map((t) => new Date(t.due_date + "T00:00:00")),
-    [tasks],
+    () => filteredTasks.map((t) => new Date(t.due_date + "T00:00:00")),
+    [filteredTasks],
   );
 
   const selectedTasks = useMemo(() => {
     if (!selectedDate) return [];
-    return tasks.filter((t) => isSameDay(new Date(t.due_date + "T00:00:00"), selectedDate));
-  }, [tasks, selectedDate]);
+    return filteredTasks.filter((t) => isSameDay(new Date(t.due_date + "T00:00:00"), selectedDate));
+  }, [filteredTasks, selectedDate]);
+
+  const hasFilters = companyFilter !== "all" || assigneeFilter !== "all";
 
   return (
     <div className="container mx-auto p-6 space-y-6">
@@ -110,6 +136,45 @@ export default function TaskCalendar() {
             Visualize todas as tarefas com prazo das empresas que você tem acesso
           </p>
         </div>
+      </div>
+
+      <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center">
+        <Select value={companyFilter} onValueChange={setCompanyFilter}>
+          <SelectTrigger className="w-full sm:w-[240px]">
+            <SelectValue placeholder="Empresa" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todas as empresas</SelectItem>
+            {companyOptions.map((c) => (
+              <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Select value={assigneeFilter} onValueChange={setAssigneeFilter}>
+          <SelectTrigger className="w-full sm:w-[240px]">
+            <SelectValue placeholder="Responsável" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos os responsáveis</SelectItem>
+            {assigneeOptions.hasUnassigned && (
+              <SelectItem value="none">Sem responsável</SelectItem>
+            )}
+            {assigneeOptions.list.map((a) => (
+              <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        {hasFilters && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => { setCompanyFilter("all"); setAssigneeFilter("all"); }}
+          >
+            <X className="h-4 w-4 mr-1" /> Limpar filtros
+          </Button>
+        )}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-[auto_1fr] gap-6">
