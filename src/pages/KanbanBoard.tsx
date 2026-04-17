@@ -274,6 +274,7 @@ export default function KanbanBoard() {
     loadMembers();
   };
 
+  useEffect(() => { load(); }, [load]);
   useEffect(() => { loadColumns(); }, [loadColumns]);
   useEffect(() => { loadMembers(); }, [loadMembers]);
 
