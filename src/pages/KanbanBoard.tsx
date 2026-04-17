@@ -198,23 +198,64 @@ export default function KanbanBoard() {
   }, [projectId]);
 
   const inviteMember = async () => {
-    if (!inviteEmail.trim() || !projectId) return;
+    const email = inviteEmail.trim().toLowerCase();
+    if (!email || !projectId) return;
     setInviting(true);
-    const { data: profile } = await supabase.from("profiles").select("id, full_name").eq("email", inviteEmail.trim()).single();
-    if (!profile) {
-      toast({ title: "Usuário não encontrado", description: "Nenhum usuário com este e-mail.", variant: "destructive" });
+
+    // Look up project's company id
+    const { data: proj } = await supabase.from("projects").select("company_id").eq("id", projectId).single();
+    const companyId = proj?.company_id;
+
+    // Check if profile exists
+    const { data: profile } = await supabase.from("profiles").select("id, full_name").eq("email", email).maybeSingle();
+
+    let userId: string | null = null;
+    let isActive = false;
+
+    if (profile && companyId) {
+      // Check company access
+      const { data: access } = await (supabase.from as any)("user_company_access")
+        .select("id")
+        .eq("user_id", profile.id)
+        .eq("company_id", companyId)
+        .maybeSingle();
+      if (access) {
+        userId = profile.id;
+        isActive = true;
+      }
+    }
+
+    // Prevent duplicates
+    const dup = members.some((m) =>
+      (userId && m.user_id === userId) ||
+      (!userId && (m.invited_email || "").toLowerCase() === email)
+    );
+    if (dup) {
+      toast({ title: "Já é membro ou convidado", variant: "destructive" });
       setInviting(false);
       return;
     }
-    const exists = members.some((m) => m.user_id === profile.id);
-    if (exists) {
-      toast({ title: "Já é membro", variant: "destructive" });
+
+    const { error } = await (supabase.from as any)("project_members").insert({
+      project_id: projectId,
+      user_id: userId,
+      invited_email: isActive ? null : email,
+      status: isActive ? "ativo" : "pendente",
+    });
+
+    if (error) {
+      toast({ title: "Erro ao convidar", description: error.message, variant: "destructive" });
       setInviting(false);
       return;
     }
-    await (supabase.from as any)("project_members").insert({ project_id: projectId, user_id: profile.id });
+
     setInviteEmail("");
-    toast({ title: `${profile.full_name || inviteEmail} adicionado à equipe` });
+    toast({
+      title: isActive
+        ? `${profile?.full_name || email} adicionado à equipe`
+        : `Convite enviado para ${email}`,
+      description: isActive ? undefined : "Aguardando o usuário ganhar acesso à empresa.",
+    });
     setInviting(false);
     loadMembers();
   };
