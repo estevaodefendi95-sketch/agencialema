@@ -1,38 +1,34 @@
 
 
-## Plano: Aba Calendário de Tarefas
+## Plano: Filtros no Calendário (empresa e responsável)
 
-### Visão geral
-Criar uma nova página "Calendário" acessível pelo sidebar, exibindo todas as tarefas com prazo (`due_date`) em um calendário mensal. A visualização respeita automaticamente as permissões do usuário via RLS (só vê tarefas de empresas permitidas).
+Adicionar dois selects no header da página `TaskCalendar.tsx`:
 
-### 1. Nova página `src/pages/TaskCalendar.tsx`
+### 1. Filtro por Empresa
+- Select populado com as empresas únicas extraídas das tarefas carregadas (`task.projects.companies`)
+- Opção "Todas as empresas" como padrão
 
-- Buscar todas as tarefas com `due_date` não nulo, junto com dados do projeto (`projects.name`, `projects.company_id`) e empresa (`companies.name`)
-- RLS já filtra por empresas permitidas, sem lógica extra necessária
-- Usar o componente `Calendar` (react-day-picker) já existente para navegação mensal
-- Abaixo/ao lado do calendário, marcar os dias que têm tarefas com indicadores visuais (dots coloridos por prioridade)
-- Ao clicar em um dia, listar as tarefas daquele dia com: título, projeto, empresa, prioridade, responsável
-- Clicar na tarefa navega para o kanban do projeto (`/projetos/:projectId`)
+### 2. Filtro por Responsável
+- Select populado com os responsáveis únicos extraídos das tarefas (`task.assignee`)
+- Opção "Todos os responsáveis" como padrão
+- Incluir opção "Sem responsável" para tarefas sem `assigned_to`
 
-### 2. Rota e sidebar
+### 3. Lógica de filtragem
+- Aplicar os filtros via `useMemo` antes de calcular `tasksByDate`, `datesWithTasks` e `selectedTasks`
+- Os indicadores (dots) no calendário e a lista lateral refletem os filtros ativos
+- Botão "Limpar filtros" quando algum filtro estiver aplicado
 
-- Adicionar rota `/calendario` em `App.tsx`
-- Adicionar item "Calendário" no sidebar (`AppSidebar.tsx`) com ícone `Calendar`, entre Projetos e os itens de admin
-
-### 3. Layout do calendário
-
-- Calendário mensal grande ocupando a largura da página
-- Dias com tarefas exibem pequenos dots coloridos (cor da prioridade ou do projeto)
-- Painel lateral ou seção abaixo mostra detalhes das tarefas do dia selecionado
-- Cards de tarefa mostram: título, badge de prioridade, nome do projeto, nome da empresa, avatar do responsável
+### Layout
+- Linha de filtros entre o título da página e o grid do calendário
+- Em telas pequenas, selects empilham verticalmente
 
 ### Resumo
 
 | Mudança | Onde |
 |---------|------|
-| Nova página calendário | `src/pages/TaskCalendar.tsx` |
-| Rota `/calendario` | `App.tsx` |
-| Item no sidebar | `AppSidebar.tsx` |
+| 2 selects (empresa, responsável) | `TaskCalendar.tsx` header |
+| Filtragem com `useMemo` | `TaskCalendar.tsx` |
+| Botão limpar filtros | `TaskCalendar.tsx` |
 
-Nenhuma migração SQL necessária - RLS existente já garante a filtragem por empresa.
+Sem alterações no banco de dados.
 
