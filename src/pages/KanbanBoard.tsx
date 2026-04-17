@@ -306,7 +306,7 @@ export default function KanbanBoard() {
       status: newStatus,
       position: maxPos + 1,
       created_by: user?.id,
-      assigned_to: newAssignedTo || null,
+      assigned_to: newAssignedTo && newAssignedTo !== "none" ? newAssignedTo : null,
       color: newColor,
     }).select().single();
 
