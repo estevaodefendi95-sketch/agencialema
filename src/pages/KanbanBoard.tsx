@@ -475,7 +475,7 @@ export default function KanbanBoard() {
             <h2 className="text-2xl font-bold">{projectName}</h2>
           </div>
           {/* Team Avatars */}
-          {members.length > 0 && (
+          {members.filter((m) => m.status !== "pendente").length > 0 && (
             <TooltipProvider>
               <div className="flex -space-x-2">
                 {members.slice(0, 5).map((m) => (
