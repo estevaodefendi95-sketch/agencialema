@@ -59,8 +59,10 @@ interface HistoryEntry {
 
 interface ProjectMember {
   id: string;
-  user_id: string;
+  user_id: string | null;
   role: string;
+  status?: string;
+  invited_email?: string | null;
   profiles?: { full_name: string | null; email: string | null; avatar_url: string | null } | null;
 }
 
@@ -196,23 +198,64 @@ export default function KanbanBoard() {
   }, [projectId]);
 
   const inviteMember = async () => {
-    if (!inviteEmail.trim() || !projectId) return;
+    const email = inviteEmail.trim().toLowerCase();
+    if (!email || !projectId) return;
     setInviting(true);
-    const { data: profile } = await supabase.from("profiles").select("id, full_name").eq("email", inviteEmail.trim()).single();
-    if (!profile) {
-      toast({ title: "Usuário não encontrado", description: "Nenhum usuário com este e-mail.", variant: "destructive" });
+
+    // Look up project's company id
+    const { data: proj } = await supabase.from("projects").select("company_id").eq("id", projectId).single();
+    const companyId = proj?.company_id;
+
+    // Check if profile exists
+    const { data: profile } = await supabase.from("profiles").select("id, full_name").eq("email", email).maybeSingle();
+
+    let userId: string | null = null;
+    let isActive = false;
+
+    if (profile && companyId) {
+      // Check company access
+      const { data: access } = await (supabase.from as any)("user_company_access")
+        .select("id")
+        .eq("user_id", profile.id)
+        .eq("company_id", companyId)
+        .maybeSingle();
+      if (access) {
+        userId = profile.id;
+        isActive = true;
+      }
+    }
+
+    // Prevent duplicates
+    const dup = members.some((m) =>
+      (userId && m.user_id === userId) ||
+      (!userId && (m.invited_email || "").toLowerCase() === email)
+    );
+    if (dup) {
+      toast({ title: "Já é membro ou convidado", variant: "destructive" });
       setInviting(false);
       return;
     }
-    const exists = members.some((m) => m.user_id === profile.id);
-    if (exists) {
-      toast({ title: "Já é membro", variant: "destructive" });
+
+    const { error } = await (supabase.from as any)("project_members").insert({
+      project_id: projectId,
+      user_id: userId,
+      invited_email: isActive ? null : email,
+      status: isActive ? "ativo" : "pendente",
+    });
+
+    if (error) {
+      toast({ title: "Erro ao convidar", description: error.message, variant: "destructive" });
       setInviting(false);
       return;
     }
-    await (supabase.from as any)("project_members").insert({ project_id: projectId, user_id: profile.id });
+
     setInviteEmail("");
-    toast({ title: `${profile.full_name || inviteEmail} adicionado à equipe` });
+    toast({
+      title: isActive
+        ? `${profile?.full_name || email} adicionado à equipe`
+        : `Convite enviado para ${email}`,
+      description: isActive ? undefined : "Aguardando o usuário ganhar acesso à empresa.",
+    });
     setInviting(false);
     loadMembers();
   };
@@ -263,7 +306,7 @@ export default function KanbanBoard() {
       status: newStatus,
       position: maxPos + 1,
       created_by: user?.id,
-      assigned_to: newAssignedTo || null,
+      assigned_to: newAssignedTo && newAssignedTo !== "none" ? newAssignedTo : null,
       color: newColor,
     }).select().single();
 
@@ -432,10 +475,10 @@ export default function KanbanBoard() {
             <h2 className="text-2xl font-bold">{projectName}</h2>
           </div>
           {/* Team Avatars */}
-          {members.length > 0 && (
+          {members.filter((m) => m.status !== "pendente").length > 0 && (
             <TooltipProvider>
               <div className="flex -space-x-2">
-                {members.slice(0, 5).map((m) => (
+                {members.filter((m) => m.status !== "pendente").slice(0, 5).map((m) => (
                   <Tooltip key={m.id}>
                     <TooltipTrigger asChild>
                       <Avatar className="h-7 w-7 border-2 border-background">
@@ -448,9 +491,9 @@ export default function KanbanBoard() {
                     <TooltipContent><p>{(m.profiles as any)?.full_name || (m.profiles as any)?.email}</p></TooltipContent>
                   </Tooltip>
                 ))}
-                {members.length > 5 && (
+                {members.filter((m) => m.status !== "pendente").length > 5 && (
                   <Avatar className="h-7 w-7 border-2 border-background">
-                    <AvatarFallback className="text-[10px]">+{members.length - 5}</AvatarFallback>
+                    <AvatarFallback className="text-[10px]">+{members.filter((m) => m.status !== "pendente").length - 5}</AvatarFallback>
                   </Avatar>
                 )}
               </div>
@@ -513,25 +556,41 @@ export default function KanbanBoard() {
                     {members.length === 0 && (
                       <p className="text-sm text-muted-foreground text-center py-8">Nenhum membro adicionado</p>
                     )}
-                    {members.map((m) => (
-                      <div key={m.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50">
-                        <Avatar className="h-8 w-8">
-                          <AvatarImage src={(m.profiles as any)?.avatar_url || ""} />
-                          <AvatarFallback className="text-xs">
-                            {((m.profiles as any)?.full_name || "?").charAt(0).toUpperCase()}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium truncate">{(m.profiles as any)?.full_name || "Sem nome"}</p>
-                          <p className="text-xs text-muted-foreground truncate">{(m.profiles as any)?.email}</p>
+                    {members.map((m) => {
+                      const isPending = m.status === "pendente";
+                      const displayName = isPending
+                        ? (m.invited_email || "Convidado")
+                        : ((m.profiles as any)?.full_name || "Sem nome");
+                      const subtitle = isPending ? "Aguardando aprovação" : (m.profiles as any)?.email;
+                      return (
+                        <div key={m.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50">
+                          <Avatar className="h-8 w-8">
+                            <AvatarImage src={(m.profiles as any)?.avatar_url || ""} />
+                            <AvatarFallback className="text-xs">
+                              {(displayName || "?").charAt(0).toUpperCase()}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium truncate">{displayName}</p>
+                            <p className="text-xs text-muted-foreground truncate">{subtitle}</p>
+                          </div>
+                          {isPending ? (
+                            <Badge variant="secondary" className="bg-warning/20 text-warning text-[10px] shrink-0">
+                              Pendente
+                            </Badge>
+                          ) : (
+                            <Badge variant="secondary" className="bg-success/20 text-success text-[10px] shrink-0">
+                              Ativo
+                            </Badge>
+                          )}
+                          {canEdit && (
+                            <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => removeMember(m.id)}>
+                              <X className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
                         </div>
-                        {canEdit && (
-                          <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => removeMember(m.id)}>
-                            <X className="h-3.5 w-3.5" />
-                          </Button>
-                        )}
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </ScrollArea>
               </div>
@@ -962,15 +1021,15 @@ export default function KanbanBoard() {
                   <Label>Prazo</Label>
                   <Input type="date" value={newDueDate} onChange={(e) => setNewDueDate(e.target.value)} />
                 </div>
-                {members.length > 0 && (
+                {members.filter((m) => m.user_id && m.status !== "pendente").length > 0 && (
                   <div className="space-y-2">
                     <Label>Responsável</Label>
                     <Select value={newAssignedTo} onValueChange={setNewAssignedTo}>
                       <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="none">Nenhum</SelectItem>
-                        {members.map((m) => (
-                          <SelectItem key={m.user_id} value={m.user_id}>
+                        {members.filter((m) => m.user_id && m.status !== "pendente").map((m) => (
+                          <SelectItem key={m.user_id} value={m.user_id!}>
                             {(m.profiles as any)?.full_name || (m.profiles as any)?.email || "Sem nome"}
                           </SelectItem>
                         ))}

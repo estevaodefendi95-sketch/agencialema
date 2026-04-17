@@ -269,23 +269,32 @@ export type Database = {
         Row: {
           created_at: string
           id: string
+          invited_at: string | null
+          invited_email: string | null
           project_id: string
           role: string
-          user_id: string
+          status: string
+          user_id: string | null
         }
         Insert: {
           created_at?: string
           id?: string
+          invited_at?: string | null
+          invited_email?: string | null
           project_id: string
           role?: string
-          user_id: string
+          status?: string
+          user_id?: string | null
         }
         Update: {
           created_at?: string
           id?: string
+          invited_at?: string | null
+          invited_email?: string | null
           project_id?: string
           role?: string
-          user_id?: string
+          status?: string
+          user_id?: string | null
         }
         Relationships: [
           {
