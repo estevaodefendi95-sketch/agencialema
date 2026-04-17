@@ -556,25 +556,41 @@ export default function KanbanBoard() {
                     {members.length === 0 && (
                       <p className="text-sm text-muted-foreground text-center py-8">Nenhum membro adicionado</p>
                     )}
-                    {members.map((m) => (
-                      <div key={m.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50">
-                        <Avatar className="h-8 w-8">
-                          <AvatarImage src={(m.profiles as any)?.avatar_url || ""} />
-                          <AvatarFallback className="text-xs">
-                            {((m.profiles as any)?.full_name || "?").charAt(0).toUpperCase()}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium truncate">{(m.profiles as any)?.full_name || "Sem nome"}</p>
-                          <p className="text-xs text-muted-foreground truncate">{(m.profiles as any)?.email}</p>
+                    {members.map((m) => {
+                      const isPending = m.status === "pendente";
+                      const displayName = isPending
+                        ? (m.invited_email || "Convidado")
+                        : ((m.profiles as any)?.full_name || "Sem nome");
+                      const subtitle = isPending ? "Aguardando aprovação" : (m.profiles as any)?.email;
+                      return (
+                        <div key={m.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50">
+                          <Avatar className="h-8 w-8">
+                            <AvatarImage src={(m.profiles as any)?.avatar_url || ""} />
+                            <AvatarFallback className="text-xs">
+                              {(displayName || "?").charAt(0).toUpperCase()}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium truncate">{displayName}</p>
+                            <p className="text-xs text-muted-foreground truncate">{subtitle}</p>
+                          </div>
+                          {isPending ? (
+                            <Badge variant="secondary" className="bg-warning/20 text-warning text-[10px] shrink-0">
+                              Pendente
+                            </Badge>
+                          ) : (
+                            <Badge variant="secondary" className="bg-success/20 text-success text-[10px] shrink-0">
+                              Ativo
+                            </Badge>
+                          )}
+                          {canEdit && (
+                            <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => removeMember(m.id)}>
+                              <X className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
                         </div>
-                        {canEdit && (
-                          <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => removeMember(m.id)}>
-                            <X className="h-3.5 w-3.5" />
-                          </Button>
-                        )}
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </ScrollArea>
               </div>
