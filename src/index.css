@@ -145,6 +145,14 @@
   .print-column {
     break-inside: avoid-page;
   }
+  .print-media {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+  .print-area a {
+    color: #1d4ed8;
+    text-decoration: underline;
+  }
 }
 
 
