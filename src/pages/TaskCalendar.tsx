@@ -84,25 +84,47 @@ export default function TaskCalendar() {
     setLoading(false);
   }
 
-  const tasksByDate = useMemo(() => {
-    const map = new Map<string, TaskWithRelations[]>();
+  const companyOptions = useMemo(() => {
+    const map = new Map<string, string>();
     tasks.forEach((t) => {
-      const key = t.due_date;
-      if (!map.has(key)) map.set(key, []);
-      map.get(key)!.push(t);
+      const c = t.projects?.companies;
+      const id = t.projects?.company_id;
+      if (id && c?.name) map.set(id, c.name);
     });
-    return map;
+    return Array.from(map.entries()).map(([id, name]) => ({ id, name }));
   }, [tasks]);
 
+  const assigneeOptions = useMemo(() => {
+    const map = new Map<string, string>();
+    let hasUnassigned = false;
+    tasks.forEach((t) => {
+      if (!t.assigned_to) { hasUnassigned = true; return; }
+      map.set(t.assigned_to, t.assignee?.full_name || "Sem nome");
+    });
+    const list = Array.from(map.entries()).map(([id, name]) => ({ id, name }));
+    return { list, hasUnassigned };
+  }, [tasks]);
+
+  const filteredTasks = useMemo(() => {
+    return tasks.filter((t) => {
+      if (companyFilter !== "all" && t.projects?.company_id !== companyFilter) return false;
+      if (assigneeFilter === "none" && t.assigned_to) return false;
+      if (assigneeFilter !== "all" && assigneeFilter !== "none" && t.assigned_to !== assigneeFilter) return false;
+      return true;
+    });
+  }, [tasks, companyFilter, assigneeFilter]);
+
   const datesWithTasks = useMemo(
-    () => tasks.map((t) => new Date(t.due_date + "T00:00:00")),
-    [tasks],
+    () => filteredTasks.map((t) => new Date(t.due_date + "T00:00:00")),
+    [filteredTasks],
   );
 
   const selectedTasks = useMemo(() => {
     if (!selectedDate) return [];
-    return tasks.filter((t) => isSameDay(new Date(t.due_date + "T00:00:00"), selectedDate));
-  }, [tasks, selectedDate]);
+    return filteredTasks.filter((t) => isSameDay(new Date(t.due_date + "T00:00:00"), selectedDate));
+  }, [filteredTasks, selectedDate]);
+
+  const hasFilters = companyFilter !== "all" || assigneeFilter !== "all";
 
   return (
     <div className="container mx-auto p-6 space-y-6">
