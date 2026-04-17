@@ -322,33 +322,47 @@ export default function Projects() {
                   <TableHeader>
                     <TableRow>
                       <TableHead>Nome</TableHead>
+                      <TableHead>Tarefas</TableHead>
                       <TableHead>Prazo</TableHead>
                       <TableHead>Descrição</TableHead>
                       {canEdit && <TableHead className="w-10" />}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {group.projects.map((p) => (
-                      <TableRow key={p.id} className="cursor-pointer" onClick={() => navigate(`/projetos/${p.id}`)}>
-                        <TableCell className="font-medium">{p.name}</TableCell>
-                        <TableCell>
-                          {p.due_date ? (
-                            <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                              <Calendar className="h-3 w-3" />
-                              {new Date(p.due_date).toLocaleDateString("pt-BR")}
-                            </span>
-                          ) : (
-                            <span className="text-xs text-muted-foreground">—</span>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-muted-foreground text-sm max-w-[200px] truncate">{p.description || "—"}</TableCell>
-                        {canEdit && (
+                    {group.projects.map((p) => {
+                      const tasks = tasksByProject[p.id] || [];
+                      return (
+                        <TableRow key={p.id} className="cursor-pointer" onClick={() => navigate(`/projetos/${p.id}`)}>
+                          <TableCell className="font-medium">{p.name}</TableCell>
                           <TableCell>
-                            <ProjectActions p={p} />
+                            {tasks.length === 0 ? (
+                              <span className="text-xs text-muted-foreground">—</span>
+                            ) : (
+                              <div className="flex flex-col gap-0.5 max-w-[260px]">
+                                <span className="text-xs font-medium text-muted-foreground">{tasks.length} tarefa{tasks.length > 1 ? "s" : ""}</span>
+                                <span className="text-xs truncate">{tasks.slice(0, 2).map(t => t.title).join(", ")}{tasks.length > 2 ? "…" : ""}</span>
+                              </div>
+                            )}
                           </TableCell>
-                        )}
-                      </TableRow>
-                    ))}
+                          <TableCell>
+                            {p.due_date ? (
+                              <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                                <Calendar className="h-3 w-3" />
+                                {new Date(p.due_date).toLocaleDateString("pt-BR")}
+                              </span>
+                            ) : (
+                              <span className="text-xs text-muted-foreground">—</span>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-muted-foreground text-sm max-w-[200px] truncate">{p.description || "—"}</TableCell>
+                          {canEdit && (
+                            <TableCell>
+                              <ProjectActions p={p} />
+                            </TableCell>
+                          )}
+                        </TableRow>
+                      );
+                    })}
                   </TableBody>
                 </Table>
               </div>
