@@ -1268,6 +1268,7 @@ export default function KanbanBoard() {
         tasks={tasks.filter((t) => selectedPrintIds.has(t.id))}
         columns={columns}
         members={members}
+        mediaByTask={printMediaByTask}
       />
     </div>
   );
