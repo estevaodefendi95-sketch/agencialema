@@ -478,7 +478,7 @@ export default function KanbanBoard() {
           {members.filter((m) => m.status !== "pendente").length > 0 && (
             <TooltipProvider>
               <div className="flex -space-x-2">
-                {members.slice(0, 5).map((m) => (
+                {members.filter((m) => m.status !== "pendente").slice(0, 5).map((m) => (
                   <Tooltip key={m.id}>
                     <TooltipTrigger asChild>
                       <Avatar className="h-7 w-7 border-2 border-background">
@@ -491,9 +491,9 @@ export default function KanbanBoard() {
                     <TooltipContent><p>{(m.profiles as any)?.full_name || (m.profiles as any)?.email}</p></TooltipContent>
                   </Tooltip>
                 ))}
-                {members.length > 5 && (
+                {members.filter((m) => m.status !== "pendente").length > 5 && (
                   <Avatar className="h-7 w-7 border-2 border-background">
-                    <AvatarFallback className="text-[10px]">+{members.length - 5}</AvatarFallback>
+                    <AvatarFallback className="text-[10px]">+{members.filter((m) => m.status !== "pendente").length - 5}</AvatarFallback>
                   </Avatar>
                 )}
               </div>
