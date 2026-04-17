@@ -63,12 +63,31 @@ export default function Projects() {
     (localStorage.getItem("sort-dir-projetos") as SortDir) || "asc"
   );
 
+  const [tasksByProject, setTasksByProject] = useState<Record<string, { id: string; title: string; status: string; priority: string; due_date: string | null }[]>>({});
+
   const load = async () => {
     const { data } = await supabase.from("projects").select("*, companies(name, logo_url)").order("created_at", { ascending: false });
-    setProjects((data as any[])?.map(d => ({ ...d, archived: d.archived ?? false })) || []);
+    const list = (data as any[])?.map(d => ({ ...d, archived: d.archived ?? false })) || [];
+    setProjects(list);
     if (isAdmin) {
       const { data: c } = await supabase.from("companies").select("id, name").order("name");
       setCompanies(c || []);
+    }
+    const ids = list.map((p) => p.id);
+    if (ids.length) {
+      const { data: tasks } = await supabase
+        .from("tasks")
+        .select("id, title, status, priority, due_date, project_id, position")
+        .in("project_id", ids)
+        .order("position", { ascending: true });
+      const grouped: Record<string, any[]> = {};
+      (tasks || []).forEach((t: any) => {
+        if (!grouped[t.project_id]) grouped[t.project_id] = [];
+        grouped[t.project_id].push(t);
+      });
+      setTasksByProject(grouped);
+    } else {
+      setTasksByProject({});
     }
   };
 
