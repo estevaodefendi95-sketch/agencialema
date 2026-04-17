@@ -20,6 +20,13 @@ interface Member {
   profiles?: { full_name: string | null; email: string | null } | null;
 }
 
+interface MediaItem {
+  id: string;
+  file_url: string;
+  file_name: string;
+  file_type: string;
+}
+
 interface Props {
   projectName: string;
   companyName: string;
@@ -28,6 +35,7 @@ interface Props {
   tasks: Task[];
   columns: Column[];
   members: Member[];
+  mediaByTask?: Record<string, MediaItem[]>;
 }
 
 const PRIORITY_LABELS: Record<string, string> = {
@@ -52,11 +60,23 @@ export default function PrintProjectView({
   tasks,
   columns,
   members,
+  mediaByTask = {},
 }: Props) {
   const memberName = (userId: string | null) => {
     if (!userId) return null;
     const m = members.find((mm) => mm.user_id === userId);
     return m?.profiles?.full_name || m?.profiles?.email || null;
+  };
+
+  const getMediaKind = (m: MediaItem): "image" | "video" | "pdf" | "other" => {
+    const name = (m.file_name || "").toLowerCase();
+    const url = (m.file_url || "").toLowerCase();
+    const type = (m.file_type || "").toLowerCase();
+    const ext = name.split(".").pop() || url.split("?")[0].split(".").pop() || "";
+    if (type.startsWith("image") || ["jpg", "jpeg", "png", "webp", "gif", "bmp", "svg"].includes(ext)) return "image";
+    if (type === "video" || type.startsWith("video") || ["mp4", "mov", "webm", "mkv", "avi"].includes(ext)) return "video";
+    if (ext === "pdf" || type === "pdf") return "pdf";
+    return "other";
   };
 
   const formatDate = (d: string | null) =>
@@ -281,6 +301,114 @@ export default function PrintProjectView({
                         </span>
                       )}
                     </div>
+                    {(() => {
+                      const items = mediaByTask[t.id] || [];
+                      if (items.length === 0) return null;
+                      const images = items.filter((m) => getMediaKind(m) === "image");
+                      const others = items.filter((m) => getMediaKind(m) !== "image");
+                      return (
+                        <div style={{ marginLeft: 38, marginTop: 12 }}>
+                          <div
+                            style={{
+                              fontSize: 10,
+                              fontWeight: 600,
+                              color: "#64748b",
+                              textTransform: "uppercase",
+                              letterSpacing: 0.5,
+                              marginBottom: 8,
+                            }}
+                          >
+                            Mídias ({items.length})
+                          </div>
+                          {images.length > 0 && (
+                            <div
+                              style={{
+                                display: "grid",
+                                gridTemplateColumns: "repeat(3, 1fr)",
+                                gap: 8,
+                                marginBottom: others.length > 0 ? 10 : 0,
+                              }}
+                            >
+                              {images.map((m) => (
+                                <a
+                                  key={m.id}
+                                  href={m.file_url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="print-media"
+                                  style={{
+                                    display: "block",
+                                    border: "1px solid #e2e8f0",
+                                    borderRadius: 6,
+                                    overflow: "hidden",
+                                    background: "#f8fafc",
+                                  }}
+                                >
+                                  <img
+                                    src={m.file_url}
+                                    alt={m.file_name}
+                                    style={{
+                                      width: "100%",
+                                      height: 110,
+                                      objectFit: "cover",
+                                      display: "block",
+                                    }}
+                                  />
+                                </a>
+                              ))}
+                            </div>
+                          )}
+                          {others.length > 0 && (
+                            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                              {others.map((m) => {
+                                const kind = getMediaKind(m);
+                                const icon = kind === "video" ? "🎬" : kind === "pdf" ? "📄" : "📎";
+                                const label = kind === "video" ? "Vídeo" : kind === "pdf" ? "PDF" : "Arquivo";
+                                return (
+                                  <a
+                                    key={m.id}
+                                    href={m.file_url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="print-media"
+                                    style={{
+                                      display: "flex",
+                                      alignItems: "center",
+                                      gap: 10,
+                                      padding: "8px 12px",
+                                      border: "1px solid #cbd5e1",
+                                      borderRadius: 6,
+                                      background: "#f8fafc",
+                                      color: "#1d4ed8",
+                                      textDecoration: "none",
+                                      fontSize: 12,
+                                    }}
+                                  >
+                                    <span style={{ fontSize: 18 }}>{icon}</span>
+                                    <span style={{ flex: 1, color: "#0f172a", fontWeight: 500 }}>
+                                      {m.file_name}
+                                    </span>
+                                    <span
+                                      style={{
+                                        fontSize: 10,
+                                        fontWeight: 600,
+                                        textTransform: "uppercase",
+                                        background: "#dbeafe",
+                                        color: "#1d4ed8",
+                                        padding: "2px 8px",
+                                        borderRadius: 999,
+                                      }}
+                                    >
+                                      {label} · abrir
+                                    </span>
+                                  </a>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </div>
                 );
               })}
