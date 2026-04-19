@@ -529,11 +529,11 @@ export default function KanbanBoard() {
                       <Avatar className="h-7 w-7 border-2 border-background">
                         <AvatarImage src={(m.profiles as any)?.avatar_url || ""} />
                         <AvatarFallback className="text-[10px]">
-                          {((m.profiles as any)?.full_name || "?").charAt(0).toUpperCase()}
+                          {(((m.profiles as any)?.nickname?.trim()) || (m.profiles as any)?.full_name || "?").charAt(0).toUpperCase()}
                         </AvatarFallback>
                       </Avatar>
                     </TooltipTrigger>
-                    <TooltipContent><p>{(m.profiles as any)?.full_name || (m.profiles as any)?.email}</p></TooltipContent>
+                    <TooltipContent><p>{((m.profiles as any)?.nickname?.trim()) || (m.profiles as any)?.full_name || (m.profiles as any)?.email}</p></TooltipContent>
                   </Tooltip>
                 ))}
                 {members.filter((m) => m.status !== "pendente").length > 5 && (
@@ -605,7 +605,7 @@ export default function KanbanBoard() {
                       const isPending = m.status === "pendente";
                       const displayName = isPending
                         ? (m.invited_email || "Convidado")
-                        : ((m.profiles as any)?.full_name || "Sem nome");
+                        : (((m.profiles as any)?.nickname?.trim()) || (m.profiles as any)?.full_name || "Sem nome");
                       const subtitle = isPending ? "Aguardando aprovação" : (m.profiles as any)?.email;
                       return (
                         <div key={m.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50">
@@ -668,7 +668,7 @@ export default function KanbanBoard() {
                       </div>
                       <p className="text-xs text-muted-foreground">{formatHistoryDetails(entry)}</p>
                       <div className="flex items-center justify-between text-[10px] text-muted-foreground">
-                        <span>{(entry.profiles as any)?.full_name || "Sistema"}</span>
+                        <span>{((entry.profiles as any)?.nickname?.trim()) || (entry.profiles as any)?.full_name || "Sistema"}</span>
                         <span>{new Date(entry.created_at).toLocaleString("pt-BR")}</span>
                       </div>
                     </div>
@@ -1085,7 +1085,7 @@ export default function KanbanBoard() {
                       <SelectItem value="none">Nenhum</SelectItem>
                       {members.filter((m) => m.user_id && m.status !== "pendente").map((m) => (
                         <SelectItem key={m.user_id} value={m.user_id!}>
-                          {(m.profiles as any)?.full_name || (m.profiles as any)?.email || "Sem nome"}
+                          {((m.profiles as any)?.nickname?.trim()) || (m.profiles as any)?.full_name || (m.profiles as any)?.email || "Sem nome"}
                         </SelectItem>
                       ))}
                     </SelectContent>
