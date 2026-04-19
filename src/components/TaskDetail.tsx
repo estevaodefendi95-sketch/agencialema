@@ -144,6 +144,7 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted, projectMemb
 
   const addComment = async () => {
     if (!newComment.trim() || !user) return;
+    if (!commentsOpen) setCommentsOpen(true);
     const content = newComment;
     setNewComment("");
     const { data: inserted, error } = await supabase
