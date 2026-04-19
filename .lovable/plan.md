@@ -2,50 +2,40 @@
 
 ## Plano
 
-Adicionar **avatar/badge do responsável** no cabeçalho do modal de tarefa (ao lado do título), com possibilidade de:
-- Selecionar um perfil já cadastrado no projeto (já funciona via `assigned_to`).
-- Ou digitar um **nome livre** (texto simples, ex: "João Cliente"), para casos em que o responsável não tem cadastro no sistema.
+### 1. Calendário: incluir nomes livres no filtro de responsável
+Hoje em `src/pages/TaskCalendar.tsx`, o `assigneeOptions` só lista perfis cadastrados (via `assigned_to`) e a opção "Sem responsável". Tarefas com `assignee_name` (nome livre, ex: "João Cliente") ficam invisíveis ao filtrar.
 
-### 1. Banco — nova coluna em `tasks`
-Migration:
-```sql
-ALTER TABLE public.tasks ADD COLUMN assignee_name text;
-```
-- `assigned_to` (uuid) continua para perfis cadastrados.
-- `assignee_name` (text) usado quando não há perfil — pode coexistir só um dos dois (preferência: `assigned_to` se preenchido).
+**Mudança em `assigneeOptions` (useMemo, ~linha 99-113):**
+- Coletar também `assignee_name` único (case-insensitive) das tarefas onde `assigned_to` é nulo.
+- Retornar duas listas: `members` (com id/nome) e `freeNames` (strings).
 
-### 2. Cabeçalho do modal (`src/components/TaskDetail.tsx`)
-No `DialogHeader`, abaixo/à direita do título adicionar uma linha "Responsável" clicável:
-- **Visualização**: `Avatar` (iniciais) + nome — `displayName(assignedProfile)` se `assigned_to`, senão `task.assignee_name`, senão "Sem responsável" (italico).
-- **Edição (Popover)** ao clicar: 
-  - Campo de busca/seleção dos `projectMembers` (lista filtrável).
-  - Opção "Sem responsável".
-  - Separador "ou usar nome livre" + `Input` de texto + botão "Aplicar".
-  - Selecionar um membro: `setEditAssignedTo(userId)` + limpa `assignee_name`.
-  - Aplicar nome livre: limpa `assigned_to` + define `assignee_name`.
-- Marcar `hasChanges = true` para reaproveitar o botão "Salvar" existente.
+**Mudança no `<Select>` de responsável (~linha 156-170):**
+- Renderizar grupo "Membros" com `members`.
+- Renderizar grupo "Nomes livres" com prefixo `name:João Cliente` como `value`.
+- Manter "Sem responsável" e "Todos".
 
-### 3. Salvar (`saveTaskEdits`)
-- Incluir `assignee_name` no diff junto com `assigned_to` (já existe a lógica para `assigned_to`).
-- Garantir mutua exclusão: se `assigned_to` definido, salvar `assignee_name = null`; e vice-versa.
-- Adicionar entrada em `task_history` com nome legível.
+**Mudança em `filteredTasks` (~linha 116-123):**
+- Se `assigneeFilter` começa com `name:`, comparar `t.assignee_name === <nome>`.
+- Demais casos continuam iguais.
 
-### 4. Remover seleção duplicada do corpo
-A seleção atual de "Responsável" dentro do grid de Prioridade/Prazo (linhas 330-345) será **removida**, pois o cabeçalho passa a ser o único ponto de edição (evita confusão).
+### 2. Modal de tarefa: comentários começam minimizados
+Em `src/components/TaskDetail.tsx`:
+- Trocar `useState(true)` para `useState(false)` na linha 75 (`commentsOpen`). O painel abre fechado; o usuário expande quando quiser ver/escrever.
 
-### 5. Refletir em outras telas (apenas leitura)
-- `KanbanBoard.tsx`: nos cards/lista, quando exibir o responsável, usar fallback `assignee_name` se não houver `assigned_to`. Avatar mostra inicial do nome livre.
-- `TaskCalendar.tsx`: mesmo fallback na lista de tarefas do dia.
-- `src/integrations/supabase/types.ts`: regenerado automaticamente.
+### 3. Comentário persistente após postar
+A lógica já está correta (optimistic update sem `load()` destrutivo), mas vou reforçar:
+- **Auto-expandir o painel** quando o usuário clicar em "Comentar" e o painel estiver fechado, para que ele veja o comentário recém-postado aparecer na lista. 
+- Em `addComment` (linha 145), no início: `if (!commentsOpen) setCommentsOpen(true);`.
+- Garantir que `setComments((prev) => [...prev, ...])` adicione o item — já está. Confirmado que ao reabrir a tarefa, `load()` busca de `task_comments` e exibe — comentário fica salvo no banco.
 
 ### Arquivos
 | Arquivo | Mudança |
 |---|---|
-| `supabase/migrations/*` | Adiciona coluna `assignee_name text` em `tasks` |
-| `src/components/TaskDetail.tsx` | Header com avatar+nome do responsável + Popover (membro do projeto OU nome livre); remove seletor antigo do corpo; ajusta `saveTaskEdits` |
-| `src/pages/KanbanBoard.tsx` | Exibir `assignee_name` como fallback no responsável |
-| `src/pages/TaskCalendar.tsx` | Exibir `assignee_name` como fallback na lista do dia |
+| `src/pages/TaskCalendar.tsx` | Filtro de responsável passa a incluir nomes livres (`assignee_name`); ajusta `assigneeOptions` e `filteredTasks` |
+| `src/components/TaskDetail.tsx` | `commentsOpen` inicia `false`; ao postar comentário, auto-expande o painel |
 
 ### Resultado
-Cabeçalho mostra claramente quem é o responsável. Editor escolhe entre membro cadastrado (avatar real, vinculado a perfil) ou digita um nome livre (uso pontual para clientes/externos).
+- Calendário lista e permite filtrar tanto perfis cadastrados quanto nomes livres atribuídos a tarefas.
+- Ao abrir tarefa, comentários ficam minimizados (mais espaço para o conteúdo).
+- Ao postar comentário, painel expande automaticamente e o comentário aparece e fica salvo (visível ao reabrir a tarefa).
 
