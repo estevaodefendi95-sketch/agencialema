@@ -609,6 +609,27 @@ export default function KanbanBoard() {
               Prazo {sortPrazo === "asc" ? "↑" : "↓"}
             </Button>
           )}
+          <Select value={assigneeFilter} onValueChange={setAssigneeFilter}>
+            <SelectTrigger className="h-8 w-[150px] text-xs gap-1.5">
+              <Users className="h-3.5 w-3.5 shrink-0" />
+              <SelectValue placeholder="Equipe" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos</SelectItem>
+              <SelectItem value="none">Sem responsável</SelectItem>
+              {members
+                .filter((m) => m.user_id && m.status !== "pendente")
+                .map((m) => {
+                  const p: any = m.profiles;
+                  const name = (p?.nickname?.trim()) || p?.full_name || p?.email || "Sem nome";
+                  return (
+                    <SelectItem key={m.id} value={m.user_id as string}>
+                      {name}
+                    </SelectItem>
+                  );
+                })}
+            </SelectContent>
+          </Select>
           {/* Team Sheet */}
           <Sheet open={teamOpen} onOpenChange={setTeamOpen}>
             <SheetTrigger asChild>
