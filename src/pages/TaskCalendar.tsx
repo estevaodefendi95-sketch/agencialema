@@ -78,9 +78,22 @@ export default function TaskCalendar() {
       });
     }
 
+    const taskIds = (data || []).map((t: any) => t.id);
+    let commentCounts: Record<string, number> = {};
+    if (taskIds.length > 0) {
+      const { data: cData } = await supabase
+        .from("task_comments")
+        .select("task_id")
+        .in("task_id", taskIds);
+      (cData || []).forEach((c: any) => {
+        commentCounts[c.task_id] = (commentCounts[c.task_id] || 0) + 1;
+      });
+    }
+
     const enriched = (data || []).map((t: any) => ({
       ...t,
       assignee: t.assigned_to ? assigneeMap[t.assigned_to] || null : null,
+      comment_count: commentCounts[t.id] || 0,
     }));
     setTasks(enriched as TaskWithRelations[]);
     setLoading(false);
