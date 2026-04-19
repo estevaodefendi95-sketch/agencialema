@@ -97,25 +97,36 @@ export default function TaskCalendar() {
 
   const assigneeOptions = useMemo(() => {
     const map = new Map<string, string>();
+    const freeSet = new Map<string, string>(); // lower -> original
     let hasUnassigned = false;
     tasks.forEach((t) => {
       if (!t.assigned_to) {
-        if (!t.assignee_name) hasUnassigned = true;
+        if (t.assignee_name && t.assignee_name.trim()) {
+          const key = t.assignee_name.trim().toLowerCase();
+          if (!freeSet.has(key)) freeSet.set(key, t.assignee_name.trim());
+        } else {
+          hasUnassigned = true;
+        }
         return;
       }
       const name = (t.assignee as any)?.nickname?.trim() || t.assignee?.full_name || "Sem nome";
       map.set(t.assigned_to, name);
     });
     const list = Array.from(map.entries()).map(([id, name]) => ({ id, name }));
-    return { list, hasUnassigned };
+    const freeNames = Array.from(freeSet.values()).sort((a, b) => a.localeCompare(b));
+    return { list, hasUnassigned, freeNames };
   }, [tasks]);
 
   const filteredTasks = useMemo(() => {
     return tasks.filter((t) => {
       if (companyFilter !== "all" && t.projects?.company_id !== companyFilter) return false;
-      if (assigneeFilter === "none" && t.assigned_to) return false;
-      if (assigneeFilter !== "all" && assigneeFilter !== "none" && t.assigned_to !== assigneeFilter) return false;
-      return true;
+      if (assigneeFilter === "all") return true;
+      if (assigneeFilter === "none") return !t.assigned_to && !t.assignee_name;
+      if (assigneeFilter.startsWith("name:")) {
+        const target = assigneeFilter.slice(5).toLowerCase();
+        return !t.assigned_to && (t.assignee_name || "").trim().toLowerCase() === target;
+      }
+      return t.assigned_to === assigneeFilter;
     });
   }, [tasks, companyFilter, assigneeFilter]);
 
