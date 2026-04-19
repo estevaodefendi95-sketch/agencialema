@@ -110,6 +110,7 @@ export default function KanbanBoard() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [columns, setColumns] = useState<Column[]>([]);
   const [taskMedia, setTaskMedia] = useState<Record<string, MediaInfo>>({});
+  const [commentCounts, setCommentCounts] = useState<Record<string, number>>({});
   const [projectName, setProjectName] = useState("");
   const [companyName, setCompanyName] = useState("");
   const [companyLogo, setCompanyLogo] = useState<string | null>(null);
