@@ -58,6 +58,9 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted, projectMemb
   const [editPriority, setEditPriority] = useState("");
   const [editDueDate, setEditDueDate] = useState("");
   const [editAssignedTo, setEditAssignedTo] = useState("");
+  const [editAssigneeName, setEditAssigneeName] = useState("");
+  const [freeNameInput, setFreeNameInput] = useState("");
+  const [assigneePopoverOpen, setAssigneePopoverOpen] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
 
   // Comment editing
