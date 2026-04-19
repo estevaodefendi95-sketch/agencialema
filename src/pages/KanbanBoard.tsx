@@ -37,6 +37,7 @@ interface Task {
   due_date: string | null;
   position: number;
   assigned_to: string | null;
+  assignee_name: string | null;
   project_id: string;
   color: string | null;
 }
