@@ -37,6 +37,7 @@ interface Task {
   due_date: string | null;
   position: number;
   assigned_to: string | null;
+  assignee_name: string | null;
   project_id: string;
   color: string | null;
 }
@@ -145,6 +146,7 @@ export default function KanbanBoard() {
   const [sortPrazo, setSortPrazo] = useState<"asc" | "desc">(() =>
     (localStorage.getItem(`sort-prazo-${projectId}`) as "asc" | "desc") || "asc"
   );
+  const [assigneeFilter, setAssigneeFilter] = useState<string>("all");
 
   const loadColumns = useCallback(async () => {
     if (!projectId) return;
@@ -400,8 +402,29 @@ export default function KanbanBoard() {
     load();
   };
 
+  const matchesAssignee = (t: Task) => {
+    if (assigneeFilter === "all") return true;
+    if (assigneeFilter === "none") return !t.assigned_to && !t.assignee_name;
+    return t.assigned_to === assigneeFilter;
+  };
+
   const getColumnTasks = (slug: string) =>
-    tasks.filter((t) => t.status === slug).sort((a, b) => a.position - b.position);
+    tasks.filter((t) => t.status === slug && matchesAssignee(t)).sort((a, b) => a.position - b.position);
+
+  const getAssigneeDisplay = (task: Task): { name: string; avatarUrl?: string | null; initial: string } | null => {
+    if (task.assigned_to) {
+      const m = members.find((x) => x.user_id === task.assigned_to);
+      const p: any = m?.profiles;
+      const full = (p?.nickname?.trim()) || p?.full_name || p?.email || "";
+      const first = full.split(" ")[0] || "?";
+      return { name: first, avatarUrl: p?.avatar_url, initial: first.charAt(0).toUpperCase() };
+    }
+    if (task.assignee_name) {
+      const first = task.assignee_name.split(" ")[0];
+      return { name: first, avatarUrl: null, initial: first.charAt(0).toUpperCase() };
+    }
+    return null;
+  };
 
   // Column management
   const saveColumnLabel = async (col: Column) => {
@@ -586,6 +609,27 @@ export default function KanbanBoard() {
               Prazo {sortPrazo === "asc" ? "↑" : "↓"}
             </Button>
           )}
+          <Select value={assigneeFilter} onValueChange={setAssigneeFilter}>
+            <SelectTrigger className="h-8 w-[150px] text-xs gap-1.5">
+              <Users className="h-3.5 w-3.5 shrink-0" />
+              <SelectValue placeholder="Equipe" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos</SelectItem>
+              <SelectItem value="none">Sem responsável</SelectItem>
+              {members
+                .filter((m) => m.user_id && m.status !== "pendente")
+                .map((m) => {
+                  const p: any = m.profiles;
+                  const name = (p?.nickname?.trim()) || p?.full_name || p?.email || "Sem nome";
+                  return (
+                    <SelectItem key={m.id} value={m.user_id as string}>
+                      {name}
+                    </SelectItem>
+                  );
+                })}
+            </SelectContent>
+          </Select>
           {/* Team Sheet */}
           <Sheet open={teamOpen} onOpenChange={setTeamOpen}>
             <SheetTrigger asChild>
@@ -717,7 +761,7 @@ export default function KanbanBoard() {
           <div className="space-y-4">
             {columns.map((col) => {
               const colTasks = tasks
-                .filter((t) => t.status === col.slug)
+                .filter((t) => t.status === col.slug && matchesAssignee(t))
                 .sort((a, b) => {
                   if (a.due_date && b.due_date) {
                     const diff = new Date(a.due_date).getTime() - new Date(b.due_date).getTime();
@@ -848,6 +892,19 @@ export default function KanbanBoard() {
                                     {new Date(task.due_date).toLocaleDateString("pt-BR")}
                                   </span>
                                 )}
+                                {(() => {
+                                  const a = getAssigneeDisplay(task);
+                                  if (!a) return null;
+                                  return (
+                                    <span className="flex items-center gap-1 shrink-0" title={a.name}>
+                                      <Avatar className="h-5 w-5">
+                                        <AvatarImage src={a.avatarUrl || ""} />
+                                        <AvatarFallback className="text-[9px]">{a.initial}</AvatarFallback>
+                                      </Avatar>
+                                      <span className="text-xs text-muted-foreground truncate max-w-[80px]">{a.name}</span>
+                                    </span>
+                                  );
+                                })()}
                               </div>
                             )}
                           </Draggable>
@@ -994,6 +1051,19 @@ export default function KanbanBoard() {
                                             <MessageSquare className="h-3 w-3" />{commentCounts[task.id]}
                                           </span>
                                         )}
+                                        {(() => {
+                                          const a = getAssigneeDisplay(task);
+                                          if (!a) return null;
+                                          return (
+                                            <span className="flex items-center gap-1" title={a.name}>
+                                              <Avatar className="h-5 w-5">
+                                                <AvatarImage src={a.avatarUrl || ""} />
+                                                <AvatarFallback className="text-[9px]">{a.initial}</AvatarFallback>
+                                              </Avatar>
+                                              <span className="text-xs text-muted-foreground truncate max-w-[80px]">{a.name}</span>
+                                            </span>
+                                          );
+                                        })()}
                                         {canEdit && (
                                           <Popover>
                                             <PopoverTrigger asChild>
