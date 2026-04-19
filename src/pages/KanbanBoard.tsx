@@ -1156,9 +1156,14 @@ export default function KanbanBoard() {
           <DialogHeader><DialogTitle>Nova Tarefa</DialogTitle></DialogHeader>
           <ScrollArea className="max-h-[65vh] pr-4">
             <div className="space-y-4">
-              <div className="space-y-2">
-                <Label>Título</Label>
-                <Input value={newTitle} onChange={(e) => setNewTitle(e.target.value)} placeholder="Título da tarefa" />
+              <div className="space-y-1.5">
+                <Label className="text-sm">Título</Label>
+                <Input
+                  value={newTitle}
+                  onChange={(e) => setNewTitle(e.target.value)}
+                  placeholder="Título da tarefa"
+                  className="h-9 text-sm"
+                />
               </div>
               <div className="space-y-2">
                 <Label>Descrição</Label>
