@@ -1,40 +1,54 @@
 
 
-## Plano: Garantir fluxo de aprovação e perfis
+## Plano
 
-O fluxo já existe parcialmente. Vou validar e ajustar o que falta para atender:
+### 1. Usuários pendentes — diagnóstico
+Verifiquei o banco: **não há nenhum usuário com status `pendente`**. Todos os 4 perfis existentes estão `aprovado`. Por isso a aba "Pendentes" mostra "Nenhum usuário pendente". O sistema está funcionando — só não há cadastros aguardando aprovação no momento.
 
-1. **Cadastro público (signup)** → usuário entra como `pendente`. Apenas admin aprova.
-2. **Criação pelo admin** → usuário já entra como `aprovado` automaticamente, com role e empresas definidas.
-3. **Seleção de perfil** (admin/editor/visualizador/cliente) disponível tanto na criação quanto na aprovação.
+Para testar o fluxo: faça logout e crie uma nova conta pela tela de cadastro com outro email. Esse novo usuário aparecerá como `pendente` e cairá na aba.
 
-### Estado atual (verificado)
+**Observação**: o email `estevaodefendi95@gmail.com` é auto-aprovado como admin pela função `handle_new_user()`. Qualquer outro email entra como `pendente`.
 
-- `handle_new_user()` já cria perfil como `pendente` (exceto super admin hardcoded). ✓
-- Edge function `create-user` já marca `aprovado` + atribui role + vincula empresas. ✓
-- `AdminUsers.tsx` já tem dialog de criação e edição com seletor de role (admin/editor/visualizador/cliente) e empresas. ✓
-- `PendingApproval.tsx` existe para bloquear usuários não aprovados. ✓
+### 2. Comentários fixados no card da tarefa
+Hoje, em `TaskDetail.tsx`, comentários e histórico estão misturados em uma "Timeline de Atividade" única, dentro do mesmo `ScrollArea` do dialog. Vou reestruturar:
 
-### Lacunas a corrigir
+**Mudanças em `src/components/TaskDetail.tsx`:**
 
-1. **Tela de aprovação dedicada / destaque para pendentes**: hoje `AdminUsers` lista todos misturados. Adicionar:
-   - Filtro/aba "Pendentes" no topo com contador
-   - Botão **"Aprovar"** direto na linha (atalho), além do "Editar" existente
-   - Ao aprovar via atalho, abre o mesmo dialog de edição já posicionado para escolher perfil + empresas antes de confirmar (obrigatório escolher role)
+- **Separar comentários do histórico**: comentários ganham seção própria, histórico permanece como timeline secundária abaixo.
+- **Painel de comentários fixo dentro do dialog**:
+  - Título "Comentários (n)" sempre visível.
+  - Lista de comentários em um container com **altura fixa (~280px)** e **scroll vertical próprio** (`ScrollArea` interno).
+  - Cada comentário mostra: avatar/nome do usuário, data e hora formatadas (pt-BR), conteúdo, e ações de editar/excluir (já existem).
+  - Ordem cronológica: mais recentes no topo (ou final, conforme preferência — vou manter recentes no topo para consistência com hoje).
+- **Caixa de novo comentário fixa** logo acima da lista, sempre visível.
+- **Layout do dialog ajustado**: descrição/checklist/mídias continuam no scroll principal; bloco de comentários vira uma seção com scroll independente (não rola junto com o resto).
 
-2. **Validação de role obrigatória na aprovação**: garantir que admin não aprove sem definir perfil. Se role = `cliente`/`editor`/`visualizador`, exigir ao menos 1 empresa vinculada (admin não precisa).
-
-3. **Feedback visual**: badge de "Pendente" mais destacado e ordenação por status (pendentes primeiro).
-
-4. **Confirmar fluxo de signup**: revisar `Login.tsx` / signup para garantir mensagem clara: "Cadastro enviado. Aguarde aprovação do administrador."
+**Estrutura visual final do dialog:**
+```
+┌─────────────────────────────────┐
+│ Título da tarefa                │
+├─────────────────────────────────┤
+│ [scroll principal]              │
+│  Descrição                      │
+│  Prioridade / Prazo / Resp.     │
+│  Mídias                         │
+│  Checklist                      │
+│  Histórico (linha do tempo)     │
+├─────────────────────────────────┤
+│ 💬 Comentários (3)         [fix]│
+│  [textarea + enviar]            │
+│  ┌─[scroll interno ~280px]──┐   │
+│  │ Maria — 18/04 14:32      │   │
+│  │ "Comentário aqui..."     │   │
+│  │ ──────────────────────   │   │
+│  │ João — 17/04 09:10       │   │
+│  │ "Outro comentário..."    │   │
+│  └──────────────────────────┘   │
+└─────────────────────────────────┘
+```
 
 ### Arquivos
-
 | Arquivo | Mudança |
 |---|---|
-| `src/pages/AdminUsers.tsx` | Aba/filtro pendentes, botão "Aprovar" atalho, ordenação, validação de empresas obrigatórias |
-| `src/pages/Login.tsx` | Confirmar mensagem pós-signup sobre aguardar aprovação |
-| `src/pages/PendingApproval.tsx` | Verificar copy e UX |
-
-Sem mudanças de banco — schema e RLS já suportam tudo.
+| `src/components/TaskDetail.tsx` | Separar comentários do histórico; criar bloco fixo de comentários com scroll vertical próprio; manter nome do usuário, data e hora visíveis em cada comentário |
 
