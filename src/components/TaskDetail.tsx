@@ -265,6 +265,37 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted, projectMemb
     setHasChanges(true);
   };
 
+  const assignedProfile = editAssignedTo
+    ? projectMembers.find((m) => m.user_id === editAssignedTo)?.profiles || null
+    : null;
+  const assigneeDisplayName = assignedProfile
+    ? (assignedProfile as any).nickname?.trim() || assignedProfile.full_name || (assignedProfile as any).email || "Usuário"
+    : editAssigneeName?.trim() || "";
+  const assigneeInitial = (assigneeDisplayName || "?").charAt(0).toUpperCase();
+
+  const pickMember = (userId: string) => {
+    setEditAssignedTo(userId);
+    setEditAssigneeName("");
+    setFreeNameInput("");
+    setHasChanges(true);
+    setAssigneePopoverOpen(false);
+  };
+  const clearAssignee = () => {
+    setEditAssignedTo("");
+    setEditAssigneeName("");
+    setFreeNameInput("");
+    setHasChanges(true);
+    setAssigneePopoverOpen(false);
+  };
+  const applyFreeName = () => {
+    const name = freeNameInput.trim();
+    if (!name) return;
+    setEditAssigneeName(name);
+    setEditAssignedTo("");
+    setHasChanges(true);
+    setAssigneePopoverOpen(false);
+  };
+
   return (
     <Dialog open onOpenChange={() => onClose()}>
       <DialogContent className="max-w-2xl h-[90vh] flex flex-col p-0 gap-0 overflow-hidden">
@@ -289,6 +320,91 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted, projectMemb
             )}
             {canEdit && hasChanges && (
               <Button size="sm" onClick={saveTaskEdits} className="shrink-0"><Save className="h-3 w-3 mr-1" />Salvar</Button>
+            )}
+          </div>
+
+          {/* Responsável */}
+          <div className="flex items-center gap-2 mt-2">
+            <span className="text-xs text-muted-foreground">Responsável:</span>
+            {canEdit ? (
+              <Popover open={assigneePopoverOpen} onOpenChange={setAssigneePopoverOpen}>
+                <PopoverTrigger asChild>
+                  <button
+                    type="button"
+                    className="flex items-center gap-2 px-2 py-1 rounded-md hover:bg-accent transition-colors"
+                  >
+                    <Avatar className="h-6 w-6">
+                      {(assignedProfile as any)?.avatar_url && (
+                        <AvatarImage src={(assignedProfile as any).avatar_url} />
+                      )}
+                      <AvatarFallback className="text-[10px]">
+                        {assigneeDisplayName ? assigneeInitial : <User className="h-3 w-3" />}
+                      </AvatarFallback>
+                    </Avatar>
+                    <span className={`text-sm ${assigneeDisplayName ? "" : "italic text-muted-foreground"}`}>
+                      {assigneeDisplayName || "Sem responsável"}
+                    </span>
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent align="start" className="w-72 p-2">
+                  <div className="space-y-1 max-h-56 overflow-y-auto">
+                    <button
+                      type="button"
+                      onClick={clearAssignee}
+                      className="w-full flex items-center gap-2 px-2 py-1.5 rounded text-sm hover:bg-accent text-left"
+                    >
+                      <Avatar className="h-6 w-6"><AvatarFallback><User className="h-3 w-3" /></AvatarFallback></Avatar>
+                      <span className="italic text-muted-foreground">Sem responsável</span>
+                      {!editAssignedTo && !editAssigneeName && <Check className="h-3 w-3 ml-auto text-primary" />}
+                    </button>
+                    {projectMembers.map((m) => {
+                      const name = (m.profiles as any)?.nickname?.trim() || (m.profiles as any)?.full_name || (m.profiles as any)?.email || "Sem nome";
+                      const isSelected = editAssignedTo === m.user_id;
+                      return (
+                        <button
+                          key={m.user_id}
+                          type="button"
+                          onClick={() => pickMember(m.user_id)}
+                          className="w-full flex items-center gap-2 px-2 py-1.5 rounded text-sm hover:bg-accent text-left"
+                        >
+                          <Avatar className="h-6 w-6">
+                            {(m.profiles as any)?.avatar_url && <AvatarImage src={(m.profiles as any).avatar_url} />}
+                            <AvatarFallback className="text-[10px]">{name.charAt(0).toUpperCase()}</AvatarFallback>
+                          </Avatar>
+                          <span className="truncate">{name}</span>
+                          {isSelected && <Check className="h-3 w-3 ml-auto text-primary" />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <Separator className="my-2" />
+                  <div className="space-y-1.5">
+                    <Label className="text-xs text-muted-foreground">Ou usar nome livre</Label>
+                    <div className="flex gap-1.5">
+                      <Input
+                        value={freeNameInput}
+                        onChange={(e) => setFreeNameInput(e.target.value)}
+                        onKeyDown={(e) => e.key === "Enter" && applyFreeName()}
+                        placeholder="Ex: João Cliente"
+                        className="h-8 text-sm"
+                      />
+                      <Button size="sm" onClick={applyFreeName} className="shrink-0">Aplicar</Button>
+                    </div>
+                  </div>
+                </PopoverContent>
+              </Popover>
+            ) : (
+              <div className="flex items-center gap-2 px-2 py-1">
+                <Avatar className="h-6 w-6">
+                  {(assignedProfile as any)?.avatar_url && <AvatarImage src={(assignedProfile as any).avatar_url} />}
+                  <AvatarFallback className="text-[10px]">
+                    {assigneeDisplayName ? assigneeInitial : <User className="h-3 w-3" />}
+                  </AvatarFallback>
+                </Avatar>
+                <span className={`text-sm ${assigneeDisplayName ? "" : "italic text-muted-foreground"}`}>
+                  {assigneeDisplayName || "Sem responsável"}
+                </span>
+              </div>
             )}
           </div>
         </DialogHeader>
