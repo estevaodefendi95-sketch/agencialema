@@ -72,7 +72,7 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted, projectMemb
   const [editCheckTitle, setEditCheckTitle] = useState("");
 
   // Comments panel
-  const [commentsOpen, setCommentsOpen] = useState(true);
+  const [commentsOpen, setCommentsOpen] = useState(false);
 
   const load = async () => {
     const { data: t } = await supabase.from("tasks").select("*").eq("id", taskId).single();
