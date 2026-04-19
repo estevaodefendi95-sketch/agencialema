@@ -2,33 +2,26 @@
 
 ## Plano
 
-### 1. Logo da empresa no cabeçalho do projeto (Kanban)
-No `KanbanBoard.tsx`, o cabeçalho mostra apenas o **nome da empresa** em texto. Vou adicionar a **logo da marca** ao lado, igual já é feito na página de Projetos.
+### 1. Comentário aparecer instantaneamente
+Hoje em `TaskDetail.tsx`, `addComment` faz insert e chama `load()` que rebusca tudo. Vou fazer **optimistic update**: adicionar o comentário na lista local imediatamente após o insert (ou antes, com rollback em caso de erro), sem esperar o reload completo.
 
-**Mudanças em `src/pages/KanbanBoard.tsx`:**
-- Atualizar a query `load()` para trazer também `logo_url`:
-  ```ts
-  supabase.from("projects").select("name, company_id, companies(name, logo_url)")...
-  ```
-- Adicionar estado `companyLogo: string | null`.
-- No header (linha ~504-508), renderizar:
-  - Se `companyLogo` existir: `<img>` redondo (~32px) com a logo.
-  - Senão: ícone `Building2` como fallback.
-  - Ao lado: nome da empresa (pequeno) + nome do projeto (grande) — mantendo layout atual.
+**Mudanças em `src/components/TaskDetail.tsx` (`addComment`):**
+- Inserir com `.select("*, profiles(full_name)").single()` para retornar o registro já com o nome do autor.
+- Atualizar `setComments(prev => [...prev, novo])` direto, e limpar o textarea instantaneamente.
+- Rodar o insert do `task_history` em paralelo (sem bloquear UI).
+- Recarregar histórico em background (sem travar exibição do comentário).
 
-### 2. Scroll vertical do card de edição de tarefas
-No viewport atual (638px de altura), o `DialogContent` usa `max-h-[90vh]` + `flex-col`. Quando o painel de comentários colapsável está fechado, o `ScrollArea` principal (`flex-1 min-h-0`) deveria funcionar — mas em telas baixas o conteúdo (descrição, prioridade, prazo, mídias, checklist, histórico) fica cortado e não rola corretamente porque o `details` não tem altura previsível e o flex não calcula direito.
+### 2. Logo do cliente no calendário
+No `TaskCalendar.tsx`, cada item da lista mostra `Building2` + nome da empresa. Trocar por logo da empresa quando existir.
 
-**Mudanças em `src/components/TaskDetail.tsx`:**
-- Garantir altura fixa do dialog: trocar `max-h-[90vh]` por `h-[90vh]` para o flexbox calcular `flex-1` corretamente.
-- Adicionar `overflow-hidden` no `DialogContent` para impedir scroll do dialog inteiro.
-- Garantir que o `<details>` de comentários tenha `overflow-hidden` no estado fechado e não interfira no cálculo do scroll principal.
-- Ajustar a `ScrollArea` interna de comentários para `h-[200px]` fixo (em vez de `max-h-`) quando aberta, para previsibilidade.
-- Confirmar que o footer "Excluir tarefa" continua `shrink-0` para não competir com o scroll.
+**Mudanças em `src/pages/TaskCalendar.tsx`:**
+- Atualizar query: `companies(name, logo_url)`.
+- Atualizar tipo `TaskWithRelations` para incluir `logo_url`.
+- No render (linha ~247-252): se `logo_url` existir, renderizar `<img>` redondo (~14px); senão, fallback `Building2`.
 
 ### Arquivos
 | Arquivo | Mudança |
 |---|---|
-| `src/pages/KanbanBoard.tsx` | Buscar `logo_url` da empresa e renderizar logo no cabeçalho do projeto |
-| `src/components/TaskDetail.tsx` | Corrigir cálculo de altura do dialog e do ScrollArea principal para garantir scroll vertical em telas pequenas |
+| `src/components/TaskDetail.tsx` | `addComment` com optimistic update — comentário aparece instantâneo |
+| `src/pages/TaskCalendar.tsx` | Buscar `logo_url` e renderizar logo da empresa em cada tarefa |
 
