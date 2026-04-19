@@ -127,14 +127,19 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted, projectMemb
     const { data: inserted, error } = await supabase
       .from("task_comments")
       .insert({ task_id: taskId, user_id: user.id, content })
-      .select("*, profiles(full_name)")
+      .select("*")
       .single();
     if (error || !inserted) {
       setNewComment(content);
       toast({ title: "Erro ao comentar", variant: "destructive" });
       return;
     }
-    setComments((prev) => [...prev, inserted as any]);
+    const { data: prof } = await supabase
+      .from("profiles")
+      .select("full_name")
+      .eq("id", user.id)
+      .maybeSingle();
+    setComments((prev) => [...prev, { ...inserted, profiles: prof || null } as any]);
     toast({ title: "Comentário adicionado" });
     supabase
       .from("task_history")
