@@ -28,9 +28,12 @@ interface Props {
   projectMembers?: ProjectMember[];
 }
 
-interface Comment { id: string; content: string; created_at: string; user_id: string; profiles?: { full_name: string | null } | null; }
+interface Comment { id: string; content: string; created_at: string; user_id: string; profiles?: { full_name: string | null; nickname?: string | null } | null; }
 interface ChecklistItem { id: string; title: string; completed: boolean; position: number; }
-interface HistoryItem { id: string; action: string; details: any; created_at: string; profiles?: { full_name: string | null } | null; }
+interface HistoryItem { id: string; action: string; details: any; created_at: string; profiles?: { full_name: string | null; nickname?: string | null } | null; }
+
+const displayName = (p?: { full_name?: string | null; nickname?: string | null } | null) =>
+  p?.nickname?.trim() || p?.full_name || "Usuário";
 interface MediaItem { id: string; file_url: string; file_name: string; file_type: string; created_at: string; }
 
 export default function TaskDetail({ taskId, onClose, onTaskDeleted, projectMembers = [] }: Props) {
