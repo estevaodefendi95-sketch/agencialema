@@ -892,6 +892,19 @@ export default function KanbanBoard() {
                                     {new Date(task.due_date).toLocaleDateString("pt-BR")}
                                   </span>
                                 )}
+                                {(() => {
+                                  const a = getAssigneeDisplay(task);
+                                  if (!a) return null;
+                                  return (
+                                    <span className="flex items-center gap-1 shrink-0" title={a.name}>
+                                      <Avatar className="h-5 w-5">
+                                        <AvatarImage src={a.avatarUrl || ""} />
+                                        <AvatarFallback className="text-[9px]">{a.initial}</AvatarFallback>
+                                      </Avatar>
+                                      <span className="text-xs text-muted-foreground truncate max-w-[80px]">{a.name}</span>
+                                    </span>
+                                  );
+                                })()}
                               </div>
                             )}
                           </Draggable>
