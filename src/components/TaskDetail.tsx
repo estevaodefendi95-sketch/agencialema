@@ -72,7 +72,7 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted, projectMemb
   const [editCheckTitle, setEditCheckTitle] = useState("");
 
   // Comments panel
-  const [commentsOpen, setCommentsOpen] = useState(true);
+  const [commentsOpen, setCommentsOpen] = useState(false);
 
   const load = async () => {
     const { data: t } = await supabase.from("tasks").select("*").eq("id", taskId).single();
@@ -144,6 +144,7 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted, projectMemb
 
   const addComment = async () => {
     if (!newComment.trim() || !user) return;
+    if (!commentsOpen) setCommentsOpen(true);
     const content = newComment;
     setNewComment("");
     const { data: inserted, error } = await supabase
