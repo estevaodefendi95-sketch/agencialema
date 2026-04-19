@@ -251,7 +251,7 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted, projectMemb
             )}
           </div>
         </DialogHeader>
-        <ScrollArea className="max-h-[65vh] pr-4">
+        <ScrollArea className="flex-1 min-h-0 px-6 py-4">
           <div className="space-y-6">
             {/* Description */}
             <div>
