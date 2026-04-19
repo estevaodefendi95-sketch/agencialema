@@ -740,7 +740,7 @@ export default function KanbanBoard() {
           <div className="space-y-4">
             {columns.map((col) => {
               const colTasks = tasks
-                .filter((t) => t.status === col.slug)
+                .filter((t) => t.status === col.slug && matchesAssignee(t))
                 .sort((a, b) => {
                   if (a.due_date && b.due_date) {
                     const diff = new Date(a.due_date).getTime() - new Date(b.due_date).getTime();
