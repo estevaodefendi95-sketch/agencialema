@@ -18,7 +18,7 @@ interface ProjectMember {
   id: string;
   user_id: string;
   role: string;
-  profiles?: { full_name: string | null; email: string | null; avatar_url: string | null } | null;
+  profiles?: { full_name: string | null; nickname?: string | null; email: string | null; avatar_url: string | null } | null;
 }
 
 interface Props {
@@ -333,7 +333,7 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted, projectMemb
                         <SelectItem value="none">Nenhum</SelectItem>
                         {projectMembers.map((m) => (
                           <SelectItem key={m.user_id} value={m.user_id}>
-                            {(m.profiles as any)?.full_name || (m.profiles as any)?.email || "Sem nome"}
+                            {(m.profiles as any)?.nickname?.trim() || (m.profiles as any)?.full_name || (m.profiles as any)?.email || "Sem nome"}
                           </SelectItem>
                         ))}
                       </SelectContent>
