@@ -51,6 +51,7 @@ export default function AdminUsers() {
   const [newRole, setNewRole] = useState("cliente");
   const [newCompanies, setNewCompanies] = useState<string[]>([]);
   const [creating, setCreating] = useState(false);
+  const [tab, setTab] = useState<"pendentes" | "todos">("pendentes");
 
   const load = async () => {
     const [p, r, c, a] = await Promise.all([
