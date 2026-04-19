@@ -109,7 +109,7 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted, projectMemb
       }
     }
     setComments(enrichedComments);
-    if (enrichedComments.length > 0) setCommentsOpen(true);
+    // Sempre inicia minimizado ao abrir a tarefa
 
     const { data: cl } = await supabase.from("task_checklists").select("*").eq("task_id", taskId).order("position");
     setChecklist(cl || []);
