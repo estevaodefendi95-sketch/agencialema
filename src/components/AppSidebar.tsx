@@ -1,5 +1,5 @@
 import {
-  LayoutDashboard, Building2, FolderKanban, Users, Bell, LogOut, Sun, Moon, Settings, CalendarDays,
+  LayoutDashboard, Building2, FolderKanban, Users, Bell, LogOut, Sun, Moon, Settings, CalendarDays, UserCircle,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/contexts/AuthContext";
@@ -33,7 +33,8 @@ export function AppSidebar() {
       ]
     : [{ title: "Notificações", url: "/notificacoes", icon: Bell }];
 
-  const items = [...baseItems, ...managerItems];
+  const profileItem = { title: "Meu Perfil", url: "/perfil", icon: UserCircle };
+  const items = [...baseItems, ...managerItems, profileItem];
 
   return (
     <Sidebar collapsible="icon">
