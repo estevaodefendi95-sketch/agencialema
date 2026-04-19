@@ -19,6 +19,7 @@ type TaskWithRelations = {
   due_date: string;
   priority: "baixa" | "media" | "alta" | "urgente";
   assigned_to: string | null;
+  assignee_name: string | null;
   project_id: string;
   projects: { name: string; company_id: string; companies: { name: string; logo_url: string | null } | null } | null;
   assignee?: { full_name: string | null; nickname?: string | null; avatar_url: string | null } | null;
