@@ -112,6 +112,10 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted, projectMemb
     if (editPriority !== task.priority) { updates.priority = editPriority; changes.push(`Prioridade: ${task.priority} → ${editPriority}`); }
     if (editDueDate !== (task.due_date || "")) { updates.due_date = editDueDate || null; changes.push("Prazo atualizado"); }
     if (editAssignedTo !== (task.assigned_to || "")) { updates.assigned_to = editAssignedTo || null; changes.push("Responsável atualizado"); }
+    if (editAssigneeName !== ((task as any).assignee_name || "")) { updates.assignee_name = editAssigneeName || null; changes.push("Responsável (nome) atualizado"); }
+    // Mutual exclusion: if registered user picked, clear free name; if free name picked, clear user
+    if (editAssignedTo) updates.assignee_name = null;
+    else if (editAssigneeName) updates.assigned_to = null;
 
     if (Object.keys(updates).length === 0) return;
     await supabase.from("tasks").update(updates).eq("id", taskId);
