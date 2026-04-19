@@ -171,8 +171,17 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted, projectMemb
   };
 
   const reloadHistory = async () => {
-    const { data: h } = await supabase.from("task_history").select("*, profiles:user_id(full_name, nickname)").eq("task_id", taskId).order("created_at", { ascending: false });
-    setHistory(h as any || []);
+    const { data: h } = await supabase.from("task_history").select("*").eq("task_id", taskId).order("created_at", { ascending: false });
+    let enriched: any[] = h || [];
+    if (h && h.length > 0) {
+      const ids = Array.from(new Set(h.map((x: any) => x.user_id).filter(Boolean)));
+      if (ids.length > 0) {
+        const { data: profs } = await supabase.from("profiles").select("id, full_name, nickname").in("id", ids);
+        const map = new Map((profs || []).map((p: any) => [p.id, p]));
+        enriched = h.map((x: any) => ({ ...x, profiles: x.user_id ? map.get(x.user_id) || null : null }));
+      }
+    }
+    setHistory(enriched);
   };
 
   const addComment = async () => {
