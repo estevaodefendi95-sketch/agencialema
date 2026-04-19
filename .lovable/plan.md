@@ -2,32 +2,40 @@
 
 ## Plano
 
-### 1. Comentário fixado e persistente
-Hoje o painel de comentários é um `<details>` colapsável (fechado por padrão), por isso parece "sumir" após enviar. Vou voltar a deixá-lo **fixo e sempre visível** no rodapé do modal, e garantir que o comentário recém-postado permaneça na lista (sem reload destrutivo).
+O card de edição de tarefas voltou a ter problema de scroll porque o painel de comentários fixo no rodapé ocupa altura demais e empurra o conteúdo principal. Solução: tornar o painel de comentários **minimizável** (colapsável com botão chevron), preservando o estado e garantindo o scroll vertical da área principal em qualquer caso.
 
-**Mudanças em `src/components/TaskDetail.tsx`:**
-- Trocar `<details>` por `<div>` fixo no rodapé com header "Comentários (n)", textarea + botão e `ScrollArea h-[200px]`.
-- Em `addComment`: manter optimistic update já existente, e **remover** o `.then(() => load())` após o insert do `task_history` (ele rebusca tudo e sobrescreve a lista local — causa o "sumiço"). Em vez disso, recarregar só o histórico (`task_history`), preservando `comments` local.
-- Em `deleteComment` e `updateComment`: atualizar lista local em vez de chamar `load()` completo.
+### Mudanças em `src/components/TaskDetail.tsx`
 
-### 2. Apelido (nickname) no perfil de todos os usuários
-Adicionar campo `nickname` em `profiles` e uma página `/perfil` acessível a qualquer usuário aprovado, onde edita nome completo e apelido. O apelido (quando presente) será exibido em **comentários** e **histórico de tarefas** no lugar do `full_name`.
+1. **Estado de minimização**
+   - Adicionar `const [commentsOpen, setCommentsOpen] = useState(true)` (começa aberto para não esconder a funcionalidade).
 
-**Banco (migração):**
-- `ALTER TABLE profiles ADD COLUMN nickname text;`
+2. **Header do painel de comentários** (rodapé fixo do dialog)
+   - Manter o `<div>` fixo `shrink-0 border-t`.
+   - Header clicável com: título "Comentários (n)" à esquerda + botão `ChevronDown`/`ChevronUp` à direita que alterna `commentsOpen`.
+   - Cursor pointer no header inteiro.
 
-**Novos/alterados arquivos:**
+3. **Corpo do painel (condicional)**
+   - Quando `commentsOpen === true`: renderiza textarea + botão "Comentar" + `ScrollArea h-[200px]` com a lista de comentários.
+   - Quando `commentsOpen === false`: nada é renderizado abaixo do header — o painel ocupa só ~48px e o `ScrollArea` principal (`flex-1 min-h-0`) ganha todo o espaço restante.
+
+4. **Garantir scroll principal funcional**
+   - Confirmar `DialogContent` com `h-[90vh] flex flex-col overflow-hidden`.
+   - `ScrollArea` principal: `flex-1 min-h-0` (já está).
+   - Footer "Excluir tarefa": `shrink-0` (já está).
+   - Painel de comentários: `shrink-0` sempre, alturas previsíveis em ambos estados.
+
+5. **Persistência do comentário**
+   - Manter optimistic update já implementado em `addComment` (sem `load()` destrutivo).
+   - Após postar com painel aberto, comentário aparece na `ScrollArea` interna e permanece.
+
+### Resultado
+- Card de edição com scroll vertical funcionando corretamente em telas baixas (638px).
+- Usuário pode minimizar comentários para ver a tarefa inteira sem rolar.
+- Quando expandido, comentários ficam visíveis em área rolável de 200px no rodapé.
+- Comentário postado continua aparecendo instantaneamente e permanece.
+
+### Arquivo
 | Arquivo | Mudança |
 |---|---|
-| `supabase/migrations/*` | Adiciona coluna `nickname` em `profiles` |
-| `src/pages/Profile.tsx` (novo) | Página de perfil: editar `full_name` e `nickname` (input com max 30 chars, validação trim) |
-| `src/App.tsx` | Rota `/perfil` dentro de `RequireAuth` + `AppLayout` |
-| `src/components/AppSidebar.tsx` | Item "Meu Perfil" no menu, visível para todos |
-| `src/components/TaskDetail.tsx` | Buscar `nickname` em `profiles(...)` nas queries de `task_comments` e `task_history`; render: `nickname || full_name || "Usuário"`. Também ajustar o `addComment` (fetch de profile inclui nickname) |
-| `src/pages/KanbanBoard.tsx` | Incluir `nickname` em queries de `project_members` e mostrar `nickname || full_name` nos avatares/labels onde o nome aparece |
-| `src/pages/TaskCalendar.tsx` | Incluir `nickname` na query de `profiles` e usar `nickname || full_name` no responsável |
-
-### Resultado esperado
-- Após enviar, o comentário aparece imediatamente, fica salvo (não some) e o painel de comentários permanece visível e rolável.
-- Qualquer usuário pode acessar "Meu Perfil" no menu, definir um apelido, e este aparece em todos os registros de tarefas/comentários.
+| `src/components/TaskDetail.tsx` | Adicionar estado `commentsOpen`, header colapsável com chevron, condicionar render do textarea+lista, garantir layout flex correto |
 
