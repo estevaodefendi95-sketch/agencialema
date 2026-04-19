@@ -12,7 +12,7 @@ import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Send, Plus, CheckSquare, History, Image, Upload, X, Trash2, Pencil, Save, FileText, Download } from "lucide-react";
+import { Send, Plus, CheckSquare, History, Image, Upload, X, Trash2, Pencil, Save, FileText, Download, ChevronDown, ChevronUp } from "lucide-react";
 
 interface ProjectMember {
   id: string;
@@ -65,6 +65,9 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted, projectMemb
   // Checklist editing
   const [editingCheckId, setEditingCheckId] = useState<string | null>(null);
   const [editCheckTitle, setEditCheckTitle] = useState("");
+
+  // Comments panel
+  const [commentsOpen, setCommentsOpen] = useState(true);
 
   const load = async () => {
     const { data: t } = await supabase.from("tasks").select("*").eq("id", taskId).single();
@@ -469,73 +472,82 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted, projectMemb
           </div>
         </ScrollArea>
 
-        {/* Comments Panel - always visible */}
+        {/* Comments Panel - collapsible */}
         <div className="border-t bg-muted/20 shrink-0">
-          <div className="flex items-center gap-2 px-6 py-2.5">
+          <button
+            type="button"
+            onClick={() => setCommentsOpen((o) => !o)}
+            className="w-full flex items-center gap-2 px-6 py-2.5 hover:bg-muted/40 transition-colors"
+          >
             <Send className="h-4 w-4" />
-            <Label className="font-semibold text-sm">Comentários</Label>
+            <Label className="font-semibold text-sm cursor-pointer">Comentários</Label>
             <span className="text-xs text-muted-foreground">({comments.length})</span>
-          </div>
-          <div className="px-6 pb-3">
-          <div className="flex gap-2 mb-3">
-            <Textarea
-              placeholder="Escreva um comentário..."
-              value={newComment}
-              onChange={(e) => setNewComment(e.target.value)}
-              className="min-h-[50px] text-sm resize-none"
-            />
-            <Button size="sm" onClick={addComment} className="self-end"><Send className="h-4 w-4" /></Button>
-          </div>
+            <span className="ml-auto text-muted-foreground">
+              {commentsOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
+            </span>
+          </button>
+          {commentsOpen && (
+            <div className="px-6 pb-3">
+              <div className="flex gap-2 mb-3">
+                <Textarea
+                  placeholder="Escreva um comentário..."
+                  value={newComment}
+                  onChange={(e) => setNewComment(e.target.value)}
+                  className="min-h-[50px] text-sm resize-none"
+                />
+                <Button size="sm" onClick={addComment} className="self-end"><Send className="h-4 w-4" /></Button>
+              </div>
 
-          <ScrollArea className="h-[200px] pr-3">
-            <div className="space-y-2">
-              {comments.length === 0 ? (
-                <p className="text-xs text-muted-foreground italic text-center py-4">Nenhum comentário ainda</p>
-              ) : (
-                [...comments]
-                  .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-                  .map((c) => (
-                    <div key={`c-${c.id}`} className="bg-background border rounded-lg p-2.5 group">
-                      <div className="flex items-center justify-between mb-1 gap-2">
-                        <span className="text-xs font-semibold">{displayName(c.profiles as any)}</span>
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-[11px] text-muted-foreground">{new Date(c.created_at).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })}</span>
-                          {(c.user_id === user?.id || isAdmin) && (
-                            <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                              {c.user_id === user?.id && (
-                                <button onClick={() => { setEditingCommentId(c.id); setEditCommentContent(c.content); }} className="text-muted-foreground hover:text-foreground">
-                                  <Pencil className="h-3 w-3" />
-                                </button>
+              <ScrollArea className="h-[200px] pr-3">
+                <div className="space-y-2">
+                  {comments.length === 0 ? (
+                    <p className="text-xs text-muted-foreground italic text-center py-4">Nenhum comentário ainda</p>
+                  ) : (
+                    [...comments]
+                      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+                      .map((c) => (
+                        <div key={`c-${c.id}`} className="bg-background border rounded-lg p-2.5 group">
+                          <div className="flex items-center justify-between mb-1 gap-2">
+                            <span className="text-xs font-semibold">{displayName(c.profiles as any)}</span>
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-[11px] text-muted-foreground">{new Date(c.created_at).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })}</span>
+                              {(c.user_id === user?.id || isAdmin) && (
+                                <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                                  {c.user_id === user?.id && (
+                                    <button onClick={() => { setEditingCommentId(c.id); setEditCommentContent(c.content); }} className="text-muted-foreground hover:text-foreground">
+                                      <Pencil className="h-3 w-3" />
+                                    </button>
+                                  )}
+                                  <button onClick={() => deleteComment(c.id)} className="text-muted-foreground hover:text-destructive">
+                                    <X className="h-3 w-3" />
+                                  </button>
+                                </div>
                               )}
-                              <button onClick={() => deleteComment(c.id)} className="text-muted-foreground hover:text-destructive">
-                                <X className="h-3 w-3" />
-                              </button>
                             </div>
+                          </div>
+                          {editingCommentId === c.id ? (
+                            <div className="flex gap-2">
+                              <Textarea
+                                value={editCommentContent}
+                                onChange={(e) => setEditCommentContent(e.target.value)}
+                                className="min-h-[40px] text-sm flex-1"
+                                autoFocus
+                              />
+                              <div className="flex flex-col gap-1">
+                                <Button size="sm" onClick={() => updateComment(c.id)}><Save className="h-3 w-3" /></Button>
+                                <Button size="sm" variant="outline" onClick={() => setEditingCommentId(null)}><X className="h-3 w-3" /></Button>
+                              </div>
+                            </div>
+                          ) : (
+                            <p className="text-sm whitespace-pre-wrap">{c.content}</p>
                           )}
                         </div>
-                      </div>
-                      {editingCommentId === c.id ? (
-                        <div className="flex gap-2">
-                          <Textarea
-                            value={editCommentContent}
-                            onChange={(e) => setEditCommentContent(e.target.value)}
-                            className="min-h-[40px] text-sm flex-1"
-                            autoFocus
-                          />
-                          <div className="flex flex-col gap-1">
-                            <Button size="sm" onClick={() => updateComment(c.id)}><Save className="h-3 w-3" /></Button>
-                            <Button size="sm" variant="outline" onClick={() => setEditingCommentId(null)}><X className="h-3 w-3" /></Button>
-                          </div>
-                        </div>
-                      ) : (
-                        <p className="text-sm whitespace-pre-wrap">{c.content}</p>
-                      )}
-                    </div>
-                  ))
-              )}
+                      ))
+                  )}
+                </div>
+              </ScrollArea>
             </div>
-          </ScrollArea>
-          </div>
+          )}
         </div>
 
         {canEdit && (
