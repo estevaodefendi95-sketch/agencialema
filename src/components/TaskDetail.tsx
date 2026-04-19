@@ -226,8 +226,8 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted, projectMemb
 
   return (
     <Dialog open onOpenChange={() => onClose()}>
-      <DialogContent className="max-w-2xl max-h-[85vh]">
-        <DialogHeader>
+      <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col p-0 gap-0">
+        <DialogHeader className="px-6 pt-6 pb-3 border-b shrink-0">
           <div className="flex items-center justify-between gap-2">
             {editingTitle ? (
               <Input
