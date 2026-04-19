@@ -77,13 +77,13 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted, projectMemb
       setEditAssignedTo(t.assigned_to || "");
     }
 
-    const { data: c } = await supabase.from("task_comments").select("*, profiles(full_name)").eq("task_id", taskId).order("created_at");
+    const { data: c } = await supabase.from("task_comments").select("*, profiles(full_name, nickname)").eq("task_id", taskId).order("created_at");
     setComments(c as any || []);
 
     const { data: cl } = await supabase.from("task_checklists").select("*").eq("task_id", taskId).order("position");
     setChecklist(cl || []);
 
-    const { data: h } = await supabase.from("task_history").select("*, profiles:user_id(full_name)").eq("task_id", taskId).order("created_at", { ascending: false });
+    const { data: h } = await supabase.from("task_history").select("*, profiles:user_id(full_name, nickname)").eq("task_id", taskId).order("created_at", { ascending: false });
     setHistory(h as any || []);
 
     const { data: m } = await supabase.from("task_media").select("*").eq("task_id", taskId).order("created_at");
