@@ -402,8 +402,29 @@ export default function KanbanBoard() {
     load();
   };
 
+  const matchesAssignee = (t: Task) => {
+    if (assigneeFilter === "all") return true;
+    if (assigneeFilter === "none") return !t.assigned_to && !t.assignee_name;
+    return t.assigned_to === assigneeFilter;
+  };
+
   const getColumnTasks = (slug: string) =>
-    tasks.filter((t) => t.status === slug).sort((a, b) => a.position - b.position);
+    tasks.filter((t) => t.status === slug && matchesAssignee(t)).sort((a, b) => a.position - b.position);
+
+  const getAssigneeDisplay = (task: Task): { name: string; avatarUrl?: string | null; initial: string } | null => {
+    if (task.assigned_to) {
+      const m = members.find((x) => x.user_id === task.assigned_to);
+      const p: any = m?.profiles;
+      const full = (p?.nickname?.trim()) || p?.full_name || p?.email || "";
+      const first = full.split(" ")[0] || "?";
+      return { name: first, avatarUrl: p?.avatar_url, initial: first.charAt(0).toUpperCase() };
+    }
+    if (task.assignee_name) {
+      const first = task.assignee_name.split(" ")[0];
+      return { name: first, avatarUrl: null, initial: first.charAt(0).toUpperCase() };
+    }
+    return null;
+  };
 
   // Column management
   const saveColumnLabel = async (col: Column) => {
