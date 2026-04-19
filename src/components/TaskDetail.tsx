@@ -87,15 +87,47 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted, projectMemb
       setFreeNameInput((t as any).assignee_name || "");
     }
 
-    const { data: c } = await supabase.from("task_comments").select("*, profiles(full_name, nickname)").eq("task_id", taskId).order("created_at");
-    setComments(c as any || []);
-    if ((c?.length || 0) > 0) setCommentsOpen(true);
+    const { data: c, error: cErr } = await supabase
+      .from("task_comments")
+      .select("*")
+      .eq("task_id", taskId)
+      .order("created_at");
+    if (cErr) {
+      console.error("Erro ao carregar comentários:", cErr);
+      toast({ title: "Erro ao carregar comentários", variant: "destructive" });
+    }
+    let enrichedComments: any[] = c || [];
+    if (c && c.length > 0) {
+      const userIds = Array.from(new Set(c.map((x: any) => x.user_id).filter(Boolean)));
+      if (userIds.length > 0) {
+        const { data: profs } = await supabase
+          .from("profiles")
+          .select("id, full_name, nickname")
+          .in("id", userIds);
+        const profMap = new Map((profs || []).map((p: any) => [p.id, p]));
+        enrichedComments = c.map((x: any) => ({ ...x, profiles: profMap.get(x.user_id) || null }));
+      }
+    }
+    setComments(enrichedComments);
+    if (enrichedComments.length > 0) setCommentsOpen(true);
 
     const { data: cl } = await supabase.from("task_checklists").select("*").eq("task_id", taskId).order("position");
     setChecklist(cl || []);
 
-    const { data: h } = await supabase.from("task_history").select("*, profiles:user_id(full_name, nickname)").eq("task_id", taskId).order("created_at", { ascending: false });
-    setHistory(h as any || []);
+    const { data: h } = await supabase.from("task_history").select("*").eq("task_id", taskId).order("created_at", { ascending: false });
+    let enrichedHistory: any[] = h || [];
+    if (h && h.length > 0) {
+      const hUserIds = Array.from(new Set(h.map((x: any) => x.user_id).filter(Boolean)));
+      if (hUserIds.length > 0) {
+        const { data: hProfs } = await supabase
+          .from("profiles")
+          .select("id, full_name, nickname")
+          .in("id", hUserIds);
+        const hMap = new Map((hProfs || []).map((p: any) => [p.id, p]));
+        enrichedHistory = h.map((x: any) => ({ ...x, profiles: x.user_id ? hMap.get(x.user_id) || null : null }));
+      }
+    }
+    setHistory(enrichedHistory);
 
     const { data: m } = await supabase.from("task_media").select("*").eq("task_id", taskId).order("created_at");
     setMedia(m || []);
