@@ -146,6 +146,7 @@ export default function KanbanBoard() {
   const [sortPrazo, setSortPrazo] = useState<"asc" | "desc">(() =>
     (localStorage.getItem(`sort-prazo-${projectId}`) as "asc" | "desc") || "asc"
   );
+  const [assigneeFilter, setAssigneeFilter] = useState<string>("all");
 
   const loadColumns = useCallback(async () => {
     if (!projectId) return;
