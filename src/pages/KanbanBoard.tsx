@@ -183,11 +183,17 @@ export default function KanbanBoard() {
 
     const taskIds = taskList.map((t) => t.id);
     if (taskIds.length > 0) {
-      const { data: mediaData } = await supabase
-        .from("task_media")
-        .select("task_id, file_url, file_type")
-        .in("task_id", taskIds)
-        .order("created_at");
+      const [{ data: mediaData }, { data: commentData }] = await Promise.all([
+        supabase
+          .from("task_media")
+          .select("task_id, file_url, file_type")
+          .in("task_id", taskIds)
+          .order("created_at"),
+        supabase
+          .from("task_comments")
+          .select("task_id")
+          .in("task_id", taskIds),
+      ]);
 
       const mediaMap: Record<string, MediaInfo> = {};
       (mediaData || []).forEach((m) => {
@@ -198,6 +204,15 @@ export default function KanbanBoard() {
         }
       });
       setTaskMedia(mediaMap);
+
+      const counts: Record<string, number> = {};
+      (commentData || []).forEach((c: any) => {
+        counts[c.task_id] = (counts[c.task_id] || 0) + 1;
+      });
+      setCommentCounts(counts);
+    } else {
+      setTaskMedia({});
+      setCommentCounts({});
     }
   }, [projectId]);
 
