@@ -23,6 +23,7 @@ type TaskWithRelations = {
   project_id: string;
   projects: { name: string; company_id: string; companies: { name: string; logo_url: string | null } | null } | null;
   assignee?: { full_name: string | null; nickname?: string | null; avatar_url: string | null } | null;
+  comment_count?: number;
 };
 
 const priorityColor: Record<string, string> = {
