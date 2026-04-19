@@ -89,6 +89,7 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted, projectMemb
 
     const { data: c } = await supabase.from("task_comments").select("*, profiles(full_name, nickname)").eq("task_id", taskId).order("created_at");
     setComments(c as any || []);
+    if ((c?.length || 0) > 0) setCommentsOpen(true);
 
     const { data: cl } = await supabase.from("task_checklists").select("*").eq("task_id", taskId).order("position");
     setChecklist(cl || []);
@@ -595,7 +596,7 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted, projectMemb
             <Label className="font-semibold text-sm cursor-pointer">Comentários</Label>
             <span className="text-xs text-muted-foreground">({comments.length})</span>
             <span className="ml-auto text-muted-foreground">
-              {commentsOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
+              {commentsOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
             </span>
           </button>
           {commentsOpen && (
