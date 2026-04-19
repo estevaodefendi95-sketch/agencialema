@@ -309,6 +309,12 @@ export default function TaskCalendar() {
                             <span>{(task.assignee as any)?.nickname?.trim() || task.assignee?.full_name || task.assignee_name}</span>
                           </span>
                         )}
+                        {(task.comment_count || 0) > 0 && (
+                          <span className={cn("flex items-center gap-1", !(task.assignee || task.assignee_name) && "ml-auto")} title="Comentários">
+                            <MessageSquare className="h-3 w-3" />
+                            {task.comment_count}
+                          </span>
+                        )}
                       </div>
                     </button>
                   ))}
