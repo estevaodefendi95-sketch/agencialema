@@ -250,7 +250,10 @@ export default function AdminUsers() {
       <Dialog open={!!selected} onOpenChange={() => setSelected(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Editar Acesso — {selected?.full_name || selected?.email}</DialogTitle>
+            <DialogTitle>
+              {selected?.status === "pendente" ? "Aprovar Usuário — " : "Editar Acesso — "}
+              {selected?.full_name || selected?.email}
+            </DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
