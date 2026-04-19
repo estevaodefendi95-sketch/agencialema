@@ -10,7 +10,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { CalendarDays, Building2, FolderKanban, X } from "lucide-react";
+import { CalendarDays, Building2, FolderKanban, X, MessageSquare } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type TaskWithRelations = {
