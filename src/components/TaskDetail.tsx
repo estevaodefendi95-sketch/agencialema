@@ -123,6 +123,11 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted, projectMemb
     onClose();
   };
 
+  const reloadHistory = async () => {
+    const { data: h } = await supabase.from("task_history").select("*, profiles:user_id(full_name, nickname)").eq("task_id", taskId).order("created_at", { ascending: false });
+    setHistory(h as any || []);
+  };
+
   const addComment = async () => {
     if (!newComment.trim() || !user) return;
     const content = newComment;
@@ -139,7 +144,7 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted, projectMemb
     }
     const { data: prof } = await supabase
       .from("profiles")
-      .select("full_name")
+      .select("full_name, nickname")
       .eq("id", user.id)
       .maybeSingle();
     setComments((prev) => [...prev, { ...inserted, profiles: prof || null } as any]);
@@ -147,21 +152,22 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted, projectMemb
     supabase
       .from("task_history")
       .insert({ task_id: taskId, user_id: user.id, action: "Comentou", details: { content } })
-      .then(() => load());
+      .then(() => reloadHistory());
   };
 
   const deleteComment = async (id: string) => {
     await supabase.from("task_comments").delete().eq("id", id);
+    setComments((prev) => prev.filter((c) => c.id !== id));
     toast({ title: "Comentário excluído" });
-    load();
   };
 
   const updateComment = async (id: string) => {
     if (!editCommentContent.trim()) return;
-    await supabase.from("task_comments").update({ content: editCommentContent }).eq("id", id);
+    const content = editCommentContent;
+    await supabase.from("task_comments").update({ content }).eq("id", id);
+    setComments((prev) => prev.map((c) => (c.id === id ? { ...c, content } : c)));
     setEditingCommentId(null);
     toast({ title: "Comentário atualizado" });
-    load();
   };
 
   const addCheckItem = async () => {
