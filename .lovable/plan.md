@@ -2,40 +2,50 @@
 
 ## Plano
 
-O card de edição de tarefas voltou a ter problema de scroll porque o painel de comentários fixo no rodapé ocupa altura demais e empurra o conteúdo principal. Solução: tornar o painel de comentários **minimizável** (colapsável com botão chevron), preservando o estado e garantindo o scroll vertical da área principal em qualquer caso.
+Adicionar **avatar/badge do responsável** no cabeçalho do modal de tarefa (ao lado do título), com possibilidade de:
+- Selecionar um perfil já cadastrado no projeto (já funciona via `assigned_to`).
+- Ou digitar um **nome livre** (texto simples, ex: "João Cliente"), para casos em que o responsável não tem cadastro no sistema.
 
-### Mudanças em `src/components/TaskDetail.tsx`
+### 1. Banco — nova coluna em `tasks`
+Migration:
+```sql
+ALTER TABLE public.tasks ADD COLUMN assignee_name text;
+```
+- `assigned_to` (uuid) continua para perfis cadastrados.
+- `assignee_name` (text) usado quando não há perfil — pode coexistir só um dos dois (preferência: `assigned_to` se preenchido).
 
-1. **Estado de minimização**
-   - Adicionar `const [commentsOpen, setCommentsOpen] = useState(true)` (começa aberto para não esconder a funcionalidade).
+### 2. Cabeçalho do modal (`src/components/TaskDetail.tsx`)
+No `DialogHeader`, abaixo/à direita do título adicionar uma linha "Responsável" clicável:
+- **Visualização**: `Avatar` (iniciais) + nome — `displayName(assignedProfile)` se `assigned_to`, senão `task.assignee_name`, senão "Sem responsável" (italico).
+- **Edição (Popover)** ao clicar: 
+  - Campo de busca/seleção dos `projectMembers` (lista filtrável).
+  - Opção "Sem responsável".
+  - Separador "ou usar nome livre" + `Input` de texto + botão "Aplicar".
+  - Selecionar um membro: `setEditAssignedTo(userId)` + limpa `assignee_name`.
+  - Aplicar nome livre: limpa `assigned_to` + define `assignee_name`.
+- Marcar `hasChanges = true` para reaproveitar o botão "Salvar" existente.
 
-2. **Header do painel de comentários** (rodapé fixo do dialog)
-   - Manter o `<div>` fixo `shrink-0 border-t`.
-   - Header clicável com: título "Comentários (n)" à esquerda + botão `ChevronDown`/`ChevronUp` à direita que alterna `commentsOpen`.
-   - Cursor pointer no header inteiro.
+### 3. Salvar (`saveTaskEdits`)
+- Incluir `assignee_name` no diff junto com `assigned_to` (já existe a lógica para `assigned_to`).
+- Garantir mutua exclusão: se `assigned_to` definido, salvar `assignee_name = null`; e vice-versa.
+- Adicionar entrada em `task_history` com nome legível.
 
-3. **Corpo do painel (condicional)**
-   - Quando `commentsOpen === true`: renderiza textarea + botão "Comentar" + `ScrollArea h-[200px]` com a lista de comentários.
-   - Quando `commentsOpen === false`: nada é renderizado abaixo do header — o painel ocupa só ~48px e o `ScrollArea` principal (`flex-1 min-h-0`) ganha todo o espaço restante.
+### 4. Remover seleção duplicada do corpo
+A seleção atual de "Responsável" dentro do grid de Prioridade/Prazo (linhas 330-345) será **removida**, pois o cabeçalho passa a ser o único ponto de edição (evita confusão).
 
-4. **Garantir scroll principal funcional**
-   - Confirmar `DialogContent` com `h-[90vh] flex flex-col overflow-hidden`.
-   - `ScrollArea` principal: `flex-1 min-h-0` (já está).
-   - Footer "Excluir tarefa": `shrink-0` (já está).
-   - Painel de comentários: `shrink-0` sempre, alturas previsíveis em ambos estados.
+### 5. Refletir em outras telas (apenas leitura)
+- `KanbanBoard.tsx`: nos cards/lista, quando exibir o responsável, usar fallback `assignee_name` se não houver `assigned_to`. Avatar mostra inicial do nome livre.
+- `TaskCalendar.tsx`: mesmo fallback na lista de tarefas do dia.
+- `src/integrations/supabase/types.ts`: regenerado automaticamente.
 
-5. **Persistência do comentário**
-   - Manter optimistic update já implementado em `addComment` (sem `load()` destrutivo).
-   - Após postar com painel aberto, comentário aparece na `ScrollArea` interna e permanece.
-
-### Resultado
-- Card de edição com scroll vertical funcionando corretamente em telas baixas (638px).
-- Usuário pode minimizar comentários para ver a tarefa inteira sem rolar.
-- Quando expandido, comentários ficam visíveis em área rolável de 200px no rodapé.
-- Comentário postado continua aparecendo instantaneamente e permanece.
-
-### Arquivo
+### Arquivos
 | Arquivo | Mudança |
 |---|---|
-| `src/components/TaskDetail.tsx` | Adicionar estado `commentsOpen`, header colapsável com chevron, condicionar render do textarea+lista, garantir layout flex correto |
+| `supabase/migrations/*` | Adiciona coluna `assignee_name text` em `tasks` |
+| `src/components/TaskDetail.tsx` | Header com avatar+nome do responsável + Popover (membro do projeto OU nome livre); remove seletor antigo do corpo; ajusta `saveTaskEdits` |
+| `src/pages/KanbanBoard.tsx` | Exibir `assignee_name` como fallback no responsável |
+| `src/pages/TaskCalendar.tsx` | Exibir `assignee_name` como fallback na lista do dia |
+
+### Resultado
+Cabeçalho mostra claramente quem é o responsável. Editor escolhe entre membro cadastrado (avatar real, vinculado a perfil) ou digita um nome livre (uso pontual para clientes/externos).
 
