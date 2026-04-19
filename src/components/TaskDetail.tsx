@@ -510,7 +510,8 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted, projectMemb
               )}
             </div>
           </ScrollArea>
-        </div>
+          </div>
+        </details>
 
         {canEdit && (
           <div className="flex justify-start px-6 py-2 border-t shrink-0">
