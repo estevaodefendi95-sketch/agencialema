@@ -57,7 +57,7 @@ interface HistoryEntry {
   new_data: any;
   user_id: string | null;
   created_at: string;
-  profiles?: { full_name: string | null } | null;
+  profiles?: { full_name: string | null; nickname?: string | null } | null;
 }
 
 interface ProjectMember {
@@ -66,7 +66,7 @@ interface ProjectMember {
   role: string;
   status?: string;
   invited_email?: string | null;
-  profiles?: { full_name: string | null; email: string | null; avatar_url: string | null } | null;
+  profiles?: { full_name: string | null; nickname?: string | null; email: string | null; avatar_url: string | null } | null;
 }
 
 const ACTION_LABELS: Record<string, string> = {
@@ -203,7 +203,7 @@ export default function KanbanBoard() {
   const loadMembers = useCallback(async () => {
     if (!projectId) return;
     const { data } = await (supabase.from as any)("project_members")
-      .select("*, profiles:user_id(full_name, email, avatar_url)")
+      .select("*, profiles:user_id(full_name, nickname, email, avatar_url)")
       .eq("project_id", projectId);
     setMembers(data || []);
   }, [projectId]);
@@ -447,7 +447,7 @@ export default function KanbanBoard() {
   const loadHistory = useCallback(async () => {
     if (!projectId) return;
     const { data } = await (supabase.from as any)("project_history")
-      .select("*, profiles:user_id(full_name)")
+      .select("*, profiles:user_id(full_name, nickname)")
       .eq("project_id", projectId)
       .order("created_at", { ascending: false })
       .limit(50);
