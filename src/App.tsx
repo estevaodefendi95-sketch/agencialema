@@ -15,6 +15,7 @@ import KanbanBoard from "@/pages/KanbanBoard";
 import TaskCalendar from "@/pages/TaskCalendar";
 import AdminUsers from "@/pages/AdminUsers";
 import AdminSettings from "@/pages/AdminSettings";
+import Profile from "@/pages/Profile";
 
 import Notifications from "@/pages/Notifications";
 import NotFound from "@/pages/NotFound";
@@ -62,6 +63,7 @@ function AppRoutes() {
           <Route path="/admin/usuarios" element={<AdminUsers />} />
           <Route path="/admin/configuracoes" element={<AdminSettings />} />
           <Route path="/notificacoes" element={<Notifications />} />
+          <Route path="/perfil" element={<Profile />} />
           <Route path="*" element={<NotFound />} />
         </Route>
       </Route>

@@ -21,7 +21,7 @@ type TaskWithRelations = {
   assigned_to: string | null;
   project_id: string;
   projects: { name: string; company_id: string; companies: { name: string; logo_url: string | null } | null } | null;
-  assignee?: { full_name: string | null; avatar_url: string | null } | null;
+  assignee?: { full_name: string | null; nickname?: string | null; avatar_url: string | null } | null;
 };
 
 const priorityColor: Record<string, string> = {
@@ -65,14 +65,14 @@ export default function TaskCalendar() {
     }
 
     const assigneeIds = Array.from(new Set((data || []).map((t: any) => t.assigned_to).filter(Boolean)));
-    let assigneeMap: Record<string, { full_name: string | null; avatar_url: string | null }> = {};
+    let assigneeMap: Record<string, { full_name: string | null; nickname: string | null; avatar_url: string | null }> = {};
     if (assigneeIds.length > 0) {
       const { data: profiles } = await supabase
         .from("profiles")
-        .select("id, full_name, avatar_url")
+        .select("id, full_name, nickname, avatar_url")
         .in("id", assigneeIds);
       (profiles || []).forEach((p: any) => {
-        assigneeMap[p.id] = { full_name: p.full_name, avatar_url: p.avatar_url };
+        assigneeMap[p.id] = { full_name: p.full_name, nickname: p.nickname, avatar_url: p.avatar_url };
       });
     }
 
@@ -99,7 +99,8 @@ export default function TaskCalendar() {
     let hasUnassigned = false;
     tasks.forEach((t) => {
       if (!t.assigned_to) { hasUnassigned = true; return; }
-      map.set(t.assigned_to, t.assignee?.full_name || "Sem nome");
+      const name = (t.assignee as any)?.nickname?.trim() || t.assignee?.full_name || "Sem nome";
+      map.set(t.assigned_to, name);
     });
     const list = Array.from(map.entries()).map(([id, name]) => ({ id, name }));
     return { list, hasUnassigned };
@@ -265,10 +266,10 @@ export default function TaskCalendar() {
                                 <AvatarImage src={task.assignee.avatar_url} />
                               )}
                               <AvatarFallback className="text-[10px]">
-                                {task.assignee.full_name?.[0]?.toUpperCase() || "?"}
+                                {((task.assignee as any).nickname?.trim() || task.assignee.full_name)?.[0]?.toUpperCase() || "?"}
                               </AvatarFallback>
                             </Avatar>
-                            <span>{task.assignee.full_name}</span>
+                            <span>{(task.assignee as any).nickname?.trim() || task.assignee.full_name}</span>
                           </span>
                         )}
                       </div>

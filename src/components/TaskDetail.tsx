@@ -18,7 +18,7 @@ interface ProjectMember {
   id: string;
   user_id: string;
   role: string;
-  profiles?: { full_name: string | null; email: string | null; avatar_url: string | null } | null;
+  profiles?: { full_name: string | null; nickname?: string | null; email: string | null; avatar_url: string | null } | null;
 }
 
 interface Props {
@@ -28,9 +28,12 @@ interface Props {
   projectMembers?: ProjectMember[];
 }
 
-interface Comment { id: string; content: string; created_at: string; user_id: string; profiles?: { full_name: string | null } | null; }
+interface Comment { id: string; content: string; created_at: string; user_id: string; profiles?: { full_name: string | null; nickname?: string | null } | null; }
 interface ChecklistItem { id: string; title: string; completed: boolean; position: number; }
-interface HistoryItem { id: string; action: string; details: any; created_at: string; profiles?: { full_name: string | null } | null; }
+interface HistoryItem { id: string; action: string; details: any; created_at: string; profiles?: { full_name: string | null; nickname?: string | null } | null; }
+
+const displayName = (p?: { full_name?: string | null; nickname?: string | null } | null) =>
+  p?.nickname?.trim() || p?.full_name || "Usuário";
 interface MediaItem { id: string; file_url: string; file_name: string; file_type: string; created_at: string; }
 
 export default function TaskDetail({ taskId, onClose, onTaskDeleted, projectMembers = [] }: Props) {
@@ -74,13 +77,13 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted, projectMemb
       setEditAssignedTo(t.assigned_to || "");
     }
 
-    const { data: c } = await supabase.from("task_comments").select("*, profiles(full_name)").eq("task_id", taskId).order("created_at");
+    const { data: c } = await supabase.from("task_comments").select("*, profiles(full_name, nickname)").eq("task_id", taskId).order("created_at");
     setComments(c as any || []);
 
     const { data: cl } = await supabase.from("task_checklists").select("*").eq("task_id", taskId).order("position");
     setChecklist(cl || []);
 
-    const { data: h } = await supabase.from("task_history").select("*, profiles:user_id(full_name)").eq("task_id", taskId).order("created_at", { ascending: false });
+    const { data: h } = await supabase.from("task_history").select("*, profiles:user_id(full_name, nickname)").eq("task_id", taskId).order("created_at", { ascending: false });
     setHistory(h as any || []);
 
     const { data: m } = await supabase.from("task_media").select("*").eq("task_id", taskId).order("created_at");
@@ -120,6 +123,11 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted, projectMemb
     onClose();
   };
 
+  const reloadHistory = async () => {
+    const { data: h } = await supabase.from("task_history").select("*, profiles:user_id(full_name, nickname)").eq("task_id", taskId).order("created_at", { ascending: false });
+    setHistory(h as any || []);
+  };
+
   const addComment = async () => {
     if (!newComment.trim() || !user) return;
     const content = newComment;
@@ -136,7 +144,7 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted, projectMemb
     }
     const { data: prof } = await supabase
       .from("profiles")
-      .select("full_name")
+      .select("full_name, nickname")
       .eq("id", user.id)
       .maybeSingle();
     setComments((prev) => [...prev, { ...inserted, profiles: prof || null } as any]);
@@ -144,21 +152,22 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted, projectMemb
     supabase
       .from("task_history")
       .insert({ task_id: taskId, user_id: user.id, action: "Comentou", details: { content } })
-      .then(() => load());
+      .then(() => reloadHistory());
   };
 
   const deleteComment = async (id: string) => {
     await supabase.from("task_comments").delete().eq("id", id);
+    setComments((prev) => prev.filter((c) => c.id !== id));
     toast({ title: "Comentário excluído" });
-    load();
   };
 
   const updateComment = async (id: string) => {
     if (!editCommentContent.trim()) return;
-    await supabase.from("task_comments").update({ content: editCommentContent }).eq("id", id);
+    const content = editCommentContent;
+    await supabase.from("task_comments").update({ content }).eq("id", id);
+    setComments((prev) => prev.map((c) => (c.id === id ? { ...c, content } : c)));
     setEditingCommentId(null);
     toast({ title: "Comentário atualizado" });
-    load();
   };
 
   const addCheckItem = async () => {
@@ -324,7 +333,7 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted, projectMemb
                         <SelectItem value="none">Nenhum</SelectItem>
                         {projectMembers.map((m) => (
                           <SelectItem key={m.user_id} value={m.user_id}>
-                            {(m.profiles as any)?.full_name || (m.profiles as any)?.email || "Sem nome"}
+                            {(m.profiles as any)?.nickname?.trim() || (m.profiles as any)?.full_name || (m.profiles as any)?.email || "Sem nome"}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -449,7 +458,7 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted, projectMemb
                     .filter((h) => h.action !== "Comentou")
                     .map((h) => (
                       <div key={`h-${h.id}`} className="flex items-start gap-2 text-xs text-muted-foreground px-1">
-                        <span className="font-medium">{(h.profiles as any)?.full_name || "Sistema"}</span>
+                        <span className="font-medium">{displayName(h.profiles as any) === "Usuário" ? "Sistema" : displayName(h.profiles as any)}</span>
                         <span>— {h.action}</span>
                         <span className="ml-auto shrink-0">{new Date(h.created_at).toLocaleString("pt-BR")}</span>
                       </div>
@@ -460,15 +469,13 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted, projectMemb
           </div>
         </ScrollArea>
 
-        {/* Collapsible Comments Panel */}
-        <details className="border-t bg-muted/20 shrink-0 group" open={comments.length > 0 && false}>
-          <summary className="flex items-center gap-2 px-6 py-2.5 cursor-pointer hover:bg-muted/40 transition-colors list-none [&::-webkit-details-marker]:hidden">
+        {/* Comments Panel - always visible */}
+        <div className="border-t bg-muted/20 shrink-0">
+          <div className="flex items-center gap-2 px-6 py-2.5">
             <Send className="h-4 w-4" />
-            <Label className="font-semibold text-sm cursor-pointer">Comentários</Label>
+            <Label className="font-semibold text-sm">Comentários</Label>
             <span className="text-xs text-muted-foreground">({comments.length})</span>
-            <span className="ml-auto text-xs text-muted-foreground group-open:hidden">Mostrar</span>
-            <span className="ml-auto text-xs text-muted-foreground hidden group-open:inline">Ocultar</span>
-          </summary>
+          </div>
           <div className="px-6 pb-3">
           <div className="flex gap-2 mb-3">
             <Textarea
@@ -490,7 +497,7 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted, projectMemb
                   .map((c) => (
                     <div key={`c-${c.id}`} className="bg-background border rounded-lg p-2.5 group">
                       <div className="flex items-center justify-between mb-1 gap-2">
-                        <span className="text-xs font-semibold">{(c.profiles as any)?.full_name || "Usuário"}</span>
+                        <span className="text-xs font-semibold">{displayName(c.profiles as any)}</span>
                         <div className="flex items-center gap-1.5">
                           <span className="text-[11px] text-muted-foreground">{new Date(c.created_at).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })}</span>
                           {(c.user_id === user?.id || isAdmin) && (
@@ -529,7 +536,7 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted, projectMemb
             </div>
           </ScrollArea>
           </div>
-        </details>
+        </div>
 
         {canEdit && (
           <div className="flex justify-start px-6 py-2 border-t shrink-0">
