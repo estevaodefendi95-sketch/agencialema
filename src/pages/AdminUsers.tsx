@@ -79,6 +79,14 @@ export default function AdminUsers() {
 
   const approve = async () => {
     if (!selected) return;
+    if (!editRole) {
+      toast({ title: "Selecione um perfil para o usuário", variant: "destructive" });
+      return;
+    }
+    if (editRole !== "admin" && editCompanies.length === 0) {
+      toast({ title: "Vincule ao menos uma empresa", description: "Perfis não-admin precisam de empresa vinculada.", variant: "destructive" });
+      return;
+    }
     await supabase.from("profiles").update({
       status: "aprovado" as any,
     }).eq("id", selected.id);
