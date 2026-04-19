@@ -1,46 +1,36 @@
 
+
+Usuário quer 2 coisas no Kanban/Lista:
+1. Mostrar o nome do responsável no card de forma minimalista (hoje só mostra avatar).
+2. No filtro "Equipe" permitir filtrar por responsável (membros do projeto).
+
+Preciso ver KanbanBoard.tsx para entender estrutura atual de filtros e card.
+
 ## Plano
 
-Identifiquei duas causas prováveis no código atual:
+### 1. Card de tarefa — exibir nome do responsável (minimalista)
+Em `src/pages/KanbanBoard.tsx`, no render do card (Kanban) e da linha (Lista):
+- Ao lado do avatar do responsável, exibir o primeiro nome (ou apelido) em `text-xs text-muted-foreground truncate max-w-[80px]`.
+- Fonte da informação:
+  - Membro cadastrado: `profile.nickname || primeira palavra de full_name`.
+  - Nome livre: `assignee_name` (primeira palavra).
+- Se não houver responsável, não mostra nada (mantém comportamento atual).
+- Layout: `avatar + nome` agrupados em um único `flex items-center gap-1`.
 
-1. O card mostra a contagem de comentários porque ela é carregada por uma query separada em `KanbanBoard.tsx`.
-2. No modal, os comentários são buscados em `TaskDetail.tsx` com `select("*, profiles(full_name, nickname)")`, mas o projeto não expõe relacionamento válido de `task_comments -> profiles` desse jeito. Resultado: a contagem aparece, mas a lista pode vir vazia/erro silencioso.
-
-### 1. Corrigir carregamento dos comentários no modal
-Em `src/components/TaskDetail.tsx`:
-- Ajustar a busca de comentários para usar uma relação válida com o autor:
-  - tentar via alias explícito `profiles:user_id(...)` se o relacionamento existir no backend
-  - se não existir, fazer em 2 etapas:
-    - buscar comentários de `task_comments`
-    - buscar perfis dos `user_id`
-    - montar a lista enriquecida no frontend
-- Tratar erro de carregamento com toast/log seguro, para não falhar silenciosamente.
-- Garantir que, se houver comentários, eles sempre sejam renderizados visivelmente ao abrir a tarefa.
-
-### 2. Deixar os comentários sempre visíveis quando existirem
-Ainda em `TaskDetail.tsx`:
-- Manter o painel minimizado por padrão só quando não houver comentários.
-- Se existirem comentários salvos, abrir o bloco automaticamente.
-- Preservar o comportamento de expandir ao postar novo comentário.
-
-### 3. Garantir persistência visual após reabrir
-- Revisar o `load()` do modal para não sobrescrever `comments` com vazio por causa de query inválida.
-- Validar que o comentário recém-lançado continue visível após fechar e reabrir a tarefa.
-
-### 4. Corrigir enquadramento do botão “Salvar” com o X
-No cabeçalho de `TaskDetail.tsx`:
-- Reorganizar o topo do modal para o CTA “Salvar” não disputar espaço com o botão de fechar.
-- Aplicação prevista:
-  - reservar espaço à direita para o X
-  - mover/alinhar o botão “Salvar” em uma área própria do header
-  - garantir bom encaixe no viewport atual (910x638) e em larguras menores
+### 2. Filtro "Equipe" por responsável
+Hoje o filtro Equipe (em KanbanBoard) provavelmente filtra por membro do projeto de forma genérica. Ajuste:
+- Popular o select/dropdown de Equipe com a lista de **membros do projeto** (via `project_members` + `profiles`) já carregados na página.
+- Incluir também opção "Sem responsável".
+- Ao selecionar um membro, `filteredTasks` deve manter apenas tarefas onde `task.assigned_to === selectedMemberId`.
+- Manter "Todos" como default.
+- Persistir comportamento dos demais filtros (status, prioridade, prazo).
 
 ### Arquivo
 | Arquivo | Mudança |
 |---|---|
-| `src/components/TaskDetail.tsx` | Corrigir query/renderização dos comentários; abrir comentários quando houver conteúdo; ajustar layout do cabeçalho para separar “Salvar” do X |
+| `src/pages/KanbanBoard.tsx` | Card/Lista mostram nome curto do responsável ao lado do avatar; filtro Equipe lista membros do projeto e filtra por `assigned_to` |
 
-### Resultado esperado
-- O número de comentários no card passa a bater com o que aparece dentro da tarefa.
-- Comentários lançados ficam visíveis ao abrir/reabrir o modal.
-- O cabeçalho fica limpo, sem sobreposição entre “Salvar” e o X.
+### Resultado
+- Cards exibem nome do responsável de forma compacta junto ao avatar.
+- Filtro Equipe permite isolar tarefas por responsável cadastrado no projeto.
+
