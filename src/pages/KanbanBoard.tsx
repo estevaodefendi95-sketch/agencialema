@@ -112,6 +112,7 @@ export default function KanbanBoard() {
   const [taskMedia, setTaskMedia] = useState<Record<string, MediaInfo>>({});
   const [projectName, setProjectName] = useState("");
   const [companyName, setCompanyName] = useState("");
+  const [companyLogo, setCompanyLogo] = useState<string | null>(null);
   const [newTaskOpen, setNewTaskOpen] = useState(false);
   const [selectedTask, setSelectedTask] = useState<string | null>(null);
   const [newTitle, setNewTitle] = useState("");
@@ -171,9 +172,10 @@ export default function KanbanBoard() {
 
   const load = useCallback(async () => {
     if (!projectId) return;
-    const { data: proj } = await supabase.from("projects").select("name, company_id, companies(name)").eq("id", projectId).single();
+    const { data: proj } = await supabase.from("projects").select("name, company_id, companies(name, logo_url)").eq("id", projectId).single();
     setProjectName(proj?.name || "");
     setCompanyName((proj?.companies as any)?.name || "");
+    setCompanyLogo((proj?.companies as any)?.logo_url || null);
     const { data } = await supabase.from("tasks").select("*").eq("project_id", projectId).order("position");
     const taskList = ((data as any[]) || []).map((t) => ({ ...t, status: t.status || "a_fazer", color: t.color || null })) as Task[];
     setTasks(taskList);
@@ -502,6 +504,17 @@ export default function KanbanBoard() {
     <div className="space-y-4">
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div className="flex items-center gap-3">
+          {companyLogo ? (
+            <img
+              src={companyLogo}
+              alt={companyName}
+              className="h-10 w-10 rounded-full object-cover border border-border shrink-0"
+            />
+          ) : (
+            <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center shrink-0">
+              <Users className="h-5 w-5 text-muted-foreground" />
+            </div>
+          )}
           <div>
             {companyName && <p className="text-xs text-muted-foreground">{companyName}</p>}
             <h2 className="text-2xl font-bold">{projectName}</h2>

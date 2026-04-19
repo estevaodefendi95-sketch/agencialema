@@ -226,7 +226,7 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted, projectMemb
 
   return (
     <Dialog open onOpenChange={() => onClose()}>
-      <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col p-0 gap-0">
+      <DialogContent className="max-w-2xl h-[90vh] flex flex-col p-0 gap-0 overflow-hidden">
         <DialogHeader className="px-6 pt-6 pb-3 border-b shrink-0">
           <div className="flex items-center justify-between gap-2">
             {editingTitle ? (
@@ -462,7 +462,7 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted, projectMemb
             <Button size="sm" onClick={addComment} className="self-end"><Send className="h-4 w-4" /></Button>
           </div>
 
-          <ScrollArea className="max-h-[200px] pr-3">
+          <ScrollArea className="h-[200px] pr-3">
             <div className="space-y-2">
               {comments.length === 0 ? (
                 <p className="text-xs text-muted-foreground italic text-center py-4">Nenhum comentário ainda</p>
