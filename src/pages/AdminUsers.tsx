@@ -9,8 +9,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { UserCheck, UserX, Shield, Building2, Plus } from "lucide-react";
+import { UserCheck, UserX, Shield, Building2, Plus, Clock } from "lucide-react";
 
 interface Profile {
   id: string;
@@ -50,6 +51,7 @@ export default function AdminUsers() {
   const [newRole, setNewRole] = useState("cliente");
   const [newCompanies, setNewCompanies] = useState<string[]>([]);
   const [creating, setCreating] = useState(false);
+  const [tab, setTab] = useState<"pendentes" | "todos">("pendentes");
 
   const load = async () => {
     const [p, r, c, a] = await Promise.all([
@@ -77,6 +79,14 @@ export default function AdminUsers() {
 
   const approve = async () => {
     if (!selected) return;
+    if (!editRole) {
+      toast({ title: "Selecione um perfil para o usuário", variant: "destructive" });
+      return;
+    }
+    if (editRole !== "admin" && editCompanies.length === 0) {
+      toast({ title: "Vincule ao menos uma empresa", description: "Perfis não-admin precisam de empresa vinculada.", variant: "destructive" });
+      return;
+    }
     await supabase.from("profiles").update({
       status: "aprovado" as any,
     }).eq("id", selected.id);
@@ -148,6 +158,71 @@ export default function AdminUsers() {
 
   const showCompanySelect = (role: string) => role !== "admin";
 
+  const pendentes = profiles.filter((p) => p.status === "pendente");
+  const sortedAll = [...profiles].sort((a, b) => {
+    const order = { pendente: 0, aprovado: 1, bloqueado: 2 } as Record<string, number>;
+    return (order[a.status] ?? 3) - (order[b.status] ?? 3);
+  });
+  const visible = tab === "pendentes" ? pendentes : sortedAll;
+
+  const renderTable = (rows: Profile[]) => (
+    <div className="rounded-lg border">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Nome</TableHead>
+            <TableHead>Email</TableHead>
+            <TableHead>Status</TableHead>
+            <TableHead>Perfil</TableHead>
+            <TableHead>Empresas</TableHead>
+            <TableHead className="text-right">Ações</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {rows.map((p) => (
+            <TableRow key={p.id}>
+              <TableCell className="font-medium">{p.full_name || "—"}</TableCell>
+              <TableCell>{p.email}</TableCell>
+              <TableCell>{statusBadge(p.status)}</TableCell>
+              <TableCell>
+                <Badge variant="outline" className="text-xs">
+                  {ROLE_LABELS[getUserRole(p.id) || ""] || "Sem perfil"}
+                </Badge>
+              </TableCell>
+              <TableCell>
+                <span className="text-xs text-muted-foreground">
+                  {getUserCompanies(p.id).length} empresa(s)
+                </span>
+              </TableCell>
+              <TableCell className="text-right">
+                <div className="flex gap-1 justify-end">
+                  {p.status === "pendente" && (
+                    <Button size="sm" onClick={() => openEdit(p)} className="gap-1">
+                      <UserCheck className="h-3 w-3" /> Aprovar
+                    </Button>
+                  )}
+                  <Button size="sm" variant="outline" onClick={() => openEdit(p)} className="gap-1">
+                    <Shield className="h-3 w-3" /> Editar
+                  </Button>
+                  {p.status !== "bloqueado" && (
+                    <Button size="sm" variant="outline" onClick={() => block(p.id)} className="gap-1 text-destructive">
+                      <UserX className="h-3 w-3" /> Bloquear
+                    </Button>
+                  )}
+                </div>
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+      {rows.length === 0 && (
+        <div className="text-center py-12 text-muted-foreground">
+          {tab === "pendentes" ? "Nenhum usuário pendente de aprovação" : "Nenhum usuário encontrado"}
+        </div>
+      )}
+    </div>
+  );
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -157,61 +232,28 @@ export default function AdminUsers() {
         </Button>
       </div>
 
-      <div className="rounded-lg border">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Nome</TableHead>
-              <TableHead>Email</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Perfil</TableHead>
-              <TableHead>Empresas</TableHead>
-              <TableHead className="text-right">Ações</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {profiles.map((p) => (
-              <TableRow key={p.id}>
-                <TableCell className="font-medium">{p.full_name || "—"}</TableCell>
-                <TableCell>{p.email}</TableCell>
-                <TableCell>{statusBadge(p.status)}</TableCell>
-                <TableCell>
-                  <Badge variant="outline" className="text-xs">
-                    {ROLE_LABELS[getUserRole(p.id) || ""] || "Sem perfil"}
-                  </Badge>
-                </TableCell>
-                <TableCell>
-                  <span className="text-xs text-muted-foreground">
-                    {getUserCompanies(p.id).length} empresa(s)
-                  </span>
-                </TableCell>
-                <TableCell className="text-right">
-                  <div className="flex gap-1 justify-end">
-                    <Button size="sm" variant="outline" onClick={() => openEdit(p)} className="gap-1">
-                      <Shield className="h-3 w-3" /> Editar
-                    </Button>
-                    {p.status !== "bloqueado" && (
-                      <Button size="sm" variant="outline" onClick={() => block(p.id)} className="gap-1 text-destructive">
-                        <UserX className="h-3 w-3" /> Bloquear
-                      </Button>
-                    )}
-                  </div>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </div>
-
-      {profiles.length === 0 && (
-        <div className="text-center py-12 text-muted-foreground">Nenhum usuário encontrado</div>
-      )}
+      <Tabs value={tab} onValueChange={(v) => setTab(v as any)}>
+        <TabsList>
+          <TabsTrigger value="pendentes" className="gap-2">
+            <Clock className="h-4 w-4" /> Pendentes
+            {pendentes.length > 0 && (
+              <Badge variant="secondary" className="bg-warning/20 text-warning ml-1">{pendentes.length}</Badge>
+            )}
+          </TabsTrigger>
+          <TabsTrigger value="todos">Todos os usuários</TabsTrigger>
+        </TabsList>
+        <TabsContent value="pendentes" className="mt-4">{renderTable(visible)}</TabsContent>
+        <TabsContent value="todos" className="mt-4">{renderTable(visible)}</TabsContent>
+      </Tabs>
 
       {/* Edit user dialog */}
       <Dialog open={!!selected} onOpenChange={() => setSelected(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Editar Acesso — {selected?.full_name || selected?.email}</DialogTitle>
+            <DialogTitle>
+              {selected?.status === "pendente" ? "Aprovar Usuário — " : "Editar Acesso — "}
+              {selected?.full_name || selected?.email}
+            </DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
