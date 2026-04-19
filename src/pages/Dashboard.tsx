@@ -8,18 +8,20 @@ import { useNavigate } from "react-router-dom";
 export default function Dashboard() {
   const { isAdmin, user } = useAuth();
   const navigate = useNavigate();
-  const [stats, setStats] = useState({ companies: 0, projects: 0, tasks: 0, pending: 0, overdue: 0 });
+  const [stats, setStats] = useState({ companies: 0, projects: 0, tasks: 0, pendingUsers: 0, overdue: 0 });
 
   useEffect(() => {
     const load = async () => {
-      const [companies, projects, tasks] = await Promise.all([
+      const [companies, projects, tasks, pendingUsersRes] = await Promise.all([
         supabase.from("companies").select("id", { count: "exact", head: true }),
         supabase.from("projects").select("id", { count: "exact", head: true }),
         supabase.from("tasks").select("*"),
+        isAdmin
+          ? supabase.from("profiles").select("id", { count: "exact", head: true }).eq("status", "pendente")
+          : Promise.resolve({ count: 0 } as any),
       ]);
 
       const allTasks = (tasks.data || []) as any[];
-      const pending = allTasks.filter((t) => t.status === "concluido").length;
       const today = new Date().toISOString().split("T")[0];
       const overdue = allTasks.filter((t) => t.due_date && t.due_date < today && t.status !== "aprovado" && t.status !== "concluido").length;
 
@@ -27,18 +29,18 @@ export default function Dashboard() {
         companies: companies.count || 0,
         projects: projects.count || 0,
         tasks: allTasks.length,
-        pending,
+        pendingUsers: pendingUsersRes.count || 0,
         overdue,
       });
     };
     load();
-  }, []);
+  }, [isAdmin]);
 
   const cards = [
     ...(isAdmin ? [{ title: "Empresas", value: stats.companies, icon: Building2, color: "text-primary", link: "/empresas" }] : []),
     { title: "Projetos", value: stats.projects, icon: FolderKanban, color: "text-primary", link: "/projetos" },
     { title: "Tarefas", value: stats.tasks, icon: CheckSquare, color: "text-primary", link: "/projetos" },
-    { title: "Aguardando Aprovação", value: stats.pending, icon: Clock, color: "text-warning", link: "/projetos" },
+    ...(isAdmin ? [{ title: "Aguardando Aprovação", value: stats.pendingUsers, icon: Clock, color: "text-warning", link: "/admin/usuarios?tab=pendentes" }] : []),
     { title: "Atrasadas", value: stats.overdue, icon: AlertTriangle, color: "text-destructive", link: "/projetos" },
   ];
 
