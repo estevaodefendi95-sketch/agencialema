@@ -834,6 +834,11 @@ export default function KanbanBoard() {
                                     <ImageIcon className="h-3 w-3" />{taskMedia[task.id].count}
                                   </span>
                                 )}
+                                {commentCounts[task.id] > 0 && (
+                                  <span className="flex items-center gap-0.5 text-xs text-muted-foreground shrink-0" title="Comentários">
+                                    <MessageSquare className="h-3 w-3" />{commentCounts[task.id]}
+                                  </span>
+                                )}
                                 <Badge className={`text-[10px] shrink-0 ${PRIORITY_COLORS[task.priority] || ""}`} variant="secondary">
                                   {task.priority}
                                 </Badge>
