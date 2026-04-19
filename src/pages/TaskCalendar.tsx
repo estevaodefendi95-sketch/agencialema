@@ -179,6 +179,14 @@ export default function TaskCalendar() {
             {assigneeOptions.list.map((a) => (
               <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>
             ))}
+            {assigneeOptions.freeNames.length > 0 && (
+              <>
+                <div className="px-2 pt-2 pb-1 text-[10px] uppercase tracking-wide text-muted-foreground">Nomes livres</div>
+                {assigneeOptions.freeNames.map((n) => (
+                  <SelectItem key={`name:${n}`} value={`name:${n}`}>{n}</SelectItem>
+                ))}
+              </>
+            )}
           </SelectContent>
         </Select>
 
