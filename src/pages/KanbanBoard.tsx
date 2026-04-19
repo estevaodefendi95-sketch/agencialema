@@ -220,10 +220,24 @@ export default function KanbanBoard() {
 
   const loadMembers = useCallback(async () => {
     if (!projectId) return;
-    const { data } = await (supabase.from as any)("project_members")
-      .select("*, profiles:user_id(full_name, nickname, email, avatar_url)")
+    const { data: rawMembers } = await (supabase.from as any)("project_members")
+      .select("*")
       .eq("project_id", projectId);
-    setMembers(data || []);
+    const list = rawMembers || [];
+    const userIds = list.map((m: any) => m.user_id).filter(Boolean);
+    let profilesById: Record<string, any> = {};
+    if (userIds.length > 0) {
+      const { data: profs } = await supabase
+        .from("profiles")
+        .select("id, full_name, nickname, email, avatar_url")
+        .in("id", userIds);
+      (profs || []).forEach((p: any) => { profilesById[p.id] = p; });
+    }
+    const enriched = list.map((m: any) => ({
+      ...m,
+      profiles: m.user_id ? (profilesById[m.user_id] || null) : null,
+    }));
+    setMembers(enriched);
   }, [projectId]);
 
   const inviteMember = async () => {
@@ -618,10 +632,15 @@ export default function KanbanBoard() {
               <SelectItem value="all">Todos</SelectItem>
               <SelectItem value="none">Sem responsável</SelectItem>
               {members
-                .filter((m) => m.user_id && m.status !== "pendente")
+                .filter((m) => m.user_id && m.status === "ativo")
                 .map((m) => {
                   const p: any = m.profiles;
-                  const name = (p?.nickname?.trim()) || p?.full_name || p?.email || "Sem nome";
+                  const name =
+                    p?.nickname?.trim() ||
+                    p?.full_name ||
+                    p?.email ||
+                    (m as any).invited_email ||
+                    "Sem nome";
                   return (
                     <SelectItem key={m.id} value={m.user_id as string}>
                       {name}
