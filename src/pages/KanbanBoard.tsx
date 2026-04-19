@@ -989,6 +989,11 @@ export default function KanbanBoard() {
                                             {new Date(task.due_date).toLocaleDateString("pt-BR")}
                                           </span>
                                         )}
+                                        {commentCounts[task.id] > 0 && (
+                                          <span className="flex items-center gap-1 text-xs text-muted-foreground" title="Comentários">
+                                            <MessageSquare className="h-3 w-3" />{commentCounts[task.id]}
+                                          </span>
+                                        )}
                                         {canEdit && (
                                           <Popover>
                                             <PopoverTrigger asChild>
