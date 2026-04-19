@@ -458,7 +458,7 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted, projectMemb
                     .filter((h) => h.action !== "Comentou")
                     .map((h) => (
                       <div key={`h-${h.id}`} className="flex items-start gap-2 text-xs text-muted-foreground px-1">
-                        <span className="font-medium">{(h.profiles as any)?.full_name || "Sistema"}</span>
+                        <span className="font-medium">{displayName(h.profiles as any) === "Usuário" ? "Sistema" : displayName(h.profiles as any)}</span>
                         <span>— {h.action}</span>
                         <span className="ml-auto shrink-0">{new Date(h.created_at).toLocaleString("pt-BR")}</span>
                       </div>
@@ -469,15 +469,13 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted, projectMemb
           </div>
         </ScrollArea>
 
-        {/* Collapsible Comments Panel */}
-        <details className="border-t bg-muted/20 shrink-0 group" open={comments.length > 0 && false}>
-          <summary className="flex items-center gap-2 px-6 py-2.5 cursor-pointer hover:bg-muted/40 transition-colors list-none [&::-webkit-details-marker]:hidden">
+        {/* Comments Panel - always visible */}
+        <div className="border-t bg-muted/20 shrink-0">
+          <div className="flex items-center gap-2 px-6 py-2.5">
             <Send className="h-4 w-4" />
-            <Label className="font-semibold text-sm cursor-pointer">Comentários</Label>
+            <Label className="font-semibold text-sm">Comentários</Label>
             <span className="text-xs text-muted-foreground">({comments.length})</span>
-            <span className="ml-auto text-xs text-muted-foreground group-open:hidden">Mostrar</span>
-            <span className="ml-auto text-xs text-muted-foreground hidden group-open:inline">Ocultar</span>
-          </summary>
+          </div>
           <div className="px-6 pb-3">
           <div className="flex gap-2 mb-3">
             <Textarea
@@ -499,7 +497,7 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted, projectMemb
                   .map((c) => (
                     <div key={`c-${c.id}`} className="bg-background border rounded-lg p-2.5 group">
                       <div className="flex items-center justify-between mb-1 gap-2">
-                        <span className="text-xs font-semibold">{(c.profiles as any)?.full_name || "Usuário"}</span>
+                        <span className="text-xs font-semibold">{displayName(c.profiles as any)}</span>
                         <div className="flex items-center gap-1.5">
                           <span className="text-[11px] text-muted-foreground">{new Date(c.created_at).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })}</span>
                           {(c.user_id === user?.id || isAdmin) && (
@@ -538,7 +536,7 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted, projectMemb
             </div>
           </ScrollArea>
           </div>
-        </details>
+        </div>
 
         {canEdit && (
           <div className="flex justify-start px-6 py-2 border-t shrink-0">
