@@ -12,7 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useToast } from "@/hooks/use-toast";
 import { DragDropContext, Droppable, Draggable, type DropResult } from "@hello-pangea/dnd";
-import { Plus, GripVertical, Calendar, ThumbsUp, RotateCcw, ImageIcon, Play, LayoutGrid, List, ArrowUpDown, Pencil, Check, X, Trash2, Palette, History, Undo2, Users, UserPlus, FileText, CheckSquare, Upload, Printer } from "lucide-react";
+import { Plus, GripVertical, Calendar, ThumbsUp, RotateCcw, ImageIcon, Play, LayoutGrid, List, ArrowUpDown, Pencil, Check, X, Trash2, Palette, History, Undo2, Users, UserPlus, FileText, CheckSquare, Upload, Printer, MessageSquare } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -110,6 +110,7 @@ export default function KanbanBoard() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [columns, setColumns] = useState<Column[]>([]);
   const [taskMedia, setTaskMedia] = useState<Record<string, MediaInfo>>({});
+  const [commentCounts, setCommentCounts] = useState<Record<string, number>>({});
   const [projectName, setProjectName] = useState("");
   const [companyName, setCompanyName] = useState("");
   const [companyLogo, setCompanyLogo] = useState<string | null>(null);
@@ -182,11 +183,17 @@ export default function KanbanBoard() {
 
     const taskIds = taskList.map((t) => t.id);
     if (taskIds.length > 0) {
-      const { data: mediaData } = await supabase
-        .from("task_media")
-        .select("task_id, file_url, file_type")
-        .in("task_id", taskIds)
-        .order("created_at");
+      const [{ data: mediaData }, { data: commentData }] = await Promise.all([
+        supabase
+          .from("task_media")
+          .select("task_id, file_url, file_type")
+          .in("task_id", taskIds)
+          .order("created_at"),
+        supabase
+          .from("task_comments")
+          .select("task_id")
+          .in("task_id", taskIds),
+      ]);
 
       const mediaMap: Record<string, MediaInfo> = {};
       (mediaData || []).forEach((m) => {
@@ -197,6 +204,15 @@ export default function KanbanBoard() {
         }
       });
       setTaskMedia(mediaMap);
+
+      const counts: Record<string, number> = {};
+      (commentData || []).forEach((c: any) => {
+        counts[c.task_id] = (counts[c.task_id] || 0) + 1;
+      });
+      setCommentCounts(counts);
+    } else {
+      setTaskMedia({});
+      setCommentCounts({});
     }
   }, [projectId]);
 
@@ -818,6 +834,11 @@ export default function KanbanBoard() {
                                     <ImageIcon className="h-3 w-3" />{taskMedia[task.id].count}
                                   </span>
                                 )}
+                                {commentCounts[task.id] > 0 && (
+                                  <span className="flex items-center gap-0.5 text-xs text-muted-foreground shrink-0" title="Comentários">
+                                    <MessageSquare className="h-3 w-3" />{commentCounts[task.id]}
+                                  </span>
+                                )}
                                 <Badge className={`text-[10px] shrink-0 ${PRIORITY_COLORS[task.priority] || ""}`} variant="secondary">
                                   {task.priority}
                                 </Badge>
@@ -966,6 +987,11 @@ export default function KanbanBoard() {
                                           <span className="flex items-center gap-1 text-xs text-muted-foreground">
                                             <Calendar className="h-3 w-3" />
                                             {new Date(task.due_date).toLocaleDateString("pt-BR")}
+                                          </span>
+                                        )}
+                                        {commentCounts[task.id] > 0 && (
+                                          <span className="flex items-center gap-1 text-xs text-muted-foreground" title="Comentários">
+                                            <MessageSquare className="h-3 w-3" />{commentCounts[task.id]}
                                           </span>
                                         )}
                                         {canEdit && (

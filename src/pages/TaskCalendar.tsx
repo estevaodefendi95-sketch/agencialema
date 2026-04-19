@@ -10,7 +10,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { CalendarDays, Building2, FolderKanban, X } from "lucide-react";
+import { CalendarDays, Building2, FolderKanban, X, MessageSquare } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type TaskWithRelations = {
@@ -23,6 +23,7 @@ type TaskWithRelations = {
   project_id: string;
   projects: { name: string; company_id: string; companies: { name: string; logo_url: string | null } | null } | null;
   assignee?: { full_name: string | null; nickname?: string | null; avatar_url: string | null } | null;
+  comment_count?: number;
 };
 
 const priorityColor: Record<string, string> = {
@@ -77,9 +78,22 @@ export default function TaskCalendar() {
       });
     }
 
+    const taskIds = (data || []).map((t: any) => t.id);
+    let commentCounts: Record<string, number> = {};
+    if (taskIds.length > 0) {
+      const { data: cData } = await supabase
+        .from("task_comments")
+        .select("task_id")
+        .in("task_id", taskIds);
+      (cData || []).forEach((c: any) => {
+        commentCounts[c.task_id] = (commentCounts[c.task_id] || 0) + 1;
+      });
+    }
+
     const enriched = (data || []).map((t: any) => ({
       ...t,
       assignee: t.assigned_to ? assigneeMap[t.assigned_to] || null : null,
+      comment_count: commentCounts[t.id] || 0,
     }));
     setTasks(enriched as TaskWithRelations[]);
     setLoading(false);
@@ -293,6 +307,12 @@ export default function TaskCalendar() {
                               </AvatarFallback>
                             </Avatar>
                             <span>{(task.assignee as any)?.nickname?.trim() || task.assignee?.full_name || task.assignee_name}</span>
+                          </span>
+                        )}
+                        {(task.comment_count || 0) > 0 && (
+                          <span className={cn("flex items-center gap-1", !(task.assignee || task.assignee_name) && "ml-auto")} title="Comentários">
+                            <MessageSquare className="h-3 w-3" />
+                            {task.comment_count}
                           </span>
                         )}
                       </div>
