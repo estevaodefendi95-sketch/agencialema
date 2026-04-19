@@ -454,7 +454,7 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted, projectMemb
         <ScrollArea className="flex-1 min-h-0 px-6 py-4">
           <div className="space-y-6">
             {/* Description */}
-            <div>
+            <div className="space-y-1.5">
               <Label className="text-xs text-muted-foreground">Descrição</Label>
               {editingDesc && canEdit ? (
                 <Textarea
@@ -462,11 +462,11 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted, projectMemb
                   onChange={(e) => { setEditDesc(e.target.value); setHasChanges(true); }}
                   onBlur={() => setEditingDesc(false)}
                   autoFocus
-                  className="mt-1 text-sm"
+                  className="min-h-[80px] text-sm resize-y"
                 />
               ) : (
                 <p
-                  className={`text-sm mt-1 ${canEdit ? "cursor-pointer hover:text-primary transition-colors" : ""} ${!editDesc ? "text-muted-foreground italic" : ""}`}
+                  className={`text-sm ${canEdit ? "cursor-pointer hover:text-primary transition-colors" : ""} ${!editDesc ? "text-muted-foreground italic" : ""}`}
                   onClick={() => canEdit && setEditingDesc(true)}
                 >
                   {editDesc || "Clique para adicionar descrição..."}
@@ -477,10 +477,10 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted, projectMemb
             {/* Priority, Due Date & Assignee */}
             {canEdit && (
               <div className="grid grid-cols-2 gap-4">
-                <div>
+                <div className="space-y-1.5">
                   <Label className="text-xs text-muted-foreground">Prioridade</Label>
                   <Select value={editPriority} onValueChange={(v) => checkFieldChange("priority", v)}>
-                    <SelectTrigger className="h-8 text-sm mt-1"><SelectValue /></SelectTrigger>
+                    <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       {Object.entries(priorityLabels).map(([k, v]) => (
                         <SelectItem key={k} value={k}>{v}</SelectItem>
@@ -488,13 +488,13 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted, projectMemb
                     </SelectContent>
                   </Select>
                 </div>
-                <div>
+                <div className="space-y-1.5">
                   <Label className="text-xs text-muted-foreground">Prazo</Label>
                   <Input
                     type="date"
                     value={editDueDate}
                     onChange={(e) => checkFieldChange("due_date", e.target.value)}
-                    className="h-8 text-sm mt-1"
+                    className="h-9 text-sm"
                   />
                 </div>
               </div>
@@ -593,9 +593,9 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted, projectMemb
                   value={newCheckItem}
                   onChange={(e) => setNewCheckItem(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && addCheckItem()}
-                  className="h-8 text-sm"
+                  className="h-9 text-sm"
                 />
-                <Button size="sm" variant="outline" onClick={addCheckItem}><Plus className="h-3 w-3" /></Button>
+                <Button variant="outline" onClick={addCheckItem} className="h-9"><Plus className="h-4 w-4" /></Button>
               </div>
             </div>
 
