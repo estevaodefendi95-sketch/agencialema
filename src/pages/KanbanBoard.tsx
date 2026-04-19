@@ -1051,6 +1051,19 @@ export default function KanbanBoard() {
                                             <MessageSquare className="h-3 w-3" />{commentCounts[task.id]}
                                           </span>
                                         )}
+                                        {(() => {
+                                          const a = getAssigneeDisplay(task);
+                                          if (!a) return null;
+                                          return (
+                                            <span className="flex items-center gap-1" title={a.name}>
+                                              <Avatar className="h-5 w-5">
+                                                <AvatarImage src={a.avatarUrl || ""} />
+                                                <AvatarFallback className="text-[9px]">{a.initial}</AvatarFallback>
+                                              </Avatar>
+                                              <span className="text-xs text-muted-foreground truncate max-w-[80px]">{a.name}</span>
+                                            </span>
+                                          );
+                                        })()}
                                         {canEdit && (
                                           <Popover>
                                             <PopoverTrigger asChild>
