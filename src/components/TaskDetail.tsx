@@ -596,7 +596,7 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted, projectMemb
             <Label className="font-semibold text-sm cursor-pointer">Comentários</Label>
             <span className="text-xs text-muted-foreground">({comments.length})</span>
             <span className="ml-auto text-muted-foreground">
-              {commentsOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
+              {commentsOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
             </span>
           </button>
           {commentsOpen && (
