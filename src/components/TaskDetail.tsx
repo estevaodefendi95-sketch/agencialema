@@ -442,14 +442,16 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted, projectMemb
           </div>
         </ScrollArea>
 
-        {/* Fixed Comments Panel */}
-        <div className="border-t bg-muted/20 px-6 py-3 shrink-0">
-          <div className="flex items-center gap-2 mb-2">
+        {/* Collapsible Comments Panel */}
+        <details className="border-t bg-muted/20 shrink-0 group" open={comments.length > 0 && false}>
+          <summary className="flex items-center gap-2 px-6 py-2.5 cursor-pointer hover:bg-muted/40 transition-colors list-none [&::-webkit-details-marker]:hidden">
             <Send className="h-4 w-4" />
-            <Label className="font-semibold text-sm">Comentários</Label>
+            <Label className="font-semibold text-sm cursor-pointer">Comentários</Label>
             <span className="text-xs text-muted-foreground">({comments.length})</span>
-          </div>
-
+            <span className="ml-auto text-xs text-muted-foreground group-open:hidden">Mostrar</span>
+            <span className="ml-auto text-xs text-muted-foreground hidden group-open:inline">Ocultar</span>
+          </summary>
+          <div className="px-6 pb-3">
           <div className="flex gap-2 mb-3">
             <Textarea
               placeholder="Escreva um comentário..."
@@ -460,7 +462,7 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted, projectMemb
             <Button size="sm" onClick={addComment} className="self-end"><Send className="h-4 w-4" /></Button>
           </div>
 
-          <ScrollArea className="h-[240px] pr-3">
+          <ScrollArea className="max-h-[200px] pr-3">
             <div className="space-y-2">
               {comments.length === 0 ? (
                 <p className="text-xs text-muted-foreground italic text-center py-4">Nenhum comentário ainda</p>
@@ -508,7 +510,8 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted, projectMemb
               )}
             </div>
           </ScrollArea>
-        </div>
+          </div>
+        </details>
 
         {canEdit && (
           <div className="flex justify-start px-6 py-2 border-t shrink-0">
