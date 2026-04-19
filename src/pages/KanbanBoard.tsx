@@ -632,10 +632,15 @@ export default function KanbanBoard() {
               <SelectItem value="all">Todos</SelectItem>
               <SelectItem value="none">Sem responsável</SelectItem>
               {members
-                .filter((m) => m.user_id && m.status !== "pendente")
+                .filter((m) => m.user_id && m.status === "ativo")
                 .map((m) => {
                   const p: any = m.profiles;
-                  const name = (p?.nickname?.trim()) || p?.full_name || p?.email || "Sem nome";
+                  const name =
+                    p?.nickname?.trim() ||
+                    p?.full_name ||
+                    p?.email ||
+                    (m as any).invited_email ||
+                    "Sem nome";
                   return (
                     <SelectItem key={m.id} value={m.user_id as string}>
                       {name}
