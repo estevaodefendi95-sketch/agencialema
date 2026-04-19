@@ -20,7 +20,7 @@ type TaskWithRelations = {
   priority: "baixa" | "media" | "alta" | "urgente";
   assigned_to: string | null;
   project_id: string;
-  projects: { name: string; company_id: string; companies: { name: string } | null } | null;
+  projects: { name: string; company_id: string; companies: { name: string; logo_url: string | null } | null } | null;
   assignee?: { full_name: string | null; avatar_url: string | null } | null;
 };
 
@@ -54,7 +54,7 @@ export default function TaskCalendar() {
     setLoading(true);
     const { data, error } = await supabase
       .from("tasks")
-      .select("id, title, due_date, priority, assigned_to, project_id, projects(name, company_id, companies(name))")
+      .select("id, title, due_date, priority, assigned_to, project_id, projects(name, company_id, companies(name, logo_url))")
       .not("due_date", "is", null)
       .order("due_date", { ascending: true });
 
@@ -246,7 +246,15 @@ export default function TaskCalendar() {
                         )}
                         {task.projects?.companies && (
                           <span className="flex items-center gap-1">
-                            <Building2 className="h-3 w-3" />
+                            {task.projects.companies.logo_url ? (
+                              <img
+                                src={task.projects.companies.logo_url}
+                                alt={task.projects.companies.name}
+                                className="h-3.5 w-3.5 rounded-full object-cover"
+                              />
+                            ) : (
+                              <Building2 className="h-3 w-3" />
+                            )}
                             {task.projects.companies.name}
                           </span>
                         )}
