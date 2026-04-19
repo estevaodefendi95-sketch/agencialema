@@ -1,36 +1,40 @@
 
 
-## Plano: Mostrar mídias das tarefas no documento de impressão
+## Plano: Garantir fluxo de aprovação e perfis
 
-No `PrintProjectView.tsx`, abaixo da descrição/metadados de cada tarefa, renderizar a galeria de mídias da tarefa.
+O fluxo já existe parcialmente. Vou validar e ajustar o que falta para atender:
 
-### Mudanças
+1. **Cadastro público (signup)** → usuário entra como `pendente`. Apenas admin aprova.
+2. **Criação pelo admin** → usuário já entra como `aprovado` automaticamente, com role e empresas definidas.
+3. **Seleção de perfil** (admin/editor/visualizador/cliente) disponível tanto na criação quanto na aprovação.
 
-**1. `KanbanBoard.tsx` — carregar mídias no fluxo de impressão**
-- No momento em que o usuário abre o dialog "Imprimir" (ou ao montar o `PrintProjectView`), buscar de `task_media` todas as mídias das tarefas do projeto:
-  ```
-  supabase.from('task_media').select('id, task_id, file_url, file_name, file_type')
-    .in('task_id', tasks.map(t => t.id))
-  ```
-- Agrupar por `task_id` e passar como prop `mediaByTask: Record<string, MediaItem[]>` para `<PrintProjectView />`.
+### Estado atual (verificado)
 
-**2. `PrintProjectView.tsx` — renderizar mídias por tarefa**
-- Adicionar prop `mediaByTask`.
-- Para cada tarefa, se houver mídias, renderizar uma seção "Mídias" com:
-  - **Imagens** (`file_type` começa com `image` ou extensão jpg/png/webp/gif): thumbnail clicável (`<a href={file_url} target="_blank">`), grid de até 3 colunas, mostradas inline no PDF.
-  - **Vídeos** (`file_type` = `video` ou extensão mp4/mov/webm): card com ícone de play + nome do arquivo, link clicável que abre em nova aba.
-  - **PDFs** (extensão .pdf): card com ícone de documento + nome do arquivo, link clicável.
-  - **Outros**: card genérico com nome do arquivo + link.
-- No CSS print (`index.css`), garantir que `<a>` mantenha cor azul/sublinhado e que os links continuem clicáveis quando o navegador salva como PDF (links em `<a href>` ficam ativos no PDF gerado pelo Chrome/Edge).
-- `break-inside: avoid` nos cards de mídia para não cortar no meio.
+- `handle_new_user()` já cria perfil como `pendente` (exceto super admin hardcoded). ✓
+- Edge function `create-user` já marca `aprovado` + atribui role + vincula empresas. ✓
+- `AdminUsers.tsx` já tem dialog de criação e edição com seletor de role (admin/editor/visualizador/cliente) e empresas. ✓
+- `PendingApproval.tsx` existe para bloquear usuários não aprovados. ✓
 
-### Observação técnica
-A coluna `task_media.file_type` no banco tem default `'image'`. Para detectar vídeo/PDF de forma robusta, vou inspecionar tanto `file_type` quanto a extensão de `file_name`/`file_url`.
+### Lacunas a corrigir
+
+1. **Tela de aprovação dedicada / destaque para pendentes**: hoje `AdminUsers` lista todos misturados. Adicionar:
+   - Filtro/aba "Pendentes" no topo com contador
+   - Botão **"Aprovar"** direto na linha (atalho), além do "Editar" existente
+   - Ao aprovar via atalho, abre o mesmo dialog de edição já posicionado para escolher perfil + empresas antes de confirmar (obrigatório escolher role)
+
+2. **Validação de role obrigatória na aprovação**: garantir que admin não aprove sem definir perfil. Se role = `cliente`/`editor`/`visualizador`, exigir ao menos 1 empresa vinculada (admin não precisa).
+
+3. **Feedback visual**: badge de "Pendente" mais destacado e ordenação por status (pendentes primeiro).
+
+4. **Confirmar fluxo de signup**: revisar `Login.tsx` / signup para garantir mensagem clara: "Cadastro enviado. Aguarde aprovação do administrador."
 
 ### Arquivos
+
 | Arquivo | Mudança |
 |---|---|
-| `src/pages/KanbanBoard.tsx` | Buscar `task_media` e passar `mediaByTask` ao `PrintProjectView` |
-| `src/components/PrintProjectView.tsx` | Nova prop + render de galeria (imagens inline, vídeos/PDFs como link clicável) |
-| `src/index.css` | Pequeno ajuste para preservar links no print |
+| `src/pages/AdminUsers.tsx` | Aba/filtro pendentes, botão "Aprovar" atalho, ordenação, validação de empresas obrigatórias |
+| `src/pages/Login.tsx` | Confirmar mensagem pós-signup sobre aguardar aprovação |
+| `src/pages/PendingApproval.tsx` | Verificar copy e UX |
+
+Sem mudanças de banco — schema e RLS já suportam tudo.
 
