@@ -1,39 +1,50 @@
 
 
-Usuário mostra 3 áreas no modal de tarefa com problema de "enquadramento" (ring azul colado nas bordas, campos com altura/proporção ruim):
-1. Selects/Inputs de Prioridade e Prazo
-2. Textarea de Descrição (muito alta, ring colado)
-3. Input "Novo item..." do Checklist
+## Reorganizar sidebar em subcategorias
 
-Tudo está em `TaskDetail.tsx`. Causa: campos sem altura padronizada (`h-9`), textarea sem `min-h` controlado, e provavelmente uso de `focus:ring-2 ring-offset-2` somado a containers sem padding interno suficiente — daí o ring "vaza" visualmente.
+Hoje todos os 8 itens ficam soltos numa única lista. Vou agrupar em 3 seções com labels discretas + uma seção admin colapsável, deixando o menu mais respirável e escaneável.
 
-## Plano
+### Nova estrutura
 
-### Ajustes em `src/components/TaskDetail.tsx`
+```text
+nortyx.
+─────────────
+PRINCIPAL
+  Dashboard
+  Calendário
 
-1. **Descrição (Textarea)**
-   - `min-h-[80px]` (hoje deve estar bem maior), `text-sm`, `resize-none` ou `resize-y` controlado.
-   - Wrapper `space-y-1.5`, label `text-sm`.
+GESTÃO
+  Empresas
+  Projetos
 
-2. **Prioridade (Select) e Prazo (Input date)**
-   - Ambos com `h-9 text-sm`.
-   - Grid já existente mantida, apenas padronizar altura.
-   - Wrapper `space-y-1.5`, label `text-sm`.
+ADMIN  (somente isAdmin, colapsável, aberto por padrão na rota admin)
+  Usuários
+  Configurações
 
-3. **Checklist — input "Novo item..."**
-   - `h-9 text-sm`.
-   - Botão de adicionar ao lado também `h-9` para alinhar.
+CONTA
+  Notificações
+  Meu Perfil
+─────────────
+[Modo escuro] [Sair]
+```
 
-4. **Consistência geral do modal**
-   - Todos os labels: `text-sm`.
-   - Todos os inputs/selects/date: `h-9 text-sm`.
-   - Espaçamento entre label e campo: `space-y-1.5`.
+### Mudanças em `src/components/AppSidebar.tsx`
+
+1. **Header isolado** — mover logo + `app_name` para fora dos grupos (sem `SidebarGroupLabel`), criando um cabeçalho enxuto no topo.
+2. **3–4 `SidebarGroup`** com `SidebarGroupLabel` em texto pequeno, uppercase, `text-xs text-muted-foreground` (já é o estilo nativo do shadcn) — só aparece quando `!collapsed`:
+   - **Principal**: Dashboard, Calendário
+   - **Gestão**: Empresas, Projetos
+   - **Admin** (condicional `isAdmin`): Usuários, Configurações
+   - **Conta**: Notificações, Meu Perfil
+3. **Item ativo** — manter o highlight `bg-sidebar-accent text-sidebar-primary font-medium` já existente.
+4. **Modo colapsado** — labels de grupo somem automaticamente; ícones continuam alinhados. Sem mudança visual quebrada.
+5. **Footer** — sem alteração (tema + sair).
+
+### Resultado
+Menu visualmente mais limpo, com hierarquia clara, separando navegação do dia a dia (Principal/Gestão) do que é administrativo e do que é pessoal (Conta).
 
 ### Arquivo
 | Arquivo | Mudança |
 |---|---|
-| `src/components/TaskDetail.tsx` | Padronizar `h-9 text-sm` em inputs/selects/date, `min-h-[80px] text-sm` na textarea, `space-y-1.5` nos wrappers, alinhar botão do checklist |
-
-### Resultado
-Campos com altura uniforme, ring azul respirando dentro do card, descrição compacta e checklist alinhado.
+| `src/components/AppSidebar.tsx` | Header dedicado + 3–4 SidebarGroups com SidebarGroupLabel ("Principal", "Gestão", "Admin", "Conta") |
 
