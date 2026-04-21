@@ -1047,7 +1047,7 @@ export default function KanbanBoard() {
                                   borderLeft: task.color ? `4px solid ${task.color}` : undefined,
                                 }}
                               >
-                                {media && (
+                                {media && visibleMedia[task.id] && (
                                   <div className="relative h-28 w-full cursor-pointer" onClick={() => setSelectedTask(task.id)}>
                                     {media.file_type === "video" ? (
                                       <div className="relative h-full w-full bg-muted flex items-center justify-center">
@@ -1061,6 +1061,14 @@ export default function KanbanBoard() {
                                         <ImageIcon className="h-3 w-3 mr-0.5" />+{media.count - 1}
                                       </Badge>
                                     )}
+                                    <button
+                                      type="button"
+                                      onClick={(e) => { e.stopPropagation(); toggleMediaVisible(task.id); }}
+                                      className="absolute top-1 left-1 h-6 w-6 rounded-full bg-background/80 backdrop-blur-sm border border-border flex items-center justify-center hover:bg-background"
+                                      title="Ocultar mídia"
+                                    >
+                                      <EyeOff className="h-3.5 w-3.5" />
+                                    </button>
                                   </div>
                                 )}
                                 <div className="p-3">
