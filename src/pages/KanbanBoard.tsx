@@ -657,7 +657,7 @@ export default function KanbanBoard() {
             <SelectContent>
               <SelectItem value="all">
                 <span className="flex items-center gap-2">
-                  <AssigneeAvatar url={avatarUrl} name={user?.email || "Eu"} />
+                  <AssigneeAvatar placeholder="all" />
                   Todos
                 </span>
               </SelectItem>
