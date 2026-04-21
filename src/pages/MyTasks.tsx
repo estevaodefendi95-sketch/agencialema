@@ -436,6 +436,17 @@ export default function MyTasks() {
                             <span className="h-2.5 w-2.5 rounded-full" style={{ background: col.color }} />
                             <span className="text-sm font-medium">{col.label}</span>
                             <Badge variant="secondary" className="ml-auto">{colTasks.length}</Badge>
+                            {canEdit && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-6 w-6"
+                                onClick={() => openNewTaskDialog()}
+                                title="Nova tarefa"
+                              >
+                                <Plus className="h-3.5 w-3.5" />
+                              </Button>
+                            )}
                           </div>
                           {colTasks.map((t, idx) => (
                             <Draggable key={t.id} draggableId={t.id} index={idx}>
