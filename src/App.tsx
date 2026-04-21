@@ -20,6 +20,7 @@ import Profile from "@/pages/Profile";
 import Notifications from "@/pages/Notifications";
 import MyTasks from "@/pages/MyTasks";
 import ClientLanding from "@/pages/ClientLanding";
+import PresentationPreview from "@/pages/PresentationPreview";
 import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -57,6 +58,7 @@ function AppRoutes() {
       <Route path="/login" element={user ? <Navigate to="/" replace /> : <Login />} />
       <Route path="/c/:slug" element={<ClientLanding />} />
       <Route element={<RequireAuth />}>
+        <Route path="/projetos/:projectId/apresentacao/preview" element={<PresentationPreview />} />
         <Route element={<AppLayout />}>
           <Route path="/" element={<Dashboard />} />
           <Route path="/empresas" element={<Companies />} />
