@@ -220,8 +220,8 @@ export default function PresentationBuilder({ projectId, projectName }: { projec
             <Switch checked={pres.released} onCheckedChange={(v) => patchPres({ released: v })} disabled={!canEdit} />
           </div>
           <div className="flex-1" />
-          <Button variant="outline" size="sm" onClick={() => window.open(publicUrl, "_blank")}>
-            <Eye className="h-4 w-4 mr-1.5" /> Pré-visualizar
+          <Button variant="outline" size="sm" onClick={() => window.open(internalPreviewUrl, "_blank")}>
+            <Eye className="h-4 w-4 mr-1.5" /> Pré-visualizar (equipe)
           </Button>
           {canShowLink && (
             <Button variant="default" size="sm" onClick={copyLink}>
