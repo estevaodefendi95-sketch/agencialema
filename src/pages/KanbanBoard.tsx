@@ -23,6 +23,7 @@ import TaskDetail from "@/components/TaskDetail";
 import PrintProjectView from "@/components/PrintProjectView";
 import PresentationBuilder from "@/components/presentation/PresentationBuilder";
 import { useAppSettings } from "@/hooks/useAppSettings";
+import { AssigneeAvatar } from "@/components/AssigneeAvatar";
 
 const COLOR_PALETTE = [
   "#94a3b8", "#3B82F6", "#22c55e", "#eab308",
@@ -651,12 +652,29 @@ export default function KanbanBoard() {
           )}
           <Select value={assigneeFilter} onValueChange={setAssigneeFilter}>
             <SelectTrigger className="h-8 w-[150px] text-xs gap-1.5">
-              <Users className="h-3.5 w-3.5 shrink-0" />
+              {(() => {
+                if (assigneeFilter === "all") return <AssigneeAvatar placeholder="all" className="h-4 w-4" />;
+                if (assigneeFilter === "none") return <AssigneeAvatar placeholder="none" className="h-4 w-4" />;
+                const m = members.find((mm: any) => mm.user_id === assigneeFilter);
+                const p: any = m?.profiles;
+                const name = p?.nickname?.trim() || p?.full_name || p?.email;
+                return <AssigneeAvatar url={p?.avatar_url} name={name} placeholder={m ? undefined : "user"} className="h-4 w-4" />;
+              })()}
               <SelectValue placeholder="Equipe" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Todos</SelectItem>
-              <SelectItem value="none">Sem responsável</SelectItem>
+              <SelectItem value="all">
+                <span className="flex items-center gap-2">
+                  <AssigneeAvatar placeholder="all" />
+                  Todos
+                </span>
+              </SelectItem>
+              <SelectItem value="none">
+                <span className="flex items-center gap-2">
+                  <AssigneeAvatar placeholder="none" />
+                  Sem responsável
+                </span>
+              </SelectItem>
               {members
                 .filter((m) => m.user_id && m.status === "ativo")
                 .map((m) => {
@@ -669,7 +687,10 @@ export default function KanbanBoard() {
                     "Sem nome";
                   return (
                     <SelectItem key={m.id} value={m.user_id as string}>
-                      {name}
+                      <span className="flex items-center gap-2">
+                        <AssigneeAvatar url={p?.avatar_url} name={name} />
+                        {name}
+                      </span>
                     </SelectItem>
                   );
                 })}
