@@ -146,7 +146,7 @@ function BlockRender({ block, posts }: { block: Block; posts: Post[] }) {
     );
   }
   if (block.block_type === "instagram_preview") {
-    return <InstagramPreview images={block.data.images || []} />;
+    return <InstagramPreview data={block.data} />;
   }
   if (block.block_type === "posts_plan") {
     return <PostsPlanSection posts={posts} />;
@@ -154,25 +154,42 @@ function BlockRender({ block, posts }: { block: Block; posts: Post[] }) {
   return null;
 }
 
-function InstagramPreview({ images }: { images: string[] }) {
+function InstagramPreview({ data }: { data: any }) {
+  const images: string[] = data?.images || [];
+  const layout: "feed_only" | "full_profile" = data?.layout || "feed_only";
+  const isFull = layout === "full_profile";
+  const highlights: { id: string; title: string; cover_url: string }[] = data?.highlights || [];
+
   return (
     <section className="animate-fade-in">
       <h2 className="text-3xl md:text-4xl font-bold text-center mb-3 tracking-tight">
-        Preview do Feed
+        {isFull ? "Preview do Perfil" : "Preview do Feed"}
       </h2>
       <p className="text-center text-muted-foreground mb-10">
-        Como ficará o Instagram do cliente
+        {isFull ? "Como ficará o perfil completo do cliente" : "Como ficará o Instagram do cliente"}
       </p>
       <div className="flex justify-center">
         <div className="relative">
           {/* Glow */}
           <div className="absolute -inset-8 bg-gradient-to-br from-pink-500/20 via-purple-500/20 to-yellow-500/20 blur-3xl rounded-full -z-10" />
-          {/* iPhone frame — feed only, no header */}
-          <div className="relative w-[300px] md:w-[340px] bg-foreground rounded-[44px] p-3 shadow-2xl">
-            <div className="w-full bg-background rounded-[32px] overflow-hidden">
-              <div className="grid grid-cols-3 gap-px bg-border">
+          {/* iPhone frame */}
+          <div className="relative w-[320px] md:w-[360px] bg-foreground rounded-[44px] p-3 shadow-2xl">
+            <div className="w-full bg-white text-neutral-900 rounded-[32px] overflow-hidden">
+              {isFull && (
+                <ProfileHeader
+                  username={data?.username || "yourname"}
+                  displayName={data?.display_name}
+                  bio={data?.bio}
+                  avatarUrl={data?.avatar_url}
+                  postsCount={data?.posts_count}
+                  followersCount={data?.followers_count}
+                  followingCount={data?.following_count}
+                  highlights={highlights}
+                />
+              )}
+              <div className="grid grid-cols-3 gap-px bg-neutral-200">
                 {images.length === 0 ? (
-                  <div className="col-span-3 aspect-[3/4] flex items-center justify-center text-muted-foreground p-6 text-sm text-center">
+                  <div className="col-span-3 aspect-[3/4] flex items-center justify-center text-neutral-400 p-6 text-sm text-center bg-white">
                     Sem imagens no feed
                   </div>
                 ) : (
@@ -181,7 +198,7 @@ function InstagramPreview({ images }: { images: string[] }) {
                       key={i}
                       src={url}
                       alt=""
-                      className="aspect-square w-full object-cover bg-muted"
+                      className="aspect-square w-full object-cover bg-neutral-100"
                     />
                   ))
                 )}
@@ -191,6 +208,118 @@ function InstagramPreview({ images }: { images: string[] }) {
         </div>
       </div>
     </section>
+  );
+}
+
+function ProfileHeader({
+  username,
+  displayName,
+  bio,
+  avatarUrl,
+  postsCount,
+  followersCount,
+  followingCount,
+  highlights,
+}: {
+  username: string;
+  displayName?: string;
+  bio?: string;
+  avatarUrl?: string;
+  postsCount?: string | number;
+  followersCount?: string | number;
+  followingCount?: string | number;
+  highlights: { id: string; title: string; cover_url: string }[];
+}) {
+  return (
+    <div className="px-3 pt-3 pb-2">
+      {/* Top bar */}
+      <div className="flex items-center justify-between text-[13px] mb-3">
+        <div className="flex items-center gap-1.5 font-semibold">
+          <span>←</span>
+          <span>{username}</span>
+        </div>
+        <div className="flex items-center gap-3 text-base">
+          <span>⌕</span>
+          <span>⋮</span>
+        </div>
+      </div>
+
+      {/* Avatar + counters */}
+      <div className="flex items-center gap-4 mb-2">
+        <div className="shrink-0">
+          {avatarUrl ? (
+            <img src={avatarUrl} alt="" className="h-[68px] w-[68px] rounded-full object-cover ring-1 ring-neutral-200" />
+          ) : (
+            <div className="h-[68px] w-[68px] rounded-full bg-gradient-to-br from-pink-300 via-fuchsia-300 to-orange-300" />
+          )}
+        </div>
+        <div className="flex-1 grid grid-cols-3 text-center">
+          <Stat value={postsCount ?? 0} label="Posts" />
+          <Stat value={followersCount ?? 0} label="Followers" />
+          <Stat value={followingCount ?? 0} label="Following" />
+        </div>
+      </div>
+
+      {/* Display name + bio */}
+      {(displayName || bio) && (
+        <div className="text-[12px] leading-tight mb-3">
+          {displayName && <div className="font-semibold">{displayName}</div>}
+          {bio && <div className="whitespace-pre-line text-neutral-700">{bio}</div>}
+        </div>
+      )}
+
+      {/* Action buttons */}
+      <div className="flex gap-1.5 mb-3">
+        <FakeBtn className="flex-1">Following ▾</FakeBtn>
+        <FakeBtn className="flex-1">Message</FakeBtn>
+        <FakeBtn className="flex-1">Contact</FakeBtn>
+        <FakeBtn className="px-2">＋</FakeBtn>
+      </div>
+
+      {/* Highlights */}
+      {highlights.length > 0 && (
+        <div className="flex gap-3 overflow-x-auto pb-2 mb-1 -mx-1 px-1">
+          {highlights.map((h) => (
+            <div key={h.id} className="flex flex-col items-center gap-1 shrink-0 w-[58px]">
+              <div className="h-[58px] w-[58px] rounded-full p-[2px] bg-neutral-200">
+                {h.cover_url ? (
+                  <img src={h.cover_url} alt="" className="h-full w-full rounded-full object-cover bg-white" />
+                ) : (
+                  <div className="h-full w-full rounded-full bg-neutral-100" />
+                )}
+              </div>
+              <span className="text-[10px] truncate w-full text-center text-neutral-700">{h.title}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Tabs */}
+      <div className="flex justify-around border-t border-neutral-200 pt-1.5 -mx-3 px-3 text-neutral-500 text-sm">
+        <span className="text-neutral-900">▦</span>
+        <span>▷</span>
+        <span>👤</span>
+      </div>
+    </div>
+  );
+}
+
+function Stat({ value, label }: { value: string | number; label: string }) {
+  return (
+    <div>
+      <div className="font-semibold text-[14px] leading-tight">{value}</div>
+      <div className="text-[11px] text-neutral-600">{label}</div>
+    </div>
+  );
+}
+
+function FakeBtn({ children, className = "" }: { children: React.ReactNode; className?: string }) {
+  return (
+    <div
+      className={`text-[11px] font-semibold bg-neutral-100 border border-neutral-200 rounded-md py-1.5 text-center text-neutral-800 ${className}`}
+    >
+      {children}
+    </div>
   );
 }
 
