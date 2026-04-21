@@ -353,7 +353,7 @@ export default function KanbanBoard() {
     })();
   }, [printOpen, tasks]);
 
-  const toggleViewMode = (mode: "kanban" | "lista") => {
+  const toggleViewMode = (mode: "kanban" | "lista" | "apresentacao") => {
     setViewMode(mode);
     if (projectId) localStorage.setItem(`view-mode-${projectId}`, mode);
   };
@@ -633,6 +633,14 @@ export default function KanbanBoard() {
               onClick={() => toggleViewMode("lista")}
             >
               <List className="h-4 w-4" /> Lista
+            </Button>
+            <Button
+              variant={viewMode === "apresentacao" ? "default" : "ghost"}
+              size="sm"
+              className="rounded-none gap-1.5"
+              onClick={() => toggleViewMode("apresentacao")}
+            >
+              <Eye className="h-4 w-4" /> Apresentação
             </Button>
           </div>
           {viewMode === "lista" && (
