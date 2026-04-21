@@ -569,7 +569,7 @@ export default function MyTasks() {
                 </ToggleGroup>
                 <div className="flex items-center gap-2">
                   <Button variant="outline" size="icon" className="h-8 w-8" onClick={navPrev}><ChevronLeft className="h-4 w-4" /></Button>
-                  <span className="text-sm font-medium min-w-[180px] text-center capitalize">{periodLabel}</span>
+                  <span className="text-sm font-medium min-w-[180px] text-center lowercase">{periodLabel}</span>
                   <Button variant="outline" size="icon" className="h-8 w-8" onClick={navNext}><ChevronRight className="h-4 w-4" /></Button>
                   <Button variant="outline" size="sm" onClick={() => setCursor(new Date())}>Hoje</Button>
                   {canEdit && (
@@ -585,7 +585,7 @@ export default function MyTasks() {
               {calMode === "dia" && (
                 <Card>
                   <CardHeader className="flex flex-row items-center justify-between space-y-0">
-                    <CardTitle className="text-base capitalize">{format(cursor, "EEEE, d 'de' MMMM", { locale: ptBR })}</CardTitle>
+                    <CardTitle className="text-base lowercase">{format(cursor, "EEEE, d 'de' MMMM", { locale: ptBR })}</CardTitle>
                     {canEdit && (
                       <Button size="sm" variant="outline" className="gap-1" onClick={() => openNewTaskDialog(cursor)}>
                         <Plus className="h-4 w-4" /> Nova tarefa
