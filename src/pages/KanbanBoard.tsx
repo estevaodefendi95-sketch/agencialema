@@ -801,7 +801,9 @@ export default function KanbanBoard() {
         </div>
       </div>
 
-      {viewMode === "lista" ? (
+      {viewMode === "apresentacao" ? (
+        <PresentationBuilder projectId={projectId!} projectName={projectName} />
+      ) : viewMode === "lista" ? (
         <DragDropContext onDragEnd={onDragEnd}>
           <div className="space-y-4">
             {columns.map((col) => {
