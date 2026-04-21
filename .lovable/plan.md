@@ -1,70 +1,40 @@
 
-## Mockup do Instagram — escolha entre Perfil completo ou Só feed
+## Mockup do Instagram em formato de iPhone (igual referência)
 
-Hoje o bloco `instagram_preview` mostra apenas o feed dentro do iPhone. Vou adicionar **dois formatos** que o editor escolhe ao montar a apresentação, conforme as duas referências enviadas:
+Hoje o `InstagramPreview` em `PresentationView.tsx` já usa um "frame" de iPhone, mas é estilizado (gradiente, glow, bordas grossas) e não bate com a referência enviada — que é um **iPhone branco simples, com notch, bordas finas pretas e botões laterais**, exatamente como nas duas imagens.
 
-- **Formato A — Perfil completo**: cabeçalho do perfil (avatar, nome, bio, contadores Posts/Followers/Following, botões Following/Message/Contact, linha de **Story Highlights** circulares) + grid de feed.
-- **Formato B — Só feed** (atual): apenas o grid 3×N dentro do iPhone.
+Vou refazer o frame para replicar fielmente a referência, mantendo os dois layouts internos (`feed_only` e `full_profile`) já implementados.
 
-### 1) Modelo de dados (sem migração)
+### Mudanças
 
-O bloco `instagram_preview` guarda tudo dentro de `data` (jsonb). Vou estender:
+**Arquivo único: `src/components/presentation/PresentationView.tsx`** (componente `InstagramPreview` / wrapper do iPhone)
 
-```ts
-data: {
-  layout: "feed_only" | "full_profile",  // novo, default "feed_only"
-  images: string[],                       // feed (já existe)
-  // Campos extras só usados em "full_profile":
-  username?: string,
-  display_name?: string,
-  bio?: string,
-  avatar_url?: string,
-  posts_count?: number,
-  followers_count?: string,  // string p/ aceitar "14,1 mil"
-  following_count?: string,
-  highlights?: { id: string; title: string; cover_url: string }[],
-}
-```
+1. **Frame do iPhone realista**:
+   - Corpo branco (`bg-white`) com borda preta fina (≈ 2px) e cantos arredondados grandes (`rounded-[3rem]`).
+   - **Notch central** preto no topo (pílula horizontal com câmera + speaker).
+   - **Botões laterais** desenhados como pequenas barras pretas: volume (esquerda, 2 traços) e power (direita, 1 traço maior).
+   - **Indicador de home** (barra horizontal preta) na base.
+   - Sombra suave (`shadow-2xl`) em vez do glow gradiente atual.
+   - Remover o fundo gradiente colorido por trás — fundo neutro/transparente, igual à referência.
 
-Compatível com blocos antigos: se `layout` não existir, renderiza como `feed_only`.
+2. **Tela interna**:
+   - Fundo branco.
+   - Status bar simples no topo (hora à esquerda, ícones de sinal/wifi/bateria à direita) em cinza claro — igual à referência.
+   - Mantém o conteúdo já existente (`ProfileHeader` + grid para `full_profile`, ou só grid para `feed_only`).
 
-### 2) Editor (`PresentationBuilder.tsx`)
+3. **Proporção**:
+   - Largura fixa (~280–300px) com aspect ratio de iPhone real (~9:19.5) para parecer um device de verdade, centralizado.
 
-No bloco Instagram, adicionar:
+4. **Responsividade**:
+   - Em telas pequenas, o frame escala mantendo proporção (sem deformar).
 
-- **Toggle de formato** no topo: "Só feed" / "Perfil completo" (Tabs ou RadioGroup).
-- Quando "Perfil completo" estiver ativo, mostrar campos extras:
-  - Avatar (upload com cropper 1:1 circular).
-  - Nome de exibição, @username, bio (textarea).
-  - Posts / Followers / Following (3 inputs curtos).
-  - **Story Highlights**: lista de até 8 itens, cada um com capa (cropper 1:1 circular) + título curto. Botão "+ Adicionar destaque" e remover individual.
-- Grid de feed continua igual (uploads com cropper 1:1).
+### Não muda
 
-### 3) Renderização (`PresentationView.tsx`)
+- Estrutura de dados do bloco (`layout`, `images`, `highlights`, etc.).
+- Editor (`PresentationBuilder.tsx`) — formato de edição permanece igual.
+- Lógica das duas variantes (`feed_only` vs `full_profile`).
+- Demais blocos da apresentação.
 
-Refatorar `InstagramPreview` para receber `data` completo e bifurcar:
+### Resultado
 
-- **`feed_only`**: mantém o iPhone atual (sem header), só grid.
-- **`full_profile`**: dentro do mesmo iPhone, renderiza, em ordem:
-  1. Barra superior simples com `← @username  ⌕  ⋮` (sem status bar do sistema).
-  2. Linha do perfil: avatar circular grande à esquerda + 3 contadores (Posts / Followers / Following) à direita.
-  3. Nome em negrito + bio (com quebras de linha).
-  4. Botões fake "Following · Message · Contact · ▼".
-  5. Carrossel horizontal de Story Highlights (círculos com borda cinza + título embaixo).
-  6. Linha de tabs com ícones (grid · reels · tagged) — só visual.
-  7. Grid 3×N com as mesmas imagens do feed.
-
-Tudo estilizado para parecer captura real de Instagram (fontes, espaçamentos, cinzas claros), respeitando o tema do app. Mantém o glow gradiente e o frame do iPhone.
-
-### 4) Resultado
-
-- Editor escolhe por bloco se mostra **só o feed** ou **o perfil completo com highlights**.
-- Pode inclusive ter dois blocos `instagram_preview` na mesma apresentação (um de cada tipo) — cada um independente.
-- Visualizações pública (`/c/:slug`) e preview interno (`/projetos/.../apresentacao/preview`) refletem o mesmo formato automaticamente.
-
-### Arquivos
-
-| Arquivo | Mudança |
-|---|---|
-| `src/components/presentation/PresentationBuilder.tsx` | UI de edição do bloco Instagram com toggle de formato + campos de perfil + highlights |
-| `src/components/presentation/PresentationView.tsx` | `InstagramPreview` com dois layouts (`feed_only` / `full_profile`) |
+Preview do Instagram passa a parecer uma foto real de iPhone branco (como as duas imagens enviadas), elevando o padrão visual da apresentação ao cliente.
