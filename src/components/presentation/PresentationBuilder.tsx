@@ -14,6 +14,7 @@ import { DragDropContext, Droppable, Draggable, type DropResult } from "@hello-p
 import { Plus, GripVertical, Trash2, Image as ImageIcon, Type, Smartphone, ListOrdered, Eye, ExternalLink, Copy, Heading, Upload } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
+import ImageCropper from "@/components/ImageCropper";
 
 type Presentation = {
   id: string;
