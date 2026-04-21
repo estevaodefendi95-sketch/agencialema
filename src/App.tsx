@@ -18,6 +18,8 @@ import AdminSettings from "@/pages/AdminSettings";
 import Profile from "@/pages/Profile";
 
 import Notifications from "@/pages/Notifications";
+import MyTasks from "@/pages/MyTasks";
+import ClientLanding from "@/pages/ClientLanding";
 import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -53,6 +55,7 @@ function AppRoutes() {
   return (
     <Routes>
       <Route path="/login" element={user ? <Navigate to="/" replace /> : <Login />} />
+      <Route path="/c/:slug" element={<ClientLanding />} />
       <Route element={<RequireAuth />}>
         <Route element={<AppLayout />}>
           <Route path="/" element={<Dashboard />} />
@@ -60,6 +63,7 @@ function AppRoutes() {
           <Route path="/projetos" element={<Projects />} />
           <Route path="/projetos/:id" element={<KanbanBoard />} />
           <Route path="/calendario" element={<TaskCalendar />} />
+          <Route path="/minhas-tarefas" element={<MyTasks />} />
           <Route path="/admin/usuarios" element={<AdminUsers />} />
           <Route path="/admin/configuracoes" element={<AdminSettings />} />
           <Route path="/notificacoes" element={<Notifications />} />

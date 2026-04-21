@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useLocation } from "react-router-dom";
 import {
-  LayoutDashboard, Building2, FolderKanban, Users, Bell, LogOut, Sun, Moon, Settings, CalendarDays, UserCircle, ChevronRight,
+  LayoutDashboard, Building2, FolderKanban, Users, Bell, LogOut, Sun, Moon, Settings, CalendarDays, UserCircle, ChevronRight, CheckSquare,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/contexts/AuthContext";
@@ -33,6 +33,7 @@ export function AppSidebar() {
       defaultOpen: true,
       items: [
         { title: "Dashboard", url: "/", icon: LayoutDashboard },
+        { title: "Minhas Tarefas", url: "/minhas-tarefas", icon: CheckSquare },
         { title: "Calendário", url: "/calendario", icon: CalendarDays },
       ],
     },
