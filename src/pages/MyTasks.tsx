@@ -87,10 +87,12 @@ export default function MyTasks() {
   const [dueFilter, setDueFilter] = useState<string>("all");
 
   // Nova tarefa
-  const [allProjects, setAllProjects] = useState<{ id: string; name: string }[]>([]);
+  const [allCompanies, setAllCompanies] = useState<{ id: string; name: string }[]>([]);
+  const [allProjects, setAllProjects] = useState<{ id: string; name: string; company_id: string }[]>([]);
   const [projectMembers, setProjectMembers] = useState<Profile[]>([]);
   const [openNewTask, setOpenNewTask] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [ntCompany, setNtCompany] = useState<string>("");
   const [ntProject, setNtProject] = useState<string>("");
   const [ntTitle, setNtTitle] = useState("");
   const [ntDesc, setNtDesc] = useState("");
@@ -122,7 +124,10 @@ export default function MyTasks() {
   }, [selectedUser]);
 
   useEffect(() => {
-    if (canEdit) loadAllProjects();
+    if (canEdit) {
+      loadAllProjects();
+      loadAllCompanies();
+    }
   }, [canEdit]);
 
   useEffect(() => {
@@ -130,10 +135,18 @@ export default function MyTasks() {
     else setProjectMembers([]);
   }, [ntProject]);
 
+  async function loadAllCompanies() {
+    const { data } = await supabase
+      .from("companies")
+      .select("id, name")
+      .order("name");
+    setAllCompanies((data || []) as any);
+  }
+
   async function loadAllProjects() {
     const { data } = await supabase
       .from("projects")
-      .select("id, name")
+      .select("id, name, company_id")
       .eq("archived", false)
       .order("name");
     setAllProjects((data || []) as any);
@@ -187,7 +200,7 @@ export default function MyTasks() {
     }
     toast({ title: "Tarefa criada" });
     setOpenNewTask(false);
-    setNtProject(""); setNtTitle(""); setNtDesc(""); setNtPriority("media");
+    setNtCompany(""); setNtProject(""); setNtTitle(""); setNtDesc(""); setNtPriority("media");
     setNtDue(""); setNtAssignee("");
     if (selectedUser) loadTasks(selectedUser);
   }
@@ -626,11 +639,22 @@ export default function MyTasks() {
           </DialogHeader>
           <div className="space-y-3">
             <div className="space-y-1.5">
-              <Label className="text-sm">Projeto *</Label>
-              <Select value={ntProject} onValueChange={(v) => { setNtProject(v); setNtAssignee(""); }}>
-                <SelectTrigger><SelectValue placeholder="Selecione um projeto..." /></SelectTrigger>
+              <Label className="text-sm">Empresa *</Label>
+              <Select value={ntCompany} onValueChange={(v) => { setNtCompany(v); setNtProject(""); setNtAssignee(""); }}>
+                <SelectTrigger><SelectValue placeholder="Selecione uma empresa..." /></SelectTrigger>
                 <SelectContent>
-                  {allProjects.map((p) => (
+                  {allCompanies.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-sm">Projeto *</Label>
+              <Select value={ntProject} onValueChange={(v) => { setNtProject(v); setNtAssignee(""); }} disabled={!ntCompany}>
+                <SelectTrigger><SelectValue placeholder={ntCompany ? "Selecione um projeto..." : "Escolha uma empresa primeiro"} /></SelectTrigger>
+                <SelectContent>
+                  {allProjects.filter((p) => p.company_id === ntCompany).map((p) => (
                     <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
                   ))}
                 </SelectContent>
@@ -691,7 +715,7 @@ export default function MyTasks() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpenNewTask(false)}>Cancelar</Button>
-            <Button onClick={createTask} disabled={!ntProject || !ntTitle.trim() || creating}>
+            <Button onClick={createTask} disabled={!ntCompany || !ntProject || !ntTitle.trim() || creating}>
               {creating ? "Criando..." : "Criar"}
             </Button>
           </DialogFooter>
