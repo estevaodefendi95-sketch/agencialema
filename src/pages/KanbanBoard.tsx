@@ -652,14 +652,6 @@ export default function KanbanBoard() {
           )}
           <Select value={assigneeFilter} onValueChange={setAssigneeFilter}>
             <SelectTrigger className="h-8 w-[150px] text-xs gap-1.5">
-              {(() => {
-                if (assigneeFilter === "all") return <AssigneeAvatar placeholder="all" className="h-4 w-4" />;
-                if (assigneeFilter === "none") return <AssigneeAvatar placeholder="none" className="h-4 w-4" />;
-                const m = members.find((mm: any) => mm.user_id === assigneeFilter);
-                const p: any = m?.profiles;
-                const name = p?.nickname?.trim() || p?.full_name || p?.email;
-                return <AssigneeAvatar url={p?.avatar_url} name={name} placeholder={m ? undefined : "user"} className="h-4 w-4" />;
-              })()}
               <SelectValue placeholder="Equipe" />
             </SelectTrigger>
             <SelectContent>

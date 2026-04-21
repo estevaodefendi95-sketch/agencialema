@@ -524,15 +524,6 @@ export default function TaskCalendar() {
 
         <Select value={assigneeFilter} onValueChange={setAssigneeFilter}>
           <SelectTrigger className="w-full sm:w-[240px] gap-2">
-            {(() => {
-              if (assigneeFilter === "all") return <AssigneeAvatar placeholder="all" />;
-              if (assigneeFilter === "none") return <AssigneeAvatar placeholder="none" />;
-              if (assigneeFilter.startsWith("name:")) {
-                return <AssigneeAvatar name={assigneeFilter.slice(5)} />;
-              }
-              const sel = assigneeOptions.list.find((a) => a.id === assigneeFilter);
-              return <AssigneeAvatar url={sel?.avatar_url} name={sel?.name} placeholder={sel ? undefined : "user"} />;
-            })()}
             <SelectValue placeholder="Responsável" />
           </SelectTrigger>
           <SelectContent>
