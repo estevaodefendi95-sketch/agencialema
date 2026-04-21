@@ -351,21 +351,44 @@ function LogoField({ label, value, onChange, disabled, folder }: { label: string
 }
 
 function BlockEditor({ block, onChange, posts, onAddPost, onPatchPost, onRemovePost, disabled }: any) {
-  const [uploading, setUploading] = useState(false);
+  const [queue, setQueue] = useState<File[]>([]);
+  const [current, setCurrent] = useState<File | null>(null);
 
-  async function onUpload(e: React.ChangeEvent<HTMLInputElement>, multi = false) {
+  function handleFiles(e: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(e.target.files || []);
+    e.target.value = "";
     if (!files.length) return;
-    setUploading(true);
-    const urls: string[] = [];
-    for (const f of files) {
-      const u = await uploadImage(f, "presentations/media");
-      if (u) urls.push(u);
-    }
-    setUploading(false);
-    if (multi) onChange({ ...block.data, images: [...(block.data.images || []), ...urls] });
-    else onChange({ ...block.data, url: urls[0] });
+    setQueue(files.slice(1));
+    setCurrent(files[0]);
   }
+
+  function handleCropped(url: string, isMulti: boolean) {
+    if (isMulti) {
+      onChange({ ...block.data, images: [...(block.data.images || []), url] });
+    } else {
+      onChange({ ...block.data, url });
+    }
+    // Next file
+    if (queue.length > 0) {
+      const [next, ...rest] = queue;
+      setQueue(rest);
+      setCurrent(next);
+    } else {
+      setCurrent(null);
+    }
+  }
+
+  function cancelCrop() {
+    setCurrent(null);
+    setQueue([]);
+  }
+
+  // Determine aspect for each block type
+  const isInsta = block.block_type === "instagram_preview";
+  const isGallery = block.block_type === "gallery";
+  const isSingleImage = block.block_type === "image";
+  const aspect: number | "free" | "choice" = isInsta ? 1 : isGallery ? 1 : "choice";
+  const isMulti = isGallery || isInsta;
 
   if (block.block_type === "header") {
     return (
@@ -380,7 +403,7 @@ function BlockEditor({ block, onChange, posts, onAddPost, onPatchPost, onRemoveP
       <Textarea placeholder="Escreva aqui..." value={block.data.content || ""} onChange={(e) => onChange({ ...block.data, content: e.target.value })} rows={6} disabled={disabled} />
     );
   }
-  if (block.block_type === "image") {
+  if (isSingleImage) {
     return (
       <div className="space-y-2">
         {block.data.url ? (
@@ -390,20 +413,30 @@ function BlockEditor({ block, onChange, posts, onAddPost, onPatchPost, onRemoveP
         )}
         {!disabled && (
           <label className="cursor-pointer inline-block">
-            <Input type="file" accept="image/*" className="hidden" onChange={(e) => onUpload(e, false)} />
-            <Button asChild variant="outline" size="sm"><span><Upload className="h-3.5 w-3.5 mr-1.5" />{uploading ? "Enviando..." : "Enviar imagem"}</span></Button>
+            <Input type="file" accept="image/*" className="hidden" onChange={handleFiles} />
+            <Button asChild variant="outline" size="sm"><span><Upload className="h-3.5 w-3.5 mr-1.5" />Enviar e recortar</span></Button>
           </label>
         )}
         <Input placeholder="Legenda" value={block.data.caption || ""} onChange={(e) => onChange({ ...block.data, caption: e.target.value })} disabled={disabled} />
+        {current && (
+          <ImageCropper
+            file={current}
+            open
+            onClose={cancelCrop}
+            onCropped={(url) => handleCropped(url, false)}
+            aspect={aspect}
+            uploadPath={`presentations/media/${crypto.randomUUID()}.png`}
+          />
+        )}
       </div>
     );
   }
-  if (block.block_type === "gallery" || block.block_type === "instagram_preview") {
+  if (isGallery || isInsta) {
     const images: string[] = block.data.images || [];
-    const isInsta = block.block_type === "instagram_preview";
     return (
       <div className="space-y-3">
-        {isInsta && <p className="text-xs text-muted-foreground">As imagens serão exibidas como feed do Instagram em formato 1:1.</p>}
+        {isInsta && <p className="text-xs text-muted-foreground">As imagens serão exibidas como feed do Instagram em formato 1:1 (recorte obrigatório).</p>}
+        {isGallery && <p className="text-xs text-muted-foreground">Cada imagem será recortada em 1:1 para um layout consistente.</p>}
         <div className={cn("grid gap-2", isInsta ? "grid-cols-3 max-w-xs" : "grid-cols-3 sm:grid-cols-4")}>
           {images.map((url, i) => (
             <div key={i} className="relative aspect-square">
@@ -421,9 +454,19 @@ function BlockEditor({ block, onChange, posts, onAddPost, onPatchPost, onRemoveP
         </div>
         {!disabled && (
           <label className="cursor-pointer inline-block">
-            <Input type="file" accept="image/*" multiple className="hidden" onChange={(e) => onUpload(e, true)} />
-            <Button asChild variant="outline" size="sm"><span><Upload className="h-3.5 w-3.5 mr-1.5" />{uploading ? "Enviando..." : "Adicionar imagens"}</span></Button>
+            <Input type="file" accept="image/*" multiple className="hidden" onChange={handleFiles} />
+            <Button asChild variant="outline" size="sm"><span><Upload className="h-3.5 w-3.5 mr-1.5" />Adicionar imagens</span></Button>
           </label>
+        )}
+        {current && (
+          <ImageCropper
+            file={current}
+            open
+            onClose={cancelCrop}
+            onCropped={(url) => handleCropped(url, true)}
+            aspect={aspect}
+            uploadPath={`presentations/media/${crypto.randomUUID()}.png`}
+          />
         )}
       </div>
     );
