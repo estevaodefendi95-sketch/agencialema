@@ -715,7 +715,7 @@ export default function MyTasks() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpenNewTask(false)}>Cancelar</Button>
-            <Button onClick={createTask} disabled={!ntProject || !ntTitle.trim() || creating}>
+            <Button onClick={createTask} disabled={!ntCompany || !ntProject || !ntTitle.trim() || creating}>
               {creating ? "Criando..." : "Criar"}
             </Button>
           </DialogFooter>
