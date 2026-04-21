@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/sidebar";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Button } from "@/components/ui/button";
+import { AssigneeAvatar } from "@/components/AssigneeAvatar";
 
 type SectionItem = { title: string; url: string; icon: typeof LayoutDashboard };
 type Section = { label: string; items: SectionItem[]; defaultOpen: boolean };
@@ -20,7 +21,7 @@ type Section = { label: string; items: SectionItem[]; defaultOpen: boolean };
 const STORAGE_KEY = "sidebar-sections-open";
 
 export function AppSidebar() {
-  const { isAdmin, signOut } = useAuth();
+  const { isAdmin, signOut, avatarUrl, user } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const { state } = useSidebar();
   const { app_name, logo_url } = useAppSettings();
@@ -109,21 +110,32 @@ export function AppSidebar() {
 
   const renderMenu = (items: SectionItem[]) => (
     <SidebarMenu>
-      {items.map((item) => (
-        <SidebarMenuItem key={item.title}>
-          <SidebarMenuButton asChild>
-            <NavLink
-              to={item.url}
-              end={item.url === "/"}
-              className="hover:bg-sidebar-accent/50"
-              activeClassName="bg-sidebar-accent text-sidebar-primary font-medium"
-            >
-              <item.icon className="mr-2 h-4 w-4" />
-              {!collapsed && <span>{item.title}</span>}
-            </NavLink>
-          </SidebarMenuButton>
-        </SidebarMenuItem>
-      ))}
+      {items.map((item) => {
+        const isProfile = item.url === "/perfil";
+        return (
+          <SidebarMenuItem key={item.title}>
+            <SidebarMenuButton asChild>
+              <NavLink
+                to={item.url}
+                end={item.url === "/"}
+                className="hover:bg-sidebar-accent/50"
+                activeClassName="bg-sidebar-accent text-sidebar-primary font-medium"
+              >
+                {isProfile ? (
+                  <AssigneeAvatar
+                    url={avatarUrl}
+                    name={user?.email || "Eu"}
+                    className="mr-2 h-4 w-4"
+                  />
+                ) : (
+                  <item.icon className="mr-2 h-4 w-4" />
+                )}
+                {!collapsed && <span>{item.title}</span>}
+              </NavLink>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        );
+      })}
     </SidebarMenu>
   );
 

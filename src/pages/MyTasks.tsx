@@ -14,8 +14,11 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
 import { DragDropContext, Droppable, Draggable, type DropResult } from "@hello-pangea/dnd";
-import { LayoutGrid, List, CalendarDays, FolderKanban, ChevronLeft, ChevronRight, Filter, CheckSquare, User } from "lucide-react";
+import { LayoutGrid, List, CalendarDays, FolderKanban, ChevronLeft, ChevronRight, Filter, CheckSquare, User, Plus } from "lucide-react";
 import { AssigneeAvatar } from "@/components/AssigneeAvatar";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import {
   format, isSameDay, isSameMonth, isToday, startOfMonth, endOfMonth,
@@ -66,7 +69,7 @@ type ViewMode = "cards" | "lista" | "calendario";
 type CalMode = "mes" | "semana" | "dia";
 
 export default function MyTasks() {
-  const { user, isAdmin } = useAuth();
+  const { user, isAdmin, canEdit } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -82,6 +85,18 @@ export default function MyTasks() {
   const [projectFilter, setProjectFilter] = useState<string>("all");
   const [priorityFilter, setPriorityFilter] = useState<string>("all");
   const [dueFilter, setDueFilter] = useState<string>("all");
+
+  // Nova tarefa
+  const [allProjects, setAllProjects] = useState<{ id: string; name: string }[]>([]);
+  const [projectMembers, setProjectMembers] = useState<Profile[]>([]);
+  const [openNewTask, setOpenNewTask] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [ntProject, setNtProject] = useState<string>("");
+  const [ntTitle, setNtTitle] = useState("");
+  const [ntDesc, setNtDesc] = useState("");
+  const [ntPriority, setNtPriority] = useState<"baixa" | "media" | "alta" | "urgente">("media");
+  const [ntDue, setNtDue] = useState("");
+  const [ntAssignee, setNtAssignee] = useState<string>("");
 
   const changeView = (v: ViewMode) => {
     if (!v) return;
@@ -105,6 +120,77 @@ export default function MyTasks() {
   useEffect(() => {
     if (selectedUser) loadTasks(selectedUser);
   }, [selectedUser]);
+
+  useEffect(() => {
+    if (canEdit) loadAllProjects();
+  }, [canEdit]);
+
+  useEffect(() => {
+    if (ntProject) loadProjectMembers(ntProject);
+    else setProjectMembers([]);
+  }, [ntProject]);
+
+  async function loadAllProjects() {
+    const { data } = await supabase
+      .from("projects")
+      .select("id, name")
+      .eq("archived", false)
+      .order("name");
+    setAllProjects((data || []) as any);
+  }
+
+  async function loadProjectMembers(projectId: string) {
+    const { data } = await supabase
+      .from("project_members")
+      .select("user_id, status, profiles(id, full_name, nickname, avatar_url)")
+      .eq("project_id", projectId)
+      .eq("status", "ativo");
+    const list: Profile[] = ((data || []) as any[])
+      .filter((m) => m.user_id && m.profiles)
+      .map((m) => ({
+        id: m.user_id,
+        full_name: m.profiles.full_name,
+        nickname: m.profiles.nickname,
+        avatar_url: m.profiles.avatar_url,
+      }));
+    setProjectMembers(list);
+  }
+
+  async function createTask() {
+    if (!ntProject || !ntTitle.trim() || !user) return;
+    setCreating(true);
+    // Status inicial = primeira coluna do projeto
+    const { data: cols } = await supabase
+      .from("project_columns")
+      .select("slug")
+      .eq("project_id", ntProject)
+      .order("position", { ascending: true })
+      .limit(1);
+    const initialStatus = cols?.[0]?.slug || "a_fazer";
+
+    const { error } = await supabase.from("tasks").insert({
+      project_id: ntProject,
+      title: ntTitle.trim(),
+      description: ntDesc.trim() || null,
+      priority: ntPriority,
+      due_date: ntDue || null,
+      assigned_to: ntAssignee || user.id,
+      status: initialStatus,
+      created_by: user.id,
+      position: 0,
+    } as any);
+
+    setCreating(false);
+    if (error) {
+      toast({ title: "Erro ao criar tarefa", description: error.message, variant: "destructive" });
+      return;
+    }
+    toast({ title: "Tarefa criada" });
+    setOpenNewTask(false);
+    setNtProject(""); setNtTitle(""); setNtDesc(""); setNtPriority("media");
+    setNtDue(""); setNtAssignee("");
+    if (selectedUser) loadTasks(selectedUser);
+  }
 
   async function loadMembers() {
     const { data } = await supabase
@@ -246,7 +332,13 @@ export default function MyTasks() {
           </div>
         </div>
 
-        {isAdmin && (
+        <div className="flex items-center gap-2">
+          {canEdit && (
+            <Button onClick={() => setOpenNewTask(true)} className="gap-2" size="sm">
+              <Plus className="h-4 w-4" /> Nova Tarefa
+            </Button>
+          )}
+          {isAdmin && (
           <Select value={selectedUser} onValueChange={setSelectedUser}>
             <SelectTrigger className="w-[260px] gap-2">
               <SelectValue placeholder="Ver tarefas de..." />
@@ -274,7 +366,8 @@ export default function MyTasks() {
               ))}
             </SelectContent>
           </Select>
-        )}
+          )}
+        </div>
       </div>
 
       {/* Toolbar */}
@@ -489,6 +582,86 @@ export default function MyTasks() {
           )}
         </>
       )}
+
+      {/* Dialog: Nova Tarefa */}
+      <Dialog open={openNewTask} onOpenChange={setOpenNewTask}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Nova Tarefa</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <Label className="text-sm">Projeto *</Label>
+              <Select value={ntProject} onValueChange={(v) => { setNtProject(v); setNtAssignee(""); }}>
+                <SelectTrigger><SelectValue placeholder="Selecione um projeto..." /></SelectTrigger>
+                <SelectContent>
+                  {allProjects.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-sm">Título *</Label>
+              <Input value={ntTitle} onChange={(e) => setNtTitle(e.target.value)} placeholder="O que precisa ser feito?" />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-sm">Descrição</Label>
+              <Textarea value={ntDesc} onChange={(e) => setNtDesc(e.target.value)} rows={3} />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-sm">Prioridade</Label>
+                <Select value={ntPriority} onValueChange={(v) => setNtPriority(v as any)}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="baixa">Baixa</SelectItem>
+                    <SelectItem value="media">Média</SelectItem>
+                    <SelectItem value="alta">Alta</SelectItem>
+                    <SelectItem value="urgente">Urgente</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-sm">Prazo</Label>
+                <Input type="date" value={ntDue} onChange={(e) => setNtDue(e.target.value)} />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-sm">Responsável</Label>
+              <Select value={ntAssignee || (user?.id ?? "")} onValueChange={setNtAssignee} disabled={!ntProject}>
+                <SelectTrigger>
+                  <SelectValue placeholder={ntProject ? "Selecione" : "Escolha um projeto primeiro"} />
+                </SelectTrigger>
+                <SelectContent>
+                  {user && (
+                    <SelectItem value={user.id}>
+                      <span className="flex items-center gap-2">
+                        <AssigneeAvatar name="Eu" />
+                        Eu mesmo
+                      </span>
+                    </SelectItem>
+                  )}
+                  {projectMembers.filter((m) => m.id !== user?.id).map((m) => (
+                    <SelectItem key={m.id} value={m.id}>
+                      <span className="flex items-center gap-2">
+                        <AssigneeAvatar url={m.avatar_url} name={m.nickname || m.full_name} />
+                        {m.nickname || m.full_name || m.id.slice(0, 8)}
+                      </span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOpenNewTask(false)}>Cancelar</Button>
+            <Button onClick={createTask} disabled={!ntProject || !ntTitle.trim() || creating}>
+              {creating ? "Criando..." : "Criar"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
