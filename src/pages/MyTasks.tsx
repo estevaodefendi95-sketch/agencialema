@@ -572,15 +572,25 @@ export default function MyTasks() {
                   <span className="text-sm font-medium min-w-[180px] text-center capitalize">{periodLabel}</span>
                   <Button variant="outline" size="icon" className="h-8 w-8" onClick={navNext}><ChevronRight className="h-4 w-4" /></Button>
                   <Button variant="outline" size="sm" onClick={() => setCursor(new Date())}>Hoje</Button>
+                  {canEdit && (
+                    <Button size="sm" className="gap-1" onClick={() => openNewTaskDialog()}>
+                      <Plus className="h-4 w-4" /> Nova
+                    </Button>
+                  )}
                 </div>
               </div>
 
-              {calMode === "mes" && <MonthGrid cursor={cursor} getDayTasks={getDayTasks} TaskMini={TaskMini} onDayClick={(d) => { setCursor(d); changeCalMode("dia"); }} />}
-              {calMode === "semana" && <WeekGrid cursor={cursor} getDayTasks={getDayTasks} TaskMini={TaskMini} onDayClick={(d) => { setCursor(d); changeCalMode("dia"); }} />}
+              {calMode === "mes" && <MonthGrid cursor={cursor} getDayTasks={getDayTasks} TaskMini={TaskMini} onDayClick={(d) => { setCursor(d); changeCalMode("dia"); }} onAddDay={canEdit ? (d: Date) => openNewTaskDialog(d) : undefined} />}
+              {calMode === "semana" && <WeekGrid cursor={cursor} getDayTasks={getDayTasks} TaskMini={TaskMini} onDayClick={(d) => { setCursor(d); changeCalMode("dia"); }} onAddDay={canEdit ? (d: Date) => openNewTaskDialog(d) : undefined} />}
               {calMode === "dia" && (
                 <Card>
-                  <CardHeader>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0">
                     <CardTitle className="text-base capitalize">{format(cursor, "EEEE, d 'de' MMMM", { locale: ptBR })}</CardTitle>
+                    {canEdit && (
+                      <Button size="sm" variant="outline" className="gap-1" onClick={() => openNewTaskDialog(cursor)}>
+                        <Plus className="h-4 w-4" /> Nova tarefa
+                      </Button>
+                    )}
                   </CardHeader>
                   <CardContent>
                     {getDayTasks(cursor).length === 0 ? (
