@@ -169,27 +169,35 @@ function InstagramPreview({ data }: { data: any }) {
         {isFull ? "Como ficará o perfil completo do cliente" : "Como ficará o Instagram do cliente"}
       </p>
       <div className="flex justify-center">
-        <div className="relative py-6">
-          {/* Side buttons */}
-          <div className="absolute left-[-3px] top-[110px] w-[3px] h-[28px] bg-neutral-900 rounded-l-sm" />
-          <div className="absolute left-[-3px] top-[155px] w-[3px] h-[48px] bg-neutral-900 rounded-l-sm" />
-          <div className="absolute left-[-3px] top-[215px] w-[3px] h-[48px] bg-neutral-900 rounded-l-sm" />
-          <div className="absolute right-[-3px] top-[170px] w-[3px] h-[70px] bg-neutral-900 rounded-r-sm" />
+        <div className="relative py-8 px-3">
+          {/* Side buttons (drawn outside the frame) */}
+          {/* Left: silent switch + volume up + volume down */}
+          <div className="absolute left-[1px] top-[120px] w-[4px] h-[24px] bg-neutral-900 rounded-l-md" />
+          <div className="absolute left-[1px] top-[160px] w-[4px] h-[44px] bg-neutral-900 rounded-l-md" />
+          <div className="absolute left-[1px] top-[214px] w-[4px] h-[44px] bg-neutral-900 rounded-l-md" />
+          {/* Right: power button */}
+          <div className="absolute right-[1px] top-[180px] w-[4px] h-[68px] bg-neutral-900 rounded-r-md" />
 
-          {/* iPhone outer frame */}
-          <div className="relative w-[300px] md:w-[320px] bg-white border-[3px] border-neutral-900 rounded-[44px] p-[6px] shadow-2xl">
+          {/* iPhone outer frame — proportional to a real device (~9:19.5) */}
+          <div
+            className="relative w-[290px] md:w-[310px] bg-white border-[3px] border-neutral-900 rounded-[44px] p-[6px] shadow-[0_25px_60px_-15px_rgba(0,0,0,0.35)]"
+            style={{ aspectRatio: "9 / 19" }}
+          >
             {/* Inner screen */}
-            <div className="relative w-full bg-white text-neutral-900 rounded-[38px] overflow-hidden border border-neutral-200">
+            <div className="relative w-full h-full bg-white text-neutral-900 rounded-[38px] overflow-hidden border border-neutral-200 flex flex-col">
               {/* Notch */}
-              <div className="absolute top-0 left-1/2 -translate-x-1/2 z-20 w-[120px] h-[22px] bg-neutral-900 rounded-b-[14px] flex items-center justify-center gap-2">
-                <div className="w-1 h-1 rounded-full bg-neutral-700" />
-                <div className="w-8 h-[3px] rounded-full bg-neutral-800" />
+              <div className="absolute top-0 left-1/2 -translate-x-1/2 z-20 w-[110px] h-[22px] bg-neutral-900 rounded-b-[14px] flex items-center justify-center gap-2">
+                <div className="w-1.5 h-1.5 rounded-full bg-neutral-700" />
+                <div className="w-7 h-[3px] rounded-full bg-neutral-800" />
               </div>
 
               {/* Status bar */}
-              <div className="flex items-center justify-between px-5 pt-1.5 pb-1 text-[10px] text-neutral-500 font-medium">
+              <div className="flex items-center justify-between px-5 pt-1.5 pb-1 text-[10px] text-neutral-600 font-semibold shrink-0">
                 <span>9:41</span>
-                <span className="opacity-0">.</span>
+                <span className="flex items-center gap-1 text-neutral-500">
+                  <span>•••</span>
+                  <span>◗</span>
+                </span>
               </div>
 
               {isFull && (
