@@ -192,6 +192,12 @@ export default function MyTasks() {
     if (selectedUser) loadTasks(selectedUser);
   }
 
+  function openNewTaskDialog(prefillDate?: Date) {
+    if (prefillDate) setNtDue(format(prefillDate, "yyyy-MM-dd"));
+    else setNtDue("");
+    setOpenNewTask(true);
+  }
+
   async function loadMembers() {
     const { data } = await supabase
       .from("profiles")
@@ -430,6 +436,17 @@ export default function MyTasks() {
                             <span className="h-2.5 w-2.5 rounded-full" style={{ background: col.color }} />
                             <span className="text-sm font-medium">{col.label}</span>
                             <Badge variant="secondary" className="ml-auto">{colTasks.length}</Badge>
+                            {canEdit && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-6 w-6"
+                                onClick={() => openNewTaskDialog()}
+                                title="Nova tarefa"
+                              >
+                                <Plus className="h-3.5 w-3.5" />
+                              </Button>
+                            )}
                           </div>
                           {colTasks.map((t, idx) => (
                             <Draggable key={t.id} draggableId={t.id} index={idx}>
@@ -528,6 +545,14 @@ export default function MyTasks() {
                       <Badge variant="secondary" className="text-[11px] w-fit">{STATUS_COLUMNS.find(s => s.slug === t.status)?.label || t.status}</Badge>
                     </div>
                   ))}
+                  {canEdit && (
+                    <button
+                      onClick={() => openNewTaskDialog()}
+                      className="w-full px-4 py-3 text-sm text-muted-foreground hover:bg-accent/40 hover:text-foreground flex items-center justify-center gap-2 transition-colors"
+                    >
+                      <Plus className="h-4 w-4" /> Adicionar tarefa
+                    </button>
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -547,15 +572,25 @@ export default function MyTasks() {
                   <span className="text-sm font-medium min-w-[180px] text-center capitalize">{periodLabel}</span>
                   <Button variant="outline" size="icon" className="h-8 w-8" onClick={navNext}><ChevronRight className="h-4 w-4" /></Button>
                   <Button variant="outline" size="sm" onClick={() => setCursor(new Date())}>Hoje</Button>
+                  {canEdit && (
+                    <Button size="sm" className="gap-1" onClick={() => openNewTaskDialog()}>
+                      <Plus className="h-4 w-4" /> Nova
+                    </Button>
+                  )}
                 </div>
               </div>
 
-              {calMode === "mes" && <MonthGrid cursor={cursor} getDayTasks={getDayTasks} TaskMini={TaskMini} onDayClick={(d) => { setCursor(d); changeCalMode("dia"); }} />}
-              {calMode === "semana" && <WeekGrid cursor={cursor} getDayTasks={getDayTasks} TaskMini={TaskMini} onDayClick={(d) => { setCursor(d); changeCalMode("dia"); }} />}
+              {calMode === "mes" && <MonthGrid cursor={cursor} getDayTasks={getDayTasks} TaskMini={TaskMini} onDayClick={(d) => { setCursor(d); changeCalMode("dia"); }} onAddDay={canEdit ? (d: Date) => openNewTaskDialog(d) : undefined} />}
+              {calMode === "semana" && <WeekGrid cursor={cursor} getDayTasks={getDayTasks} TaskMini={TaskMini} onDayClick={(d) => { setCursor(d); changeCalMode("dia"); }} onAddDay={canEdit ? (d: Date) => openNewTaskDialog(d) : undefined} />}
               {calMode === "dia" && (
                 <Card>
-                  <CardHeader>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0">
                     <CardTitle className="text-base capitalize">{format(cursor, "EEEE, d 'de' MMMM", { locale: ptBR })}</CardTitle>
+                    {canEdit && (
+                      <Button size="sm" variant="outline" className="gap-1" onClick={() => openNewTaskDialog(cursor)}>
+                        <Plus className="h-4 w-4" /> Nova tarefa
+                      </Button>
+                    )}
                   </CardHeader>
                   <CardContent>
                     {getDayTasks(cursor).length === 0 ? (
@@ -666,7 +701,7 @@ export default function MyTasks() {
   );
 }
 
-function MonthGrid({ cursor, getDayTasks, TaskMini, onDayClick }: any) {
+function MonthGrid({ cursor, getDayTasks, TaskMini, onDayClick, onAddDay }: any) {
   const monthStart = startOfMonth(cursor);
   const monthEnd = endOfMonth(cursor);
   const gridStart = startOfWeek(monthStart, { weekStartsOn: 0 });
@@ -693,7 +728,7 @@ function MonthGrid({ cursor, getDayTasks, TaskMini, onDayClick }: any) {
               key={day.toISOString()}
               onClick={() => onDayClick(day)}
               className={cn(
-                "min-h-[110px] border-r border-b last:border-r-0 p-1.5 flex flex-col gap-1 cursor-pointer hover:bg-accent/30 transition-colors",
+                "group min-h-[110px] border-r border-b last:border-r-0 p-1.5 flex flex-col gap-1 cursor-pointer hover:bg-accent/30 transition-colors",
                 !inMonth && "bg-muted/20 text-muted-foreground",
               )}
             >
@@ -701,6 +736,15 @@ function MonthGrid({ cursor, getDayTasks, TaskMini, onDayClick }: any) {
                 <span className={cn("text-xs font-medium h-5 w-5 flex items-center justify-center rounded-full", today && "bg-primary text-primary-foreground")}>
                   {format(day, "d")}
                 </span>
+                {onAddDay && (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); onAddDay(day); }}
+                    className="opacity-0 group-hover:opacity-100 h-5 w-5 inline-flex items-center justify-center rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-opacity"
+                    title="Nova tarefa neste dia"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                  </button>
+                )}
               </div>
               <div className="flex flex-col gap-0.5">
                 {visible.map((t: Task) => <TaskMini key={t.id} task={t} />)}
@@ -716,7 +760,7 @@ function MonthGrid({ cursor, getDayTasks, TaskMini, onDayClick }: any) {
   );
 }
 
-function WeekGrid({ cursor, getDayTasks, TaskMini, onDayClick }: any) {
+function WeekGrid({ cursor, getDayTasks, TaskMini, onDayClick, onAddDay }: any) {
   const ws = startOfWeek(cursor, { weekStartsOn: 0 });
   const we = endOfWeek(cursor, { weekStartsOn: 0 });
   const days = eachDayOfInterval({ start: ws, end: we });
@@ -728,15 +772,23 @@ function WeekGrid({ cursor, getDayTasks, TaskMini, onDayClick }: any) {
           const dayTasks = getDayTasks(day);
           return (
             <div key={day.toISOString()} className="border-r last:border-r-0 flex flex-col min-h-[500px]">
-              <button
-                onClick={() => onDayClick(day)}
-                className={cn("px-2 py-2 border-b text-left hover:bg-accent/30", today && "bg-primary/5")}
-              >
-                <div className="text-[10px] uppercase text-muted-foreground tracking-wide">{format(day, "EEE", { locale: ptBR })}</div>
-                <div className={cn("text-lg font-semibold inline-flex h-7 min-w-7 px-1 items-center justify-center rounded-full", today && "bg-primary text-primary-foreground")}>
-                  {format(day, "d")}
-                </div>
-              </button>
+              <div className={cn("flex items-center justify-between px-2 py-2 border-b", today && "bg-primary/5")}>
+                <button onClick={() => onDayClick(day)} className="text-left hover:opacity-80 flex-1">
+                  <div className="text-[10px] uppercase text-muted-foreground tracking-wide">{format(day, "EEE", { locale: ptBR })}</div>
+                  <div className={cn("text-lg font-semibold inline-flex h-7 min-w-7 px-1 items-center justify-center rounded-full", today && "bg-primary text-primary-foreground")}>
+                    {format(day, "d")}
+                  </div>
+                </button>
+                {onAddDay && (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); onAddDay(day); }}
+                    className="h-6 w-6 inline-flex items-center justify-center rounded hover:bg-accent text-muted-foreground hover:text-foreground"
+                    title="Nova tarefa neste dia"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                  </button>
+                )}
+              </div>
               <div className="p-1.5 flex flex-col gap-1 flex-1 overflow-y-auto">
                 {dayTasks.length === 0 ? (
                   <span className="text-[10px] text-muted-foreground text-center mt-4">—</span>
