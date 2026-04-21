@@ -148,6 +148,23 @@ export default function KanbanBoard() {
   );
   const [assigneeFilter, setAssigneeFilter] = useState<string>("all");
 
+  // Per-task media visibility toggle (eye icon on cards)
+  const [visibleMedia, setVisibleMedia] = useState<Record<string, boolean>>(() => {
+    if (!projectId) return {};
+    try {
+      return JSON.parse(localStorage.getItem(`task-media-visible-${projectId}`) || "{}");
+    } catch {
+      return {};
+    }
+  });
+  const toggleMediaVisible = (taskId: string) => {
+    setVisibleMedia((prev) => {
+      const next = { ...prev, [taskId]: !prev[taskId] };
+      if (projectId) localStorage.setItem(`task-media-visible-${projectId}`, JSON.stringify(next));
+      return next;
+    });
+  };
+
   const loadColumns = useCallback(async () => {
     if (!projectId) return;
     const { data } = await (supabase.from as any)("project_columns")
