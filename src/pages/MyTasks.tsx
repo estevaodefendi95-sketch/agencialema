@@ -585,7 +585,7 @@ export default function MyTasks() {
               {calMode === "dia" && (
                 <Card>
                   <CardHeader className="flex flex-row items-center justify-between space-y-0">
-                    <CardTitle className="text-base capitalize">{format(cursor, "EEEE, d 'de' MMMM", { locale: ptBR })}</CardTitle>
+                    <CardTitle className="text-base lowercase">{format(cursor, "EEEE, d 'de' MMMM", { locale: ptBR })}</CardTitle>
                     {canEdit && (
                       <Button size="sm" variant="outline" className="gap-1" onClick={() => openNewTaskDialog(cursor)}>
                         <Plus className="h-4 w-4" /> Nova tarefa
