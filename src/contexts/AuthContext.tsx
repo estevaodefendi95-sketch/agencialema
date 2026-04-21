@@ -32,7 +32,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const fetchUserMeta = async (userId: string) => {
     const { data: profile } = await supabase
       .from("profiles")
-      .select("status")
+      .select("status, avatar_url")
       .eq("id", userId)
       .single();
     setStatus((profile?.status as UserStatus) ?? null);
@@ -43,6 +43,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .eq("user_id", userId)
       .single();
     setRole((roleData?.role as UserRole) ?? null);
+
+    // Auto-import OAuth avatar (Google/Apple) if profile has none yet
+    if (profile && !(profile as any).avatar_url) {
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      const meta: any = authUser?.user_metadata || {};
+      const providerAvatar: string | undefined = meta.avatar_url || meta.picture;
+      if (providerAvatar) {
+        await supabase
+          .from("profiles")
+          .update({ avatar_url: providerAvatar } as any)
+          .eq("id", userId);
+      }
+    }
   };
 
   useEffect(() => {
