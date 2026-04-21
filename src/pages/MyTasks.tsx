@@ -124,7 +124,10 @@ export default function MyTasks() {
   }, [selectedUser]);
 
   useEffect(() => {
-    if (canEdit) loadAllProjects();
+    if (canEdit) {
+      loadAllProjects();
+      loadAllCompanies();
+    }
   }, [canEdit]);
 
   useEffect(() => {
@@ -132,10 +135,18 @@ export default function MyTasks() {
     else setProjectMembers([]);
   }, [ntProject]);
 
+  async function loadAllCompanies() {
+    const { data } = await supabase
+      .from("companies")
+      .select("id, name")
+      .order("name");
+    setAllCompanies((data || []) as any);
+  }
+
   async function loadAllProjects() {
     const { data } = await supabase
       .from("projects")
-      .select("id, name")
+      .select("id, name, company_id")
       .eq("archived", false)
       .order("name");
     setAllProjects((data || []) as any);
