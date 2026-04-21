@@ -433,10 +433,48 @@ function BlockEditor({ block, onChange, posts, onAddPost, onPatchPost, onRemoveP
   }
   if (isGallery || isInsta) {
     const images: string[] = block.data.images || [];
+    const layout: "feed_only" | "full_profile" = block.data.layout || "feed_only";
+    const highlights: { id: string; title: string; cover_url: string }[] = block.data.highlights || [];
     return (
       <div className="space-y-3">
-        {isInsta && <p className="text-xs text-muted-foreground">As imagens serão exibidas como feed do Instagram em formato 1:1 (recorte obrigatório).</p>}
+        {isInsta && (
+          <div className="space-y-3 p-3 rounded-md bg-muted/40 border">
+            <div>
+              <Label className="text-xs">Formato da apresentação</Label>
+              <div className="grid grid-cols-2 gap-2 mt-1.5">
+                <button
+                  type="button"
+                  disabled={disabled}
+                  onClick={() => onChange({ ...block.data, layout: "feed_only" })}
+                  className={cn(
+                    "text-xs px-3 py-2 rounded border text-left transition-colors",
+                    layout === "feed_only" ? "border-primary bg-primary/10 text-primary font-medium" : "border-input hover:bg-accent",
+                  )}
+                >
+                  📱 Só feed
+                  <span className="block text-[10px] opacity-70 font-normal mt-0.5">Apenas o grid 3×N</span>
+                </button>
+                <button
+                  type="button"
+                  disabled={disabled}
+                  onClick={() => onChange({ ...block.data, layout: "full_profile" })}
+                  className={cn(
+                    "text-xs px-3 py-2 rounded border text-left transition-colors",
+                    layout === "full_profile" ? "border-primary bg-primary/10 text-primary font-medium" : "border-input hover:bg-accent",
+                  )}
+                >
+                  👤 Perfil completo
+                  <span className="block text-[10px] opacity-70 font-normal mt-0.5">Cabeçalho + stories + feed</span>
+                </button>
+              </div>
+            </div>
+            {layout === "full_profile" && (
+              <ProfileFieldsEditor block={block} onChange={onChange} disabled={disabled} highlights={highlights} />
+            )}
+          </div>
+        )}
         {isGallery && <p className="text-xs text-muted-foreground">Cada imagem será recortada em 1:1 para um layout consistente.</p>}
+        {isInsta && <p className="text-xs text-muted-foreground">Imagens do feed em 1:1 (recorte obrigatório).</p>}
         <div className={cn("grid gap-2", isInsta ? "grid-cols-3 max-w-xs" : "grid-cols-3 sm:grid-cols-4")}>
           {images.map((url, i) => (
             <div key={i} className="relative aspect-square">
@@ -455,7 +493,7 @@ function BlockEditor({ block, onChange, posts, onAddPost, onPatchPost, onRemoveP
         {!disabled && (
           <label className="cursor-pointer inline-block">
             <Input type="file" accept="image/*" multiple className="hidden" onChange={handleFiles} />
-            <Button asChild variant="outline" size="sm"><span><Upload className="h-3.5 w-3.5 mr-1.5" />Adicionar imagens</span></Button>
+            <Button asChild variant="outline" size="sm"><span><Upload className="h-3.5 w-3.5 mr-1.5" />Adicionar imagens do feed</span></Button>
           </label>
         )}
         {current && (
