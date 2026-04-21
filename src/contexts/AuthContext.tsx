@@ -109,6 +109,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setSession(null);
     setRole(null);
     setStatus(null);
+    setAvatarUrl(null);
   };
 
   const isAdmin = role === "admin";
@@ -118,7 +119,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ user, session, role, status, loading, signIn, signUp, signOut, isAdmin, isEditor, isViewer, canEdit }}
+      value={{ user, session, role, status, avatarUrl, loading, signIn, signUp, signOut, isAdmin, isEditor, isViewer, canEdit }}
     >
       {children}
     </AuthContext.Provider>
