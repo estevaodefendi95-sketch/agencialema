@@ -1,21 +1,18 @@
 
 
-## Reverter avatar do item "Todos"
+## Substituir "Eu mesmo" pelo apelido do usuário
 
-O item "Todos os responsáveis" (Calendário) e "Todos" (Kanban) está mostrando indevidamente a foto do usuário logado. Voltar a usar o ícone neutro (`Users`) — apenas itens de usuários reais devem ter foto de perfil.
+No seletor de "Ver tarefas de..." em **`src/pages/MyTasks.tsx`**, o item do próprio usuário hoje exibe o texto fixo "Eu mesmo". Trocar por `nickname` (fallback `full_name`) do perfil do usuário logado.
 
-### Alterações
+### Alteração
 
-**`src/pages/TaskCalendar.tsx`** — item `value="all"`:
-- Trocar `<AssigneeAvatar url={avatarUrl} name={...} />` por `<AssigneeAvatar placeholder="all" />`.
-
-**`src/pages/KanbanBoard.tsx`** — item `value="all"`:
-- Mesma troca.
+**`src/pages/MyTasks.tsx`** (linhas ~255-270):
+- Calcular `myName = me?.nickname || me?.full_name || "Eu"`.
+- Renderizar `{myName}` no `SelectItem` em vez de "Eu mesmo".
+- Reusar o mesmo nome no `AssigneeAvatar`.
 
 ### Não muda
 
-- Itens de membros reais continuam com foto.
-- Item "Sem responsável" continua com ícone `UserX`.
-- Itens "Nomes livres" continuam com iniciais.
-- `AuthContext.avatarUrl` permanece exposto (pode ser útil em outros lugares).
-
+- Demais membros já mostram apelido/full_name.
+- Título do header permanece igual.
+- Outros seletores não têm "Eu mesmo".
