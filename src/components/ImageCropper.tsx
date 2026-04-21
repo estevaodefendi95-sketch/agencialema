@@ -19,11 +19,7 @@ interface Props {
 
 function centerAspectCrop(mediaWidth: number, mediaHeight: number, aspect?: number) {
   if (!aspect) {
-    return centerCrop(
-      { unit: "%", x: 5, y: 5, width: 90, height: 90 } as Crop,
-      mediaWidth,
-      mediaHeight
-    );
+    return { unit: "%", x: 5, y: 5, width: 90, height: 90 } as Crop;
   }
   return centerCrop(
     makeAspectCrop({ unit: "%", width: 80 }, aspect, mediaWidth, mediaHeight),
