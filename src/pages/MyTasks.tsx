@@ -121,6 +121,77 @@ export default function MyTasks() {
     if (selectedUser) loadTasks(selectedUser);
   }, [selectedUser]);
 
+  useEffect(() => {
+    if (canEdit) loadAllProjects();
+  }, [canEdit]);
+
+  useEffect(() => {
+    if (ntProject) loadProjectMembers(ntProject);
+    else setProjectMembers([]);
+  }, [ntProject]);
+
+  async function loadAllProjects() {
+    const { data } = await supabase
+      .from("projects")
+      .select("id, name")
+      .eq("archived", false)
+      .order("name");
+    setAllProjects((data || []) as any);
+  }
+
+  async function loadProjectMembers(projectId: string) {
+    const { data } = await supabase
+      .from("project_members")
+      .select("user_id, status, profiles(id, full_name, nickname, avatar_url)")
+      .eq("project_id", projectId)
+      .eq("status", "ativo");
+    const list: Profile[] = ((data || []) as any[])
+      .filter((m) => m.user_id && m.profiles)
+      .map((m) => ({
+        id: m.user_id,
+        full_name: m.profiles.full_name,
+        nickname: m.profiles.nickname,
+        avatar_url: m.profiles.avatar_url,
+      }));
+    setProjectMembers(list);
+  }
+
+  async function createTask() {
+    if (!ntProject || !ntTitle.trim() || !user) return;
+    setCreating(true);
+    // Status inicial = primeira coluna do projeto
+    const { data: cols } = await supabase
+      .from("project_columns")
+      .select("slug")
+      .eq("project_id", ntProject)
+      .order("position", { ascending: true })
+      .limit(1);
+    const initialStatus = cols?.[0]?.slug || "a_fazer";
+
+    const { error } = await supabase.from("tasks").insert({
+      project_id: ntProject,
+      title: ntTitle.trim(),
+      description: ntDesc.trim() || null,
+      priority: ntPriority,
+      due_date: ntDue || null,
+      assigned_to: ntAssignee || user.id,
+      status: initialStatus,
+      created_by: user.id,
+      position: 0,
+    } as any);
+
+    setCreating(false);
+    if (error) {
+      toast({ title: "Erro ao criar tarefa", description: error.message, variant: "destructive" });
+      return;
+    }
+    toast({ title: "Tarefa criada" });
+    setOpenNewTask(false);
+    setNtProject(""); setNtTitle(""); setNtDesc(""); setNtPriority("media");
+    setNtDue(""); setNtAssignee("");
+    if (selectedUser) loadTasks(selectedUser);
+  }
+
   async function loadMembers() {
     const { data } = await supabase
       .from("profiles")
