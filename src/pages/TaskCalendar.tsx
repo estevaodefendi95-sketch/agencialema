@@ -28,6 +28,7 @@ import { Button } from "@/components/ui/button";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { CalendarDays, Building2, FolderKanban, X, MessageSquare, ChevronLeft, ChevronRight } from "lucide-react";
+import { AssigneeAvatar } from "@/components/AssigneeAvatar";
 import { cn } from "@/lib/utils";
 
 type TaskWithRelations = {
@@ -146,7 +147,7 @@ export default function TaskCalendar() {
   }, [tasks]);
 
   const assigneeOptions = useMemo(() => {
-    const map = new Map<string, string>();
+    const map = new Map<string, { name: string; avatar_url: string | null }>();
     const freeSet = new Map<string, string>();
     let hasUnassigned = false;
     tasks.forEach((t) => {
@@ -160,9 +161,9 @@ export default function TaskCalendar() {
         return;
       }
       const name = (t.assignee as any)?.nickname?.trim() || t.assignee?.full_name || "Sem nome";
-      map.set(t.assigned_to, name);
+      map.set(t.assigned_to, { name, avatar_url: t.assignee?.avatar_url ?? null });
     });
-    const list = Array.from(map.entries()).map(([id, name]) => ({ id, name }));
+    const list = Array.from(map.entries()).map(([id, v]) => ({ id, name: v.name, avatar_url: v.avatar_url }));
     const freeNames = Array.from(freeSet.values()).sort((a, b) => a.localeCompare(b));
     return { list, hasUnassigned, freeNames };
   }, [tasks]);
@@ -522,20 +523,51 @@ export default function TaskCalendar() {
         </Select>
 
         <Select value={assigneeFilter} onValueChange={setAssigneeFilter}>
-          <SelectTrigger className="w-full sm:w-[240px]">
+          <SelectTrigger className="w-full sm:w-[240px] gap-2">
+            {(() => {
+              if (assigneeFilter === "all") return <AssigneeAvatar placeholder="all" />;
+              if (assigneeFilter === "none") return <AssigneeAvatar placeholder="none" />;
+              if (assigneeFilter.startsWith("name:")) {
+                return <AssigneeAvatar name={assigneeFilter.slice(5)} />;
+              }
+              const sel = assigneeOptions.list.find((a) => a.id === assigneeFilter);
+              return <AssigneeAvatar url={sel?.avatar_url} name={sel?.name} placeholder={sel ? undefined : "user"} />;
+            })()}
             <SelectValue placeholder="Responsável" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">Todos os responsáveis</SelectItem>
-            {assigneeOptions.hasUnassigned && <SelectItem value="none">Sem responsável</SelectItem>}
+            <SelectItem value="all">
+              <span className="flex items-center gap-2">
+                <AssigneeAvatar placeholder="all" />
+                Todos os responsáveis
+              </span>
+            </SelectItem>
+            {assigneeOptions.hasUnassigned && (
+              <SelectItem value="none">
+                <span className="flex items-center gap-2">
+                  <AssigneeAvatar placeholder="none" />
+                  Sem responsável
+                </span>
+              </SelectItem>
+            )}
             {assigneeOptions.list.map((a) => (
-              <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>
+              <SelectItem key={a.id} value={a.id}>
+                <span className="flex items-center gap-2">
+                  <AssigneeAvatar url={a.avatar_url} name={a.name} />
+                  {a.name}
+                </span>
+              </SelectItem>
             ))}
             {assigneeOptions.freeNames.length > 0 && (
               <>
                 <div className="px-2 pt-2 pb-1 text-[10px] uppercase tracking-wide text-muted-foreground">Nomes livres</div>
                 {assigneeOptions.freeNames.map((n) => (
-                  <SelectItem key={`name:${n}`} value={`name:${n}`}>{n}</SelectItem>
+                  <SelectItem key={`name:${n}`} value={`name:${n}`}>
+                    <span className="flex items-center gap-2">
+                      <AssigneeAvatar name={n} />
+                      {n}
+                    </span>
+                  </SelectItem>
                 ))}
               </>
             )}
