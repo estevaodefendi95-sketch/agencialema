@@ -102,7 +102,7 @@ const PRIORITY_COLORS: Record<string, string> = {
 
 export default function KanbanBoard() {
   const { id: projectId } = useParams<{ id: string }>();
-  const { isAdmin, user, canEdit } = useAuth();
+  const { isAdmin, user, canEdit, avatarUrl } = useAuth();
   const { toast } = useToast();
   const appSettings = useAppSettings();
 
@@ -657,7 +657,7 @@ export default function KanbanBoard() {
             <SelectContent>
               <SelectItem value="all">
                 <span className="flex items-center gap-2">
-                  <AssigneeAvatar placeholder="all" />
+                  <AssigneeAvatar url={avatarUrl} name={user?.email || "Eu"} />
                   Todos
                 </span>
               </SelectItem>
