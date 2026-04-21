@@ -10,6 +10,7 @@ interface AuthContextType {
   session: Session | null;
   role: UserRole;
   status: UserStatus;
+  avatarUrl: string | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
   signUp: (email: string, password: string, fullName: string) => Promise<{ error: Error | null }>;
@@ -27,6 +28,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [role, setRole] = useState<UserRole>(null);
   const [status, setStatus] = useState<UserStatus>(null);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   const fetchUserMeta = async (userId: string) => {
@@ -36,6 +38,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .eq("id", userId)
       .single();
     setStatus((profile?.status as UserStatus) ?? null);
+    setAvatarUrl((profile as any)?.avatar_url ?? null);
 
     const { data: roleData } = await supabase
       .from("user_roles")
@@ -54,6 +57,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           .from("profiles")
           .update({ avatar_url: providerAvatar } as any)
           .eq("id", userId);
+        setAvatarUrl(providerAvatar);
       }
     }
   };
