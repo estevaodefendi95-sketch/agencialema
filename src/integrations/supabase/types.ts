@@ -104,6 +104,82 @@ export type Database = {
         }
         Relationships: []
       }
+      presentation_blocks: {
+        Row: {
+          block_type: string
+          created_at: string
+          data: Json
+          id: string
+          position: number
+          presentation_id: string
+        }
+        Insert: {
+          block_type: string
+          created_at?: string
+          data?: Json
+          id?: string
+          position?: number
+          presentation_id: string
+        }
+        Update: {
+          block_type?: string
+          created_at?: string
+          data?: Json
+          id?: string
+          position?: number
+          presentation_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "presentation_blocks_presentation_id_fkey"
+            columns: ["presentation_id"]
+            isOneToOne: false
+            referencedRelation: "project_presentations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      presentation_posts: {
+        Row: {
+          copy: string | null
+          created_at: string
+          id: string
+          image_url: string | null
+          position: number
+          presentation_id: string
+          publish_date: string | null
+          title: string | null
+        }
+        Insert: {
+          copy?: string | null
+          created_at?: string
+          id?: string
+          image_url?: string | null
+          position?: number
+          presentation_id: string
+          publish_date?: string | null
+          title?: string | null
+        }
+        Update: {
+          copy?: string | null
+          created_at?: string
+          id?: string
+          image_url?: string | null
+          position?: number
+          presentation_id?: string
+          publish_date?: string | null
+          title?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "presentation_posts_presentation_id_fkey"
+            columns: ["presentation_id"]
+            isOneToOne: false
+            referencedRelation: "project_presentations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -256,6 +332,51 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      project_presentations: {
+        Row: {
+          agency_logo_url: string | null
+          client_logo_url: string | null
+          created_at: string
+          hero_description: string | null
+          hero_title: string | null
+          id: string
+          project_id: string
+          released: boolean
+          slug: string
+          status: string
+          theme: Json
+          updated_at: string
+        }
+        Insert: {
+          agency_logo_url?: string | null
+          client_logo_url?: string | null
+          created_at?: string
+          hero_description?: string | null
+          hero_title?: string | null
+          id?: string
+          project_id: string
+          released?: boolean
+          slug: string
+          status?: string
+          theme?: Json
+          updated_at?: string
+        }
+        Update: {
+          agency_logo_url?: string | null
+          client_logo_url?: string | null
+          created_at?: string
+          hero_description?: string | null
+          hero_title?: string | null
+          id?: string
+          project_id?: string
+          released?: boolean
+          slug?: string
+          status?: string
+          theme?: Json
+          updated_at?: string
+        }
+        Relationships: []
       }
       projects: {
         Row: {

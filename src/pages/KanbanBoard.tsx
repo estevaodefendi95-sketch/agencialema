@@ -21,6 +21,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { Checkbox } from "@/components/ui/checkbox";
 import TaskDetail from "@/components/TaskDetail";
 import PrintProjectView from "@/components/PrintProjectView";
+import PresentationBuilder from "@/components/presentation/PresentationBuilder";
 import { useAppSettings } from "@/hooks/useAppSettings";
 
 const COLOR_PALETTE = [
@@ -139,9 +140,9 @@ export default function KanbanBoard() {
   const [editColumnLabel, setEditColumnLabel] = useState("");
   const [deleteColumnId, setDeleteColumnId] = useState<string | null>(null);
 
-  const [viewMode, setViewMode] = useState<"kanban" | "lista">(() => {
+  const [viewMode, setViewMode] = useState<"kanban" | "lista" | "apresentacao">(() => {
     if (!projectId) return "kanban";
-    return (localStorage.getItem(`view-mode-${projectId}`) as "kanban" | "lista") || "kanban";
+    return (localStorage.getItem(`view-mode-${projectId}`) as "kanban" | "lista" | "apresentacao") || "kanban";
   });
   const [sortPrazo, setSortPrazo] = useState<"asc" | "desc">(() =>
     (localStorage.getItem(`sort-prazo-${projectId}`) as "asc" | "desc") || "asc"
@@ -352,7 +353,7 @@ export default function KanbanBoard() {
     })();
   }, [printOpen, tasks]);
 
-  const toggleViewMode = (mode: "kanban" | "lista") => {
+  const toggleViewMode = (mode: "kanban" | "lista" | "apresentacao") => {
     setViewMode(mode);
     if (projectId) localStorage.setItem(`view-mode-${projectId}`, mode);
   };
@@ -633,6 +634,14 @@ export default function KanbanBoard() {
             >
               <List className="h-4 w-4" /> Lista
             </Button>
+            <Button
+              variant={viewMode === "apresentacao" ? "default" : "ghost"}
+              size="sm"
+              className="rounded-none gap-1.5"
+              onClick={() => toggleViewMode("apresentacao")}
+            >
+              <Eye className="h-4 w-4" /> Apresentação
+            </Button>
           </div>
           {viewMode === "lista" && (
             <Button variant="ghost" size="sm" className="gap-1.5 text-xs" onClick={toggleSortPrazo}>
@@ -792,7 +801,9 @@ export default function KanbanBoard() {
         </div>
       </div>
 
-      {viewMode === "lista" ? (
+      {viewMode === "apresentacao" ? (
+        <PresentationBuilder projectId={projectId!} projectName={projectName} />
+      ) : viewMode === "lista" ? (
         <DragDropContext onDragEnd={onDragEnd}>
           <div className="space-y-4">
             {columns.map((col) => {
