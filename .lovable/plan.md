@@ -1,70 +1,70 @@
 
+## Mockup do Instagram — escolha entre Perfil completo ou Só feed
 
-## Melhorias na Apresentação ao Cliente
+Hoje o bloco `instagram_preview` mostra apenas o feed dentro do iPhone. Vou adicionar **dois formatos** que o editor escolhe ao montar a apresentação, conforme as duas referências enviadas:
 
-Quatro ajustes focados no builder e na landing pública:
+- **Formato A — Perfil completo**: cabeçalho do perfil (avatar, nome, bio, contadores Posts/Followers/Following, botões Following/Message/Contact, linha de **Story Highlights** circulares) + grid de feed.
+- **Formato B — Só feed** (atual): apenas o grid 3×N dentro do iPhone.
 
-### 1) Recorte/enquadramento de imagens no upload
+### 1) Modelo de dados (sem migração)
 
-Hoje as imagens vão direto pro storage no formato original. Vou reaproveitar o `ImageCropper` (já existe em `src/components/ImageCropper.tsx`, baseado em `react-image-crop`) e plugá-lo nos uploads do builder de apresentação.
+O bloco `instagram_preview` guarda tudo dentro de `data` (jsonb). Vou estender:
 
-- **Imagens de bloco "Imagem"** → cropper livre com proporção opcional (16:9, 4:3, 1:1, livre — toggle no topo do cropper).
-- **Galeria** → cropper aplicado uma imagem por vez (fila), proporção 1:1 padrão (altera para livre se o usuário quiser).
-- **Preview Instagram** → **força 1:1** (sem opção), garantindo feed alinhado.
-- **Posts do planejamento** (campo `image_url` do `presentation_posts`) → cropper 4:5 (formato retrato típico de feed).
-- **Logos (cliente/agência)** → mantêm upload direto (logo geralmente vem pronto), mas com `object-contain` melhor enquadrado.
+```ts
+data: {
+  layout: "feed_only" | "full_profile",  // novo, default "feed_only"
+  images: string[],                       // feed (já existe)
+  // Campos extras só usados em "full_profile":
+  username?: string,
+  display_name?: string,
+  bio?: string,
+  avatar_url?: string,
+  posts_count?: number,
+  followers_count?: string,  // string p/ aceitar "14,1 mil"
+  following_count?: string,
+  highlights?: { id: string; title: string; cover_url: string }[],
+}
+```
 
-Vou estender o `ImageCropper` para aceitar `aspect?: number | "free"` em vez de só circular/1:1, e devolver a imagem recortada via callback (usando o mesmo fluxo de upload já existente em `uploadImage`).
+Compatível com blocos antigos: se `layout` não existir, renderiza como `feed_only`.
 
-### 2) Mockup Instagram — só o feed
+### 2) Editor (`PresentationBuilder.tsx`)
 
-No `ClientLanding.tsx`, o componente `InstagramPreview` hoje mostra notch + status bar + header com avatar `@cliente`. Vou simplificar:
+No bloco Instagram, adicionar:
 
-- Remover o header com `@cliente`, o avatar gradiente e a status bar.
-- Manter só o **frame do iPhone** (bordas arredondadas, sombra) com o **grid 3×N do feed** ocupando todo o interior.
-- Título da seção continua: "Preview do Feed".
-- Mesmo ajuste no preview do builder, se houver renderização espelhada.
+- **Toggle de formato** no topo: "Só feed" / "Perfil completo" (Tabs ou RadioGroup).
+- Quando "Perfil completo" estiver ativo, mostrar campos extras:
+  - Avatar (upload com cropper 1:1 circular).
+  - Nome de exibição, @username, bio (textarea).
+  - Posts / Followers / Following (3 inputs curtos).
+  - **Story Highlights**: lista de até 8 itens, cada um com capa (cropper 1:1 circular) + título curto. Botão "+ Adicionar destaque" e remover individual.
+- Grid de feed continua igual (uploads com cropper 1:1).
 
-### 3) Landing pública premium
+### 3) Renderização (`PresentationView.tsx`)
 
-Refinar `src/pages/ClientLanding.tsx` para ficar com cara de apresentação de agência:
+Refatorar `InstagramPreview` para receber `data` completo e bifurcar:
 
-- **Hero**: full-bleed com gradiente sutil, logos no topo bem alinhados (cliente esquerda alta, agência canto), título em escala maior (`text-5xl md:text-7xl`), descrição com `max-w-2xl` e fonte mais leve. Animação de entrada (fade-up).
-- **Tipografia**: hierarquia clara (h1/h2/h3), mais respiro vertical (`py-24 md:py-32` entre seções), separadores discretos.
-- **Blocos de imagem**: bordas arredondadas maiores (`rounded-2xl`), sombras suaves, legendas em itálico centralizadas.
-- **Galerias**: masonry/grid responsivo com hover sutil (zoom 1.02).
-- **Mockup Instagram**: centralizado, com glow sutil atrás (gradiente colorido borrado), conforme item 2.
-- **Planejamento de Postagens**: cards com layout maior (imagem 1:3 do card no desktop), data como pílula colorida, copy formatada com line-height generoso, hover eleva o card.
-- **Footer**: marca da agência (logo pequena) + ano + frase discreta.
-- **Detalhes**: scroll-smooth, micro-animações de entrada via `IntersectionObserver` (classes Tailwind `animate-fade-in` se já existirem; senão CSS inline).
-- Totalmente responsivo (mobile-first), respeita `prefers-reduced-motion`.
+- **`feed_only`**: mantém o iPhone atual (sem header), só grid.
+- **`full_profile`**: dentro do mesmo iPhone, renderiza, em ordem:
+  1. Barra superior simples com `← @username  ⌕  ⋮` (sem status bar do sistema).
+  2. Linha do perfil: avatar circular grande à esquerda + 3 contadores (Posts / Followers / Following) à direita.
+  3. Nome em negrito + bio (com quebras de linha).
+  4. Botões fake "Following · Message · Contact · ▼".
+  5. Carrossel horizontal de Story Highlights (círculos com borda cinza + título embaixo).
+  6. Linha de tabs com ícones (grid · reels · tagged) — só visual.
+  7. Grid 3×N com as mesmas imagens do feed.
 
-### 4) Preview interno da equipe (mesmo sem publicar)
+Tudo estilizado para parecer captura real de Instagram (fontes, espaçamentos, cinzas claros), respeitando o tema do app. Mantém o glow gradiente e o frame do iPhone.
 
-Hoje o botão "Pré-visualizar" no builder abre `/c/:slug`, que faz a query filtrando `status='publicado' AND released=true` — então rascunhos não aparecem.
+### 4) Resultado
 
-Vou criar uma rota interna:
-
-- **Rota**: `/projetos/:projectId/apresentacao/preview` (dentro do `RequireAuth` + `AppLayout`, ou em layout limpo — limpo é melhor para realmente simular a apresentação). Vou usar layout limpo (sem sidebar) com um banner fixo no topo "Modo Preview — não publicado" + botão "Voltar ao editor".
-- **Página**: `src/pages/PresentationPreview.tsx` — reusa exatamente o mesmo componente de renderização da landing (vou extrair o conteúdo de `ClientLanding.tsx` para um componente `<PresentationView pres blocks posts />` e ambas as páginas o usam).
-- **Carregamento**: usa Supabase autenticado, busca por `project_id` (RLS já permite equipe via `Approved users view presentations`). Sem filtro de status/released.
-- **Botão "Pré-visualizar"** no builder muda para abrir essa rota interna em nova aba (sempre disponível, mesmo em rascunho). O botão "Copiar link público" continua só visível quando publicado+liberado.
+- Editor escolhe por bloco se mostra **só o feed** ou **o perfil completo com highlights**.
+- Pode inclusive ter dois blocos `instagram_preview` na mesma apresentação (um de cada tipo) — cada um independente.
+- Visualizações pública (`/c/:slug`) e preview interno (`/projetos/.../apresentacao/preview`) refletem o mesmo formato automaticamente.
 
 ### Arquivos
 
 | Arquivo | Mudança |
 |---|---|
-| `src/components/ImageCropper.tsx` | Aceitar prop `aspect` (number ou "free") + toggle de proporção |
-| `src/components/presentation/PresentationBuilder.tsx` | Plugar cropper nos uploads (image, gallery, instagram_preview, posts), trocar destino do botão "Pré-visualizar" |
-| `src/components/presentation/PresentationView.tsx` | **Novo** — renderização compartilhada (extraído de ClientLanding) |
-| `src/pages/ClientLanding.tsx` | Usa `PresentationView`; layout premium refinado; mockup IG sem header |
-| `src/pages/PresentationPreview.tsx` | **Novo** — rota interna autenticada com banner "Preview" |
-| `src/App.tsx` | Rota `/projetos/:projectId/apresentacao/preview` |
-
-### Resultado
-
-- Equipe recorta cada imagem no upload, garantindo enquadramento consistente.
-- Mockup do Instagram fica limpo, só o feed.
-- Landing do cliente com visual de apresentação de agência (premium, espaçoso, animado).
-- Equipe vê a página exatamente como o cliente verá, mesmo antes de publicar.
-
+| `src/components/presentation/PresentationBuilder.tsx` | UI de edição do bloco Instagram com toggle de formato + campos de perfil + highlights |
+| `src/components/presentation/PresentationView.tsx` | `InstagramPreview` com dois layouts (`feed_only` / `full_profile`) |
