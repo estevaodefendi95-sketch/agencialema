@@ -332,7 +332,13 @@ export default function MyTasks() {
           </div>
         </div>
 
-        {isAdmin && (
+        <div className="flex items-center gap-2">
+          {canEdit && (
+            <Button onClick={() => setOpenNewTask(true)} className="gap-2" size="sm">
+              <Plus className="h-4 w-4" /> Nova Tarefa
+            </Button>
+          )}
+          {isAdmin && (
           <Select value={selectedUser} onValueChange={setSelectedUser}>
             <SelectTrigger className="w-[260px] gap-2">
               <SelectValue placeholder="Ver tarefas de..." />
