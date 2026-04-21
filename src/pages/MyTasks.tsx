@@ -15,6 +15,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
 import { DragDropContext, Droppable, Draggable, type DropResult } from "@hello-pangea/dnd";
 import { LayoutGrid, List, CalendarDays, FolderKanban, ChevronLeft, ChevronRight, Filter, CheckSquare, User } from "lucide-react";
+import { AssigneeAvatar } from "@/components/AssigneeAvatar";
 import { cn } from "@/lib/utils";
 import {
   format, isSameDay, isSameMonth, isToday, startOfMonth, endOfMonth,
@@ -248,14 +249,41 @@ export default function MyTasks() {
         {isAdmin && (
           <Select value={selectedUser} onValueChange={setSelectedUser}>
             <SelectTrigger className="w-[260px] gap-2">
-              <User className="h-4 w-4" />
+              {(() => {
+                const sm = members.find((m) => m.id === selectedUser);
+                return (
+                  <AssigneeAvatar
+                    url={sm?.avatar_url}
+                    name={sm?.nickname || sm?.full_name}
+                    placeholder={sm ? undefined : "user"}
+                  />
+                );
+              })()}
               <SelectValue placeholder="Ver tarefas de..." />
             </SelectTrigger>
             <SelectContent>
-              {user && <SelectItem value={user.id}>Eu mesmo</SelectItem>}
+              {user && (
+                <SelectItem value={user.id}>
+                  <span className="flex items-center gap-2">
+                    {(() => {
+                      const me = members.find((m) => m.id === user.id);
+                      return (
+                        <AssigneeAvatar
+                          url={me?.avatar_url}
+                          name={me?.nickname || me?.full_name || "Eu"}
+                        />
+                      );
+                    })()}
+                    Eu mesmo
+                  </span>
+                </SelectItem>
+              )}
               {members.filter((m) => m.id !== user?.id).map((m) => (
                 <SelectItem key={m.id} value={m.id}>
-                  {m.nickname || m.full_name || m.id.slice(0, 8)}
+                  <span className="flex items-center gap-2">
+                    <AssigneeAvatar url={m.avatar_url} name={m.nickname || m.full_name} />
+                    {m.nickname || m.full_name || m.id.slice(0, 8)}
+                  </span>
                 </SelectItem>
               ))}
             </SelectContent>
