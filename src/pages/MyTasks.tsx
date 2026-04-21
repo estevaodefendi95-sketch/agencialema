@@ -200,7 +200,7 @@ export default function MyTasks() {
     }
     toast({ title: "Tarefa criada" });
     setOpenNewTask(false);
-    setNtProject(""); setNtTitle(""); setNtDesc(""); setNtPriority("media");
+    setNtCompany(""); setNtProject(""); setNtTitle(""); setNtDesc(""); setNtPriority("media");
     setNtDue(""); setNtAssignee("");
     if (selectedUser) loadTasks(selectedUser);
   }
