@@ -69,7 +69,7 @@ type ViewMode = "cards" | "lista" | "calendario";
 type CalMode = "mes" | "semana" | "dia";
 
 export default function MyTasks() {
-  const { user, isAdmin } = useAuth();
+  const { user, isAdmin, canEdit } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -87,7 +87,6 @@ export default function MyTasks() {
   const [dueFilter, setDueFilter] = useState<string>("all");
 
   // Nova tarefa
-  const { canEdit } = useAuth();
   const [allProjects, setAllProjects] = useState<{ id: string; name: string }[]>([]);
   const [projectMembers, setProjectMembers] = useState<Profile[]>([]);
   const [openNewTask, setOpenNewTask] = useState(false);
