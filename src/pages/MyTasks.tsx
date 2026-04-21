@@ -639,11 +639,22 @@ export default function MyTasks() {
           </DialogHeader>
           <div className="space-y-3">
             <div className="space-y-1.5">
-              <Label className="text-sm">Projeto *</Label>
-              <Select value={ntProject} onValueChange={(v) => { setNtProject(v); setNtAssignee(""); }}>
-                <SelectTrigger><SelectValue placeholder="Selecione um projeto..." /></SelectTrigger>
+              <Label className="text-sm">Empresa *</Label>
+              <Select value={ntCompany} onValueChange={(v) => { setNtCompany(v); setNtProject(""); setNtAssignee(""); }}>
+                <SelectTrigger><SelectValue placeholder="Selecione uma empresa..." /></SelectTrigger>
                 <SelectContent>
-                  {allProjects.map((p) => (
+                  {allCompanies.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-sm">Projeto *</Label>
+              <Select value={ntProject} onValueChange={(v) => { setNtProject(v); setNtAssignee(""); }} disabled={!ntCompany}>
+                <SelectTrigger><SelectValue placeholder={ntCompany ? "Selecione um projeto..." : "Escolha uma empresa primeiro"} /></SelectTrigger>
+                <SelectContent>
+                  {allProjects.filter((p) => p.company_id === ntCompany).map((p) => (
                     <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
                   ))}
                 </SelectContent>
