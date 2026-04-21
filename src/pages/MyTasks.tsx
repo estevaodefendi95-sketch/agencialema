@@ -366,7 +366,8 @@ export default function MyTasks() {
               ))}
             </SelectContent>
           </Select>
-        )}
+          )}
+        </div>
       </div>
 
       {/* Toolbar */}
