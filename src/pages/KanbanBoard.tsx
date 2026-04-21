@@ -1077,9 +1077,21 @@ export default function KanbanBoard() {
                                       <GripVertical className="h-4 w-4 text-muted-foreground" />
                                     </div>
                                     <div className="flex-1 min-w-0">
-                                      <p className="font-medium text-sm cursor-pointer hover:text-primary truncate" onClick={() => setSelectedTask(task.id)}>
-                                        {task.title}
-                                      </p>
+                                      <div className="flex items-start gap-1.5">
+                                        <p className="font-medium text-sm cursor-pointer hover:text-primary truncate flex-1" onClick={() => setSelectedTask(task.id)}>
+                                          {task.title}
+                                        </p>
+                                        {media && !visibleMedia[task.id] && (
+                                          <button
+                                            type="button"
+                                            onClick={(e) => { e.stopPropagation(); toggleMediaVisible(task.id); }}
+                                            className="shrink-0 h-6 w-6 rounded-md hover:bg-accent flex items-center justify-center text-muted-foreground hover:text-foreground"
+                                            title="Mostrar mídia"
+                                          >
+                                            <Eye className="h-3.5 w-3.5" />
+                                          </button>
+                                        )}
+                                      </div>
                                       <div className="flex items-center gap-2 mt-2 flex-wrap">
                                         <Badge className={`text-xs ${PRIORITY_COLORS[task.priority] || ""}`} variant="secondary">
                                           {task.priority}
