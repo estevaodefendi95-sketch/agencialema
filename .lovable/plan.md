@@ -1,50 +1,52 @@
 
 
-## Reorganizar sidebar em subcategorias
+## Sidebar com seções colapsáveis
 
-Hoje todos os 8 itens ficam soltos numa única lista. Vou agrupar em 3 seções com labels discretas + uma seção admin colapsável, deixando o menu mais respirável e escaneável.
+Hoje as seções (Principal, Gestão, Admin, Conta) estão sempre abertas. Vou torná-las colapsáveis, mantendo apenas **Principal** aberta por padrão. As demais começam recolhidas e o usuário expande clicando no label.
 
-### Nova estrutura
+### Comportamento
 
-```text
-nortyx.
-─────────────
-PRINCIPAL
+- Cada `SidebarGroup` vira um `Collapsible` (já existe `@/components/ui/collapsible` no projeto).
+- O `SidebarGroupLabel` vira o trigger — clicável, com chevron à direita que rotaciona ao abrir.
+- Estado inicial:
+  - **Principal** → aberta
+  - **Gestão**, **Admin**, **Conta** → fechadas
+- Auto-abertura inteligente: se a rota atual pertence a uma seção (ex.: `/empresas` → Gestão), essa seção abre automaticamente para mostrar o item ativo.
+- Persistência opcional do estado em `localStorage` (`sidebar-section-{label}`) para lembrar a escolha do usuário entre navegações.
+- Modo colapsado da sidebar (ícone): seções desaparecem como hoje, apenas ícones empilhados — sem chevron, sem agrupamento visual (já é o comportamento nativo).
+
+### Visual do label
+
+```
+PRINCIPAL          ⌄
   Dashboard
   Calendário
-
-GESTÃO
-  Empresas
-  Projetos
-
-ADMIN  (somente isAdmin, colapsável, aberto por padrão na rota admin)
-  Usuários
-  Configurações
-
-CONTA
-  Notificações
-  Meu Perfil
-─────────────
-[Modo escuro] [Sair]
+GESTÃO             ›
+ADMIN              ›
+CONTA              ›
 ```
+
+- Chevron `ChevronRight` do lucide, com `transition-transform` e `rotate-90` quando aberto.
+- Label mantém `text-xs uppercase tracking-wider text-muted-foreground`, ganha `cursor-pointer hover:text-foreground` e `flex items-center justify-between w-full`.
 
 ### Mudanças em `src/components/AppSidebar.tsx`
 
-1. **Header isolado** — mover logo + `app_name` para fora dos grupos (sem `SidebarGroupLabel`), criando um cabeçalho enxuto no topo.
-2. **3–4 `SidebarGroup`** com `SidebarGroupLabel` em texto pequeno, uppercase, `text-xs text-muted-foreground` (já é o estilo nativo do shadcn) — só aparece quando `!collapsed`:
-   - **Principal**: Dashboard, Calendário
-   - **Gestão**: Empresas, Projetos
-   - **Admin** (condicional `isAdmin`): Usuários, Configurações
-   - **Conta**: Notificações, Meu Perfil
-3. **Item ativo** — manter o highlight `bg-sidebar-accent text-sidebar-primary font-medium` já existente.
-4. **Modo colapsado** — labels de grupo somem automaticamente; ícones continuam alinhados. Sem mudança visual quebrada.
-5. **Footer** — sem alteração (tema + sair).
-
-### Resultado
-Menu visualmente mais limpo, com hierarquia clara, separando navegação do dia a dia (Principal/Gestão) do que é administrativo e do que é pessoal (Conta).
+1. Importar `Collapsible`, `CollapsibleTrigger`, `CollapsibleContent` e `ChevronRight`.
+2. Adicionar `defaultOpen: boolean` em cada entrada de `sections` (apenas Principal `true`).
+3. Estado controlado por seção via `useState<Record<string, boolean>>`, inicializado com `defaultOpen` + leitura do `localStorage` + checagem se a rota atual está dentro da seção (`useLocation` + `section.items.some(i => matchesRoute(i.url))`).
+4. Envolver cada grupo em `<Collapsible open={openMap[label]} onOpenChange={...}>`:
+   - `CollapsibleTrigger asChild` → `SidebarGroupLabel` com chevron.
+   - `CollapsibleContent` → `SidebarGroupContent` com a `SidebarMenu`.
+5. Persistir `openMap` em `localStorage` no `onOpenChange`.
+6. Quando `collapsed` (sidebar em modo ícone), renderizar como hoje (sem Collapsible, sem label) — mantém compatibilidade com `collapsible="icon"`.
 
 ### Arquivo
+
 | Arquivo | Mudança |
 |---|---|
-| `src/components/AppSidebar.tsx` | Header dedicado + 3–4 SidebarGroups com SidebarGroupLabel ("Principal", "Gestão", "Admin", "Conta") |
+| `src/components/AppSidebar.tsx` | Seções viram Collapsible com chevron; só Principal aberta por padrão; auto-expande seção da rota ativa; persiste estado em localStorage |
+
+### Resultado
+
+Sidebar mais limpa: ao abrir o app o usuário vê apenas Dashboard e Calendário sob "Principal". Gestão, Admin e Conta ficam recolhidas até serem clicadas, reduzindo ruído visual.
 
