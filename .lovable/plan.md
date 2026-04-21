@@ -1,78 +1,150 @@
 
 
-## 1) Toggle de mídia nos cards do Kanban (olho aberto/fechado)
+## Visão geral
 
-Hoje, quando uma tarefa tem mídia, o thumbnail (h-28) aparece sempre no topo do card, ocupando bastante espaço. Vou adicionar um botão de olho que **mostra/oculta a prévia da mídia sem precisar abrir a tarefa**.
+Vou implementar **3 grandes módulos** complementares ao app atual:
 
-### Comportamento
-- Pequeno botão `Eye` / `EyeOff` (ícone lucide) no canto superior direito do card, visível apenas quando `taskMedia[task.id]` existe.
-- Estado **por tarefa**, persistido em `localStorage` na chave `task-media-visible-${projectId}` como `Record<taskId, boolean>`.
-- Padrão inicial: **mídia oculta** (mais limpo). Usuário clica no olho fechado → mídia aparece. Clica de novo → some.
-- Ao ocultar, o card vira só o título + meta (sem o bloco de imagem h-28). Quando visível, mantém o thumbnail atual com badge "+N".
-- Na **view de lista**, o ícone `ImageIcon` com a contagem que já existe vira clicável: ao clicar, expande uma linha extra abaixo com o thumbnail (mesmo estado/persistência).
-- O clique no botão usa `e.stopPropagation()` para não disparar o `setSelectedTask`.
+1. **Minhas Tarefas** — visão pessoal cross-project (Kanban / Lista / Calendário) com filtros e drag-and-drop.
+2. **Apresentação ao Cliente** — aba dentro de cada projeto com builder de blocos (texto, imagens, preview Instagram, planejamento de posts).
+3. **Landing Page pública do cliente** — rota externa por projeto, liberada manualmente pela equipe, sem login.
 
-### Mudanças em `src/pages/KanbanBoard.tsx`
-- Importar `Eye`, `EyeOff` de `lucide-react`.
-- Novo estado `visibleMedia: Record<string, boolean>` + load/save no `localStorage`.
-- Helper `toggleMediaVisible(taskId)`.
-- No card Kanban (linhas ~1033-1048): renderizar o bloco de mídia só se `visibleMedia[task.id]`. Adicionar botão de olho posicionado absoluto no canto do card (ou inline ao lado do título).
-- Na view lista (linhas ~895-899): tornar o `ImageIcon` clicável; quando aberto, renderizar uma linha de prévia abaixo do item (thumbnail pequeno 80x80 ou inline 200px).
-
-### Resultado
-Cards mais compactos por padrão; usuário escolhe quais tarefas mostram a mídia inline, sem precisar abrir o modal.
+Vou aproveitar o que já existe: tabela `tasks` (com `assigned_to`, `priority`, `status`, `due_date`, `project_id`), bucket `attachments`, sistema de roles (`admin`/`editor`/`visualizador`/`cliente`), e os componentes Kanban/Calendar já construídos.
 
 ---
 
-## 2) Calendário estilo Asana (Mês / Semana / Dia)
+## 1) Minhas Tarefas (`/minhas-tarefas`)
 
-Hoje `/calendario` mostra um mini-calendário à esquerda + lista de tarefas do dia à direita. Vou **manter essa visão** e adicionar um **seletor de modo** com 3 opções: **Mês**, **Semana**, **Dia** (estilo Asana, ocupando a tela toda com as tarefas dentro das células).
+### Rota e navegação
+- Nova rota `/minhas-tarefas` em `App.tsx`.
+- Novo item no `AppSidebar` na seção **Principal**: "Minhas Tarefas" (ícone `CheckSquare`), abaixo de Dashboard.
 
-### Layout
+### Página `src/pages/MyTasks.tsx`
+Carrega `tasks` com join leve em `projects(id, name, company_id)` filtradas por `assigned_to = auth.uid()`.
 
-```text
-[ Mês | Semana | Dia ]   [ ‹ ›  Abril 2026  Hoje ]   [filtros existentes]
-─────────────────────────────────────────────────────
-MÊS:   grid 7 col × 5/6 linhas, cada célula com header do dia
-       e tarefas empilhadas (até 3 + "more"); cor por prioridade
-SEMANA: grid 7 col × 1 linha, célula maior, mostra todas as tarefas
-DIA:    1 coluna larga, lista vertical das tarefas do dia (igual hoje, mas tela cheia)
+**Filtro de usuário (admin)**: se `isAdmin`, mostra um `Select` no topo "Ver tarefas de:" listando todos os profiles aprovados. Padrão = eu mesmo. Usuários comuns não veem o seletor.
+
+**Toolbar**:
+- ToggleGroup: **Cards** | **Lista** | **Calendário** (persiste em `localStorage` `mytasks-view`).
+- Filtros: Projeto (Select multi), Prioridade (baixa/média/alta/urgente), Prazo (Hoje / Esta semana / Atrasadas / Sem data / Todas).
+- Botão "Marcar concluída" disponível inline em cada item (checkbox que muda `status` para `concluido`).
+
+**Visualizações**:
+- **Cards (Kanban)**: 4 colunas fixas por status (`a_fazer`, `em_andamento`, `em_revisao`, `concluido`). Drag-and-drop entre colunas atualiza `status` da task (mesmo padrão do `KanbanBoard` atual usando `@hello-pangea/dnd`). Cada card mostra título, projeto (badge), prioridade (dot colorido), data, descrição truncada.
+- **Lista**: tabela densa com colunas Título / Projeto / Status / Prioridade / Prazo / ✓. Clicar abre o `TaskDetail` modal já existente.
+- **Calendário**: reusa os componentes `MonthView`/`WeekView`/`DayView` já criados em `TaskCalendar.tsx` — vou extrair para `src/components/calendar/` para compartilhar.
+
+### Permissões (RLS já cobre)
+A policy "Users view their tasks" usa `has_company_access`, então um admin que tem acesso a todas as empresas naturalmente vê todas as tarefas. Vou apenas filtrar no client-side por `assigned_to` selecionado.
+
+---
+
+## 2) Aba "Apresentação ao Cliente" no projeto
+
+### UI
+Dentro de `KanbanBoard.tsx` (página do projeto) já existem abas (Kanban/Lista). Vou adicionar uma terceira aba **"Apresentação ao Cliente"** que renderiza um novo componente `ProjectPresentationBuilder`.
+
+### Componente Builder (`src/components/presentation/`)
+- **PresentationBuilder.tsx** — container com lista vertical de blocos editáveis + barra "Adicionar bloco".
+- Tipos de bloco (`block_type`):
+  - `header` — logo cliente + logo agência + título
+  - `text` — texto rico simples (textarea com markdown leve)
+  - `image` — upload único, alt, legenda
+  - `gallery` — múltiplas imagens em grid
+  - `instagram_preview` — mockup iPhone com feed (seção 3.2)
+  - `posts_plan` — lista de posts (seção 3.3)
+- Cada bloco: drag handle (reordenar via `@hello-pangea/dnd`), botão editar (abre painel lateral), botão deletar.
+- Toolbar superior: **Status** (`rascunho` / `publicado`), **Visualizar** (preview da landing), **Copiar link público** (visível só se publicado E liberado).
+
+### Persistência
+Salvamento automático (debounce 800ms) na tabela `project_presentations` (ver migrations).
+
+---
+
+## 3) Landing Page pública do cliente
+
+### Rota pública
+- `/c/:slug` em `App.tsx`, **fora** do `RequireAuth` e do `AppLayout` (sem sidebar).
+- Componente `src/pages/ClientLanding.tsx`.
+- Lê `project_presentations` por slug usando o cliente Supabase normal — RLS abaixo libera SELECT público apenas quando `status = 'publicado' AND released = true`.
+
+### Layout da landing
+1. **Hero** — logo cliente (esquerda) + logo agência (direita) + descrição do projeto/campanha. Tipografia grande, fundo limpo.
+2. **Preview Instagram** — mockup iPhone CSS (frame arredondado, notch, status bar) com grid 3-col simulando feed; suporta clicar em cada post pra abrir lightbox.
+3. **Planejamento de Postagens** — lista responsiva (cards no mobile, tabela rica no desktop): thumb da arte, título, data formatada (`dd/MM/yyyy`), copy com "ver mais".
+4. Rodapé discreto "Apresentado por {agência}".
+
+Ambiente visual premium: gradientes sutis, animações de entrada (fade/slide), totalmente responsivo.
+
+---
+
+## 4) Mudanças no banco (migrations)
+
+```sql
+-- Apresentação por projeto
+create table public.project_presentations (
+  id uuid primary key default gen_random_uuid(),
+  project_id uuid not null unique,
+  slug text not null unique,                -- usado em /c/:slug
+  status text not null default 'rascunho',  -- rascunho | publicado
+  released boolean not null default false,  -- liberação manual da equipe
+  client_logo_url text,
+  agency_logo_url text,
+  hero_title text,
+  hero_description text,
+  theme jsonb default '{}'::jsonb,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+-- Blocos ordenados
+create table public.presentation_blocks (
+  id uuid primary key default gen_random_uuid(),
+  presentation_id uuid not null,
+  block_type text not null,   -- header | text | image | gallery | instagram_preview | posts_plan
+  position integer not null default 0,
+  data jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now()
+);
+
+-- Posts planejados (seção 3 da landing)
+create table public.presentation_posts (
+  id uuid primary key default gen_random_uuid(),
+  presentation_id uuid not null,
+  position integer not null default 0,
+  image_url text,
+  title text,
+  publish_date date,
+  copy text,
+  created_at timestamptz not null default now()
+);
 ```
 
-Quando o usuário clica num dia (Mês/Semana) → muda para modo **Dia** focado nele. Quando clica numa tarefa → navega para `/projetos/{id}` (já é o comportamento atual).
+**RLS** (resumo):
+- Equipe (admin/editor) com `has_company_access` no projeto: ALL.
+- Visualizador aprovado com acesso à empresa: SELECT.
+- **Público anônimo**: SELECT em `project_presentations` somente quando `status='publicado' AND released=true`; mesma regra em cascata para `presentation_blocks` e `presentation_posts` via EXISTS.
 
-### Estrutura da página
+---
 
-- Cabeçalho da página: título + filtros (empresa/responsável) **mantidos**.
-- Nova **toolbar do calendário**:
-  - `Tabs` shadcn com 3 valores: `mes` | `semana` | `dia` (default `mes`, persistido em `localStorage` como `calendar-view-mode`).
-  - Navegação: botões `‹` `›` para avançar/retroceder no período, label central com o período corrente (ex.: "Abril 2026" / "21–27 Abr 2026" / "Terça, 21 Abr 2026"), botão "Hoje" para resetar.
-- **Mês**: grid `grid-cols-7`. Cada célula: número do dia (cinza se fora do mês, destaque se hoje, ring se selecionado). Lista até 3 tarefas com `bg-primary/10 text-xs truncate`, dot de prioridade colorido. Se houver mais, "+N mais" abre popover/sheet com a lista completa daquele dia.
-- **Semana**: grid `grid-cols-7` com células altas (`min-h-[400px]`), header com dia da semana + número, scroll vertical interno mostrando todas as tarefas em pills.
-- **Dia**: card único ocupando toda a largura, lista das tarefas do dia (reaproveita o componente atual de cartão de tarefa, com avatar/empresa/projeto/prioridade/comentários).
+## 5) Arquivos
 
-### Detalhes de UI
-- Pill de tarefa (Mês/Semana): `<button className="w-full text-left px-1.5 py-0.5 rounded text-xs flex items-center gap-1 bg-card hover:bg-accent border-l-2" style={{ borderLeftColor: priorityHex[priority] }}>` mostrando título truncado.
-- Pílula clicável navega para `/projetos/{project_id}`.
-- Hoje destacado com `bg-primary/10 ring-1 ring-primary/30`.
-- Dias vazios continuam clicáveis para abrir o modo Dia daquele dia.
-- Filtros de empresa/responsável seguem aplicáveis em todos os modos.
-
-### Mudanças em `src/pages/TaskCalendar.tsx`
-- Adicionar `Tabs`/`ToggleGroup` para o modo de visualização (`mes` | `semana` | `dia`).
-- Estado: `viewMode`, `cursor: Date` (data de referência do período exibido).
-- Helpers com `date-fns` (já instalado): `startOfMonth`, `endOfMonth`, `startOfWeek`, `endOfWeek`, `eachDayOfInterval`, `addMonths`, `addWeeks`, `addDays`, `isSameMonth`, `isToday`.
-- 3 sub-componentes inline: `MonthView`, `WeekView`, `DayView` que recebem `tasks` filtradas.
-- Persistência do `viewMode` em `localStorage` (`calendar-view-mode`).
-- Manter o mini-calendário lateral apenas no modo **Dia** (ajuda a navegar). Nos modos Mês/Semana ele fica oculto e o calendário ocupa toda a largura disponível (`grid-cols-1`).
-
-### Arquivos
 | Arquivo | Mudança |
 |---|---|
-| `src/pages/KanbanBoard.tsx` | Toggle olho/olho-fechado por card (Kanban + Lista), persistido em localStorage |
-| `src/pages/TaskCalendar.tsx` | Toolbar Mês/Semana/Dia + 3 visualizações estilo Asana, mantendo filtros |
+| `src/App.tsx` | Rotas `/minhas-tarefas` e pública `/c/:slug` |
+| `src/components/AppSidebar.tsx` | Item "Minhas Tarefas" em Principal |
+| `src/pages/MyTasks.tsx` | **Novo** — 3 visões + filtros + admin user-picker |
+| `src/components/calendar/{MonthView,WeekView,DayView}.tsx` | **Novo** — extraídos de `TaskCalendar` para reutilizar |
+| `src/pages/TaskCalendar.tsx` | Refactor leve para usar os componentes extraídos |
+| `src/pages/KanbanBoard.tsx` | Aba "Apresentação ao Cliente" |
+| `src/components/presentation/PresentationBuilder.tsx` | **Novo** — editor de blocos |
+| `src/components/presentation/blocks/*.tsx` | **Novo** — um arquivo por tipo de bloco |
+| `src/pages/ClientLanding.tsx` | **Novo** — landing pública `/c/:slug` |
+| migrations SQL | Tabelas + RLS acima |
 
-### Resultado
-- Cards do Kanban mais limpos, com prévia de mídia opcional por clique no olho.
-- Calendário com 3 modos de visualização full-width estilo Asana, mantendo a lista de detalhes do dia atual no modo Dia.
+---
+
+## 6) Escopo intencionalmente fora desta entrega
+
+- **Integração real com API do Instagram**: o preview usa imagens manualmente inseridas (mockado), conforme permitido pelo brief ("mockado ou integrado via API"). Integração via Graph API fica como evolução.
+- **Hospedagem separada de frontend cliente**: a landing fica no mesmo domínio sob `/c/:slug` (rota pública sem layout interno). Domínio separado pode ser configurado depois via custom domain.
 
