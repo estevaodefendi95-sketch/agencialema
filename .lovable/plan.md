@@ -1,53 +1,56 @@
 
 
-## Foto de perfil + ajuste do mockup do iPhone
+## Avatares circulares nos seletores de responsável
 
-Dois ajustes pequenos e independentes.
+Adicionar a foto de perfil (circular, minimalista) nos dropdowns de responsável em três telas, tanto no botão (gatilho) quanto na lista de opções.
 
-### 1) Foto de perfil do usuário
+### Onde alterar
 
-**Backend (migration):**
-- Atualizar a função `handle_new_user()` para também salvar `avatar_url` quando o provedor (Google/Apple) envia a foto:
-  ```sql
-  COALESCE(
-    NEW.raw_user_meta_data->>'avatar_url',
-    NEW.raw_user_meta_data->>'picture'
-  )
-  ```
-  Assim, ao logar pela primeira vez via Google ou Apple, a foto do provedor entra automaticamente no `profiles.avatar_url`. Email/senha continua sem foto (nulo).
+1. **`src/pages/MyTasks.tsx`** (Select "Eu mesmo / membros") — linhas ~248-263
+2. **`src/pages/TaskCalendar.tsx`** (Select "Todos os responsáveis") — linhas ~524-543
+3. **`src/pages/KanbanBoard.tsx`** (Select "Equipe") — linhas ~652-677
 
-**Frontend — `src/pages/Profile.tsx`:**
-- Adicionar bloco "Foto de perfil" no topo do card com:
-  - Preview circular (`Avatar`, 96px) usando `avatar_url` do profile, fallback nas iniciais do nome.
-  - Botão "Trocar foto" que abre o `<input type="file">` e em seguida o `ImageCropper` existente (`circular`, `aspect={1}`, upload em `avatars/{user.id}.png` no bucket `attachments`).
-  - Botão "Remover" quando já existir foto (seta `avatar_url` para `null`).
-- Carregar `avatar_url` no `useEffect` e atualizar o profile no banco quando o crop terminar.
+### Como ficará (visual)
 
-**Resultado:** a foto já aparece automaticamente em Equipe (`KanbanBoard`), Minhas Tarefas e detalhes de tarefa (`TaskDetail`) — esses já leem `avatar_url`.
+- Cada item de membro: `Avatar` 20px (`h-5 w-5`) circular à esquerda + nome.
+- Item especial ("Eu mesmo"): avatar do próprio usuário logado.
+- Itens genéricos ("Todos", "Todos os responsáveis", "Sem responsável"): ícone neutro pequeno (`Users` / `UserX`) dentro de um círculo do mesmo tamanho — mantém alinhamento visual.
+- Trigger (botão fechado): mostra o avatar do membro selecionado em vez do ícone `User` / `Users` atual; quando "Todos"/"Eu mesmo", mostra o ícone neutro.
+- Fallback do Avatar: iniciais do nome (1-2 letras), fundo `bg-muted`, texto `text-[10px]` — mantém o look minimalista.
 
-### 2) Mockup do Instagram — sempre dentro do iPhone
+### Detalhes técnicos
 
-Em `src/components/presentation/PresentationView.tsx`, no componente `InstagramPreview`:
+**Componente reutilizável** novo: `src/components/AssigneeAvatar.tsx`
+```tsx
+type Props = { name?: string | null; url?: string | null; size?: number; className?: string };
+// Renderiza <Avatar> circular com AvatarImage(url) + AvatarFallback(iniciais)
+```
+Usado tanto no `SelectValue` (trigger) quanto em cada `SelectItem`.
 
-- **Manter sempre o frame do iPhone** (já existe), tanto para `feed_only` quanto para `full_profile`.
-- Refinar o frame para ficar fiel à imagem de referência (iPhone branco, bordas finas, notch, botões laterais, home indicator) — já está praticamente assim, só ajustes finos:
-  - Garantir proporção do corpo do iPhone (~9:19).
-  - Preservar exatamente a aparência da referência (cores, raios de borda, sombras).
-- **Comportamento sem personalização:** quando o editor escolher `feed_only` ou não preencher dados de perfil, o iPhone exibe apenas o grid do feed centralizado dentro da tela do aparelho (sem header de perfil), exatamente como na imagem de referência enviada.
-- Não há mais opção de renderizar o feed "solto" — o iPhone é obrigatório nos dois modos.
+**MyTasks.tsx**
+- Já carrega `members: Profile[]` com `avatar_url`. Adicionar `<AssigneeAvatar>` antes do nome em cada `SelectItem`.
+- Para "Eu mesmo": buscar avatar do próprio user. Já existe `profiles` carregado; incluir o user atual via `members.find(m => m.id === user.id)` ou puxar do `AuthContext` (adicionar `avatarUrl` ao contexto — alternativa mais simples: incluir o próprio user em `members` no fetch).
+- Trigger: substituir `<User className="h-4 w-4" />` por `<AssigneeAvatar>` do membro selecionado.
 
-### Arquivos
+**TaskCalendar.tsx**
+- `assigneeOptions.list` precisa expor `avatar_url` (hoje só tem `id` e `name`). Ajustar o `useMemo` que monta a lista para incluir o `avatar_url` do profile do assignee.
+- Renderizar `<AssigneeAvatar>` em cada `SelectItem`.
+- "Todos os responsáveis" / "Sem responsável" / "Nomes livres": círculo com ícone neutro / iniciais.
 
-| Arquivo | Mudança |
-|---|---|
-| `supabase` migration | `handle_new_user()` passa a gravar `avatar_url` do OAuth |
-| `src/pages/Profile.tsx` | Novo bloco de foto de perfil com upload + crop circular |
-| `src/components/presentation/PresentationView.tsx` | Garante iPhone sempre presente; ajustes finos no frame |
+**KanbanBoard.tsx**
+- `members` já tem `profiles.avatar_url`. Adicionar `<AssigneeAvatar url={p?.avatar_url} name={name} />` no `SelectItem`.
+- "Todos" / "Sem responsável": círculo neutro.
+
+**AuthContext.tsx**
+- Expor `avatarUrl` (do `profiles.avatar_url` já buscado) para uso no item "Eu mesmo" sem precisar refazer query.
 
 ### Não muda
 
-- Estrutura de dados de blocos (`layout`, `images`, `highlights`, `avatar_url` etc.).
-- Editor (`PresentationBuilder.tsx`) — já permite escolher entre `feed_only` e `full_profile`.
-- Login Google/Apple já está configurado via Lovable Cloud — só passa a aproveitar a foto que já vem nos metadados.
-- Componentes de equipe e tarefas — já consomem `avatar_url`.
+- Lógica de filtro, valores dos `Select`, RLS, dados.
+- Outros componentes que já usam `Avatar` (TaskDetail, AppSidebar etc.).
+- Estilo dos demais filtros (projeto, prioridade).
+
+### Resultado
+
+Os três seletores passam a mostrar a foto circular minimalista de cada usuário ao lado do nome — tanto no botão fechado quanto na lista aberta — alinhado ao padrão visual da plataforma.
 
