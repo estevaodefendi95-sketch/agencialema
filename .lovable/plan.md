@@ -1,51 +1,43 @@
 
 
-## Botões "+" rápidos para criar tarefas em cada visualização
+## Adicionar filtro de Empresa antes do Projeto em "Nova Tarefa"
 
-A página **Minhas Tarefas** já tem o botão "Nova Tarefa" no header e o diálogo completo. A ideia é adicionar **atalhos "+"** dentro de cada visualização (Cards/Kanban, Lista, Calendário) que abrem o **mesmo diálogo**, já com contexto pré-preenchido quando fizer sentido.
+No diálogo **Nova Tarefa** da aba *Minhas Tarefas*, o usuário hoje escolhe direto o projeto numa lista única (todos os projetos visíveis). Vamos adicionar um passo anterior — selecionar **Empresa** — e o select de Projeto passa a listar **somente os projetos daquela empresa**.
 
-### Onde colocar cada botão
+### Alterações em `src/pages/MyTasks.tsx`
 
-**1) Visão Cards (Kanban) — `MyTasks.tsx` ~linha 429**
-- Em cada coluna de status (`A Fazer`, `Em Andamento`, etc.), adicionar um botão `+` discreto no header da coluna, à direita do badge de contagem.
-- Ao clicar: abre o diálogo. Como não há "status inicial customizado" no formulário (o status hoje vem da primeira coluna do projeto), o botão `+` da coluna apenas abre o diálogo padrão. (Manter simples — não tentar forçar status pois o dialog não suporta hoje.)
+**1) Estado**
+- Adicionar `allCompanies: { id, name }[]` e `ntCompany: string`.
+- `allProjects` passa a guardar também `company_id` (já está sendo selecionado como `select("id, name")` — mudar para `select("id, name, company_id")`).
 
-**2) Visão Lista — `MyTasks.tsx` ~linha 497**
-- Adicionar uma linha/footer no final da tabela com botão `+ Adicionar tarefa` (estilo "ghost", largura total) que abre o diálogo.
-- Também colocar um botão `+` pequeno no canto superior direito do header da Card (ao lado do título da seção). Como a Card não tem header hoje, adicionar um header simples "Tarefas" + botão `+`.
+**2) Carregamento**
+- Novo `loadAllCompanies()`: `select("id, name").order("name")` na tabela `companies` (RLS já filtra por acesso do usuário).
+- Chamar `loadAllCompanies()` no mesmo `useEffect` que hoje chama `loadAllProjects()` quando `canEdit`.
 
-**3) Visão Calendário — `MyTasks.tsx` ~linha 539-580**
-- **Toolbar do calendário (header)**: adicionar botão `+` ao lado do "Hoje".
-- **Mês (`MonthGrid`)**: em cada célula de dia, mostrar um botão `+` minúsculo no canto superior direito (visível em hover) → abre o diálogo já com **prazo = aquele dia** (`ntDue` pré-preenchido).
-- **Semana (`WeekGrid`)**: mesmo padrão, botão `+` no header de cada coluna de dia → pré-preenche `ntDue`.
-- **Dia**: botão `+ Nova tarefa neste dia` no header do `Card` → pré-preenche `ntDue` com `cursor`.
-
-### Nova função utilitária
-
-```ts
-function openNewTaskDialog(prefillDate?: Date) {
-  if (prefillDate) setNtDue(format(prefillDate, "yyyy-MM-dd"));
-  setOpenNewTask(true);
-}
+**3) Layout do diálogo (`~linha 593`)**
+Antes do campo "Projeto", adicionar:
 ```
+Empresa *
+[Select] Selecione uma empresa...
+```
+- Ao trocar a empresa: `setNtProject("")` e `setNtAssignee("")` (limpa cascata).
+- Select de Projeto fica **desabilitado** enquanto não houver `ntCompany`, com placeholder "Escolha uma empresa primeiro".
+- Lista do select de Projeto: `allProjects.filter(p => p.company_id === ntCompany)`.
 
-Passar essa função para `MonthGrid` e `WeekGrid` como prop `onAddDay(day)`.
+**4) Reset ao fechar/criar**
+- Em `createTask` (sucesso) e ao cancelar: limpar `ntCompany` junto com os outros campos.
 
-### Restrições (regras já existentes)
-
-- Todos os botões `+` só aparecem se `canEdit` (mesma regra do botão do header).
-- Diálogo, RLS e fluxo de criação não mudam.
+**5) Validação**
+- Botão "Criar" desabilitado se faltar `ntCompany`, `ntProject` ou `ntTitle` (já tem os dois últimos).
 
 ### Não muda
 
-- Diálogo de criação atual permanece idêntico (mesmos campos: Projeto, Título, Descrição, Prioridade, Prazo, Responsável).
-- Não cria status customizado por coluna do Kanban (o status sempre vem da primeira coluna do projeto escolhido).
-- Comportamento de drag-and-drop, filtros, listagem.
+- Demais campos do diálogo (Título, Descrição, Prioridade, Prazo, Responsável).
+- Lógica de `project_columns` para definir status inicial.
+- RLS, schema e fluxo de `INSERT` em `tasks`.
+- Filtro de "Projeto" na toolbar de listagem (continua mostrando os projetos das tarefas atuais).
 
 ### Resultado
 
-O usuário poderá criar uma nova tarefa de qualquer ponto da tela:
-- **Kanban** → `+` por coluna
-- **Lista** → `+ Adicionar tarefa` no rodapé + `+` no header
-- **Calendário** → `+` por dia (com prazo já preenchido) + `+` no toolbar
+O diálogo "Nova Tarefa" terá agora dois selects encadeados — **Empresa → Projeto** — facilitando encontrar o projeto correto quando o usuário tem acesso a vários.
 
