@@ -249,16 +249,6 @@ export default function MyTasks() {
         {isAdmin && (
           <Select value={selectedUser} onValueChange={setSelectedUser}>
             <SelectTrigger className="w-[260px] gap-2">
-              {(() => {
-                const sm = members.find((m) => m.id === selectedUser);
-                return (
-                  <AssigneeAvatar
-                    url={sm?.avatar_url}
-                    name={sm?.nickname || sm?.full_name}
-                    placeholder={sm ? undefined : "user"}
-                  />
-                );
-              })()}
               <SelectValue placeholder="Ver tarefas de..." />
             </SelectTrigger>
             <SelectContent>
