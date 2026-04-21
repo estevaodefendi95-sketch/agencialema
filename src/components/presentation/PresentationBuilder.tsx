@@ -14,6 +14,7 @@ import { DragDropContext, Droppable, Draggable, type DropResult } from "@hello-p
 import { Plus, GripVertical, Trash2, Image as ImageIcon, Type, Smartphone, ListOrdered, Eye, ExternalLink, Copy, Heading, Upload } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
+import ImageCropper from "@/components/ImageCropper";
 
 type Presentation = {
   id: string;
@@ -187,6 +188,7 @@ export default function PresentationBuilder({ projectId, projectName }: { projec
   }
 
   const publicUrl = pres ? `${window.location.origin}/c/${pres.slug}` : "";
+  const internalPreviewUrl = `${window.location.origin}/projetos/${projectId}/apresentacao/preview`;
 
   function copyLink() {
     navigator.clipboard.writeText(publicUrl);
@@ -218,8 +220,8 @@ export default function PresentationBuilder({ projectId, projectName }: { projec
             <Switch checked={pres.released} onCheckedChange={(v) => patchPres({ released: v })} disabled={!canEdit} />
           </div>
           <div className="flex-1" />
-          <Button variant="outline" size="sm" onClick={() => window.open(publicUrl, "_blank")}>
-            <Eye className="h-4 w-4 mr-1.5" /> Pré-visualizar
+          <Button variant="outline" size="sm" onClick={() => window.open(internalPreviewUrl, "_blank")}>
+            <Eye className="h-4 w-4 mr-1.5" /> Pré-visualizar (equipe)
           </Button>
           {canShowLink && (
             <Button variant="default" size="sm" onClick={copyLink}>
@@ -349,21 +351,44 @@ function LogoField({ label, value, onChange, disabled, folder }: { label: string
 }
 
 function BlockEditor({ block, onChange, posts, onAddPost, onPatchPost, onRemovePost, disabled }: any) {
-  const [uploading, setUploading] = useState(false);
+  const [queue, setQueue] = useState<File[]>([]);
+  const [current, setCurrent] = useState<File | null>(null);
 
-  async function onUpload(e: React.ChangeEvent<HTMLInputElement>, multi = false) {
+  function handleFiles(e: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(e.target.files || []);
+    e.target.value = "";
     if (!files.length) return;
-    setUploading(true);
-    const urls: string[] = [];
-    for (const f of files) {
-      const u = await uploadImage(f, "presentations/media");
-      if (u) urls.push(u);
-    }
-    setUploading(false);
-    if (multi) onChange({ ...block.data, images: [...(block.data.images || []), ...urls] });
-    else onChange({ ...block.data, url: urls[0] });
+    setQueue(files.slice(1));
+    setCurrent(files[0]);
   }
+
+  function handleCropped(url: string, isMulti: boolean) {
+    if (isMulti) {
+      onChange({ ...block.data, images: [...(block.data.images || []), url] });
+    } else {
+      onChange({ ...block.data, url });
+    }
+    // Next file
+    if (queue.length > 0) {
+      const [next, ...rest] = queue;
+      setQueue(rest);
+      setCurrent(next);
+    } else {
+      setCurrent(null);
+    }
+  }
+
+  function cancelCrop() {
+    setCurrent(null);
+    setQueue([]);
+  }
+
+  // Determine aspect for each block type
+  const isInsta = block.block_type === "instagram_preview";
+  const isGallery = block.block_type === "gallery";
+  const isSingleImage = block.block_type === "image";
+  const aspect: number | "free" | "choice" = isInsta ? 1 : isGallery ? 1 : "choice";
+  const isMulti = isGallery || isInsta;
 
   if (block.block_type === "header") {
     return (
@@ -378,7 +403,7 @@ function BlockEditor({ block, onChange, posts, onAddPost, onPatchPost, onRemoveP
       <Textarea placeholder="Escreva aqui..." value={block.data.content || ""} onChange={(e) => onChange({ ...block.data, content: e.target.value })} rows={6} disabled={disabled} />
     );
   }
-  if (block.block_type === "image") {
+  if (isSingleImage) {
     return (
       <div className="space-y-2">
         {block.data.url ? (
@@ -388,20 +413,30 @@ function BlockEditor({ block, onChange, posts, onAddPost, onPatchPost, onRemoveP
         )}
         {!disabled && (
           <label className="cursor-pointer inline-block">
-            <Input type="file" accept="image/*" className="hidden" onChange={(e) => onUpload(e, false)} />
-            <Button asChild variant="outline" size="sm"><span><Upload className="h-3.5 w-3.5 mr-1.5" />{uploading ? "Enviando..." : "Enviar imagem"}</span></Button>
+            <Input type="file" accept="image/*" className="hidden" onChange={handleFiles} />
+            <Button asChild variant="outline" size="sm"><span><Upload className="h-3.5 w-3.5 mr-1.5" />Enviar e recortar</span></Button>
           </label>
         )}
         <Input placeholder="Legenda" value={block.data.caption || ""} onChange={(e) => onChange({ ...block.data, caption: e.target.value })} disabled={disabled} />
+        {current && (
+          <ImageCropper
+            file={current}
+            open
+            onClose={cancelCrop}
+            onCropped={(url) => handleCropped(url, false)}
+            aspect={aspect}
+            uploadPath={`presentations/media/${crypto.randomUUID()}.png`}
+          />
+        )}
       </div>
     );
   }
-  if (block.block_type === "gallery" || block.block_type === "instagram_preview") {
+  if (isGallery || isInsta) {
     const images: string[] = block.data.images || [];
-    const isInsta = block.block_type === "instagram_preview";
     return (
       <div className="space-y-3">
-        {isInsta && <p className="text-xs text-muted-foreground">As imagens serão exibidas como feed do Instagram em formato 1:1.</p>}
+        {isInsta && <p className="text-xs text-muted-foreground">As imagens serão exibidas como feed do Instagram em formato 1:1 (recorte obrigatório).</p>}
+        {isGallery && <p className="text-xs text-muted-foreground">Cada imagem será recortada em 1:1 para um layout consistente.</p>}
         <div className={cn("grid gap-2", isInsta ? "grid-cols-3 max-w-xs" : "grid-cols-3 sm:grid-cols-4")}>
           {images.map((url, i) => (
             <div key={i} className="relative aspect-square">
@@ -419,9 +454,19 @@ function BlockEditor({ block, onChange, posts, onAddPost, onPatchPost, onRemoveP
         </div>
         {!disabled && (
           <label className="cursor-pointer inline-block">
-            <Input type="file" accept="image/*" multiple className="hidden" onChange={(e) => onUpload(e, true)} />
-            <Button asChild variant="outline" size="sm"><span><Upload className="h-3.5 w-3.5 mr-1.5" />{uploading ? "Enviando..." : "Adicionar imagens"}</span></Button>
+            <Input type="file" accept="image/*" multiple className="hidden" onChange={handleFiles} />
+            <Button asChild variant="outline" size="sm"><span><Upload className="h-3.5 w-3.5 mr-1.5" />Adicionar imagens</span></Button>
           </label>
+        )}
+        {current && (
+          <ImageCropper
+            file={current}
+            open
+            onClose={cancelCrop}
+            onCropped={(url) => handleCropped(url, true)}
+            aspect={aspect}
+            uploadPath={`presentations/media/${crypto.randomUUID()}.png`}
+          />
         )}
       </div>
     );
@@ -445,30 +490,37 @@ function BlockEditor({ block, onChange, posts, onAddPost, onPatchPost, onRemoveP
 }
 
 function PostEditor({ post, onPatch, onRemove, disabled }: { post: Post; onPatch: (p: Partial<Post>) => void; onRemove: () => void; disabled?: boolean }) {
-  const [uploading, setUploading] = useState(false);
-  async function onUpload(e: React.ChangeEvent<HTMLInputElement>) {
+  const [pending, setPending] = useState<File | null>(null);
+  function onPick(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0];
-    if (!f) return;
-    setUploading(true);
-    const url = await uploadImage(f, "presentations/posts");
-    setUploading(false);
-    if (url) onPatch({ image_url: url });
+    e.target.value = "";
+    if (f) setPending(f);
   }
   return (
     <div className="border rounded-lg p-3 grid grid-cols-1 md:grid-cols-[120px_1fr_auto] gap-3">
       <div>
         {post.image_url ? (
-          <img src={post.image_url} alt="" className="aspect-square w-full object-cover rounded" />
+          <img src={post.image_url} alt="" className="aspect-[4/5] w-full object-cover rounded" />
         ) : (
-          <div className="aspect-square w-full border-2 border-dashed rounded flex items-center justify-center text-muted-foreground">
+          <div className="aspect-[4/5] w-full border-2 border-dashed rounded flex items-center justify-center text-muted-foreground">
             <ImageIcon className="h-5 w-5" />
           </div>
         )}
         {!disabled && (
           <label className="cursor-pointer block mt-1">
-            <Input type="file" accept="image/*" className="hidden" onChange={onUpload} />
-            <Button asChild variant="ghost" size="sm" className="w-full text-xs h-7"><span>{uploading ? "..." : "Enviar"}</span></Button>
+            <Input type="file" accept="image/*" className="hidden" onChange={onPick} />
+            <Button asChild variant="ghost" size="sm" className="w-full text-xs h-7"><span>Enviar e recortar</span></Button>
           </label>
+        )}
+        {pending && (
+          <ImageCropper
+            file={pending}
+            open
+            onClose={() => setPending(null)}
+            onCropped={(url) => { onPatch({ image_url: url }); setPending(null); }}
+            aspect={4 / 5}
+            uploadPath={`presentations/posts/${crypto.randomUUID()}.png`}
+          />
         )}
       </div>
       <div className="space-y-2">
