@@ -192,6 +192,12 @@ export default function MyTasks() {
     if (selectedUser) loadTasks(selectedUser);
   }
 
+  function openNewTaskDialog(prefillDate?: Date) {
+    if (prefillDate) setNtDue(format(prefillDate, "yyyy-MM-dd"));
+    else setNtDue("");
+    setOpenNewTask(true);
+  }
+
   async function loadMembers() {
     const { data } = await supabase
       .from("profiles")
