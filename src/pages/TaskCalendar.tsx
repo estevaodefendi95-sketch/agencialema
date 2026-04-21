@@ -531,7 +531,7 @@ export default function TaskCalendar() {
           <SelectContent>
             <SelectItem value="all">
               <span className="flex items-center gap-2">
-                <AssigneeAvatar placeholder="all" />
+                <AssigneeAvatar url={avatarUrl} name={user?.email || "Eu"} />
                 Todos os responsáveis
               </span>
             </SelectItem>
