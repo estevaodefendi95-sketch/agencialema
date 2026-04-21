@@ -870,77 +870,101 @@ export default function KanbanBoard() {
                               <div
                                 ref={provided.innerRef}
                                 {...provided.draggableProps}
-                                className={`flex items-center gap-3 px-3 py-2 hover:bg-muted/50 cursor-pointer ${snapshot.isDragging ? "bg-muted shadow-lg" : ""}`}
+                                className={`hover:bg-muted/50 ${snapshot.isDragging ? "bg-muted shadow-lg" : ""}`}
                                 style={{
                                   ...provided.draggableProps.style,
                                   borderLeft: task.color ? `4px solid ${task.color}` : undefined,
                                 }}
                               >
-                                <div {...provided.dragHandleProps} className="cursor-grab shrink-0">
-                                  <GripVertical className="h-4 w-4 text-muted-foreground" />
-                                </div>
-                                {canEdit && (
-                                  <Popover>
-                                    <PopoverTrigger asChild>
-                                      <button className="h-3.5 w-3.5 rounded-full shrink-0 border border-border" style={{ backgroundColor: task.color || "transparent" }} />
-                                    </PopoverTrigger>
-                                    <PopoverContent className="w-auto p-2" align="start">
-                                      <div className="flex gap-1.5 items-center">
-                                        <button className="h-6 w-6 rounded-full border-2 border-dashed border-muted-foreground" onClick={() => saveTaskColor(task.id, null)} title="Sem cor" />
-                                        {COLOR_PALETTE.map((c) => (
-                                          <button key={c} className={`h-6 w-6 rounded-full border-2 ${task.color === c ? "border-foreground" : "border-transparent"}`} style={{ backgroundColor: c }} onClick={() => saveTaskColor(task.id, c)} />
-                                        ))}
-                                        <label className="h-6 w-6 rounded-full border-2 border-dashed border-muted-foreground flex items-center justify-center cursor-pointer" title="Cor personalizada">
-                                          <Pencil className="h-3 w-3 text-muted-foreground" />
-                                          <input type="color" className="sr-only" value={task.color || "#000000"} onChange={(e) => saveTaskColor(task.id, e.target.value)} />
-                                        </label>
-                                      </div>
-                                    </PopoverContent>
-                                  </Popover>
-                                )}
-                                <p
-                                  className="flex-1 text-sm font-medium truncate hover:text-primary min-w-0"
-                                  onClick={() => setSelectedTask(task.id)}
-                                >
-                                  {task.title}
-                                </p>
-                                {task.description && (
-                                  <span className="hidden md:block text-xs text-muted-foreground truncate max-w-[200px] shrink-0">
-                                    {task.description}
-                                  </span>
-                                )}
-                                {taskMedia[task.id] && (
-                                  <span className="flex items-center gap-0.5 text-xs text-muted-foreground shrink-0">
-                                    <ImageIcon className="h-3 w-3" />{taskMedia[task.id].count}
-                                  </span>
-                                )}
-                                {commentCounts[task.id] > 0 && (
-                                  <span className="flex items-center gap-0.5 text-xs text-muted-foreground shrink-0" title="Comentários">
-                                    <MessageSquare className="h-3 w-3" />{commentCounts[task.id]}
-                                  </span>
-                                )}
-                                <Badge className={`text-[10px] shrink-0 ${PRIORITY_COLORS[task.priority] || ""}`} variant="secondary">
-                                  {task.priority}
-                                </Badge>
-                                {task.due_date && (
-                                  <span className="flex items-center gap-1 text-xs text-muted-foreground shrink-0" onClick={() => setSelectedTask(task.id)}>
-                                    <Calendar className="h-3 w-3" />
-                                    {new Date(task.due_date).toLocaleDateString("pt-BR")}
-                                  </span>
-                                )}
-                                {(() => {
-                                  const a = getAssigneeDisplay(task);
-                                  if (!a) return null;
-                                  return (
-                                    <span className="flex items-center gap-1 shrink-0" title={a.name}>
-                                      <Avatar className="h-5 w-5">
-                                        <AvatarImage src={a.avatarUrl || ""} />
-                                        <AvatarFallback className="text-[9px]">{a.initial}</AvatarFallback>
-                                      </Avatar>
-                                      <span className="text-xs text-muted-foreground truncate max-w-[80px]">{a.name}</span>
+                                <div className="flex items-center gap-3 px-3 py-2 cursor-pointer">
+                                  <div {...provided.dragHandleProps} className="cursor-grab shrink-0">
+                                    <GripVertical className="h-4 w-4 text-muted-foreground" />
+                                  </div>
+                                  {canEdit && (
+                                    <Popover>
+                                      <PopoverTrigger asChild>
+                                        <button className="h-3.5 w-3.5 rounded-full shrink-0 border border-border" style={{ backgroundColor: task.color || "transparent" }} />
+                                      </PopoverTrigger>
+                                      <PopoverContent className="w-auto p-2" align="start">
+                                        <div className="flex gap-1.5 items-center">
+                                          <button className="h-6 w-6 rounded-full border-2 border-dashed border-muted-foreground" onClick={() => saveTaskColor(task.id, null)} title="Sem cor" />
+                                          {COLOR_PALETTE.map((c) => (
+                                            <button key={c} className={`h-6 w-6 rounded-full border-2 ${task.color === c ? "border-foreground" : "border-transparent"}`} style={{ backgroundColor: c }} onClick={() => saveTaskColor(task.id, c)} />
+                                          ))}
+                                          <label className="h-6 w-6 rounded-full border-2 border-dashed border-muted-foreground flex items-center justify-center cursor-pointer" title="Cor personalizada">
+                                            <Pencil className="h-3 w-3 text-muted-foreground" />
+                                            <input type="color" className="sr-only" value={task.color || "#000000"} onChange={(e) => saveTaskColor(task.id, e.target.value)} />
+                                          </label>
+                                        </div>
+                                      </PopoverContent>
+                                    </Popover>
+                                  )}
+                                  <p
+                                    className="flex-1 text-sm font-medium truncate hover:text-primary min-w-0"
+                                    onClick={() => setSelectedTask(task.id)}
+                                  >
+                                    {task.title}
+                                  </p>
+                                  {task.description && (
+                                    <span className="hidden md:block text-xs text-muted-foreground truncate max-w-[200px] shrink-0">
+                                      {task.description}
                                     </span>
-                                  );
-                                })()}
+                                  )}
+                                  {taskMedia[task.id] && (
+                                    <button
+                                      type="button"
+                                      onClick={(e) => { e.stopPropagation(); toggleMediaVisible(task.id); }}
+                                      className="flex items-center gap-0.5 text-xs text-muted-foreground shrink-0 hover:text-foreground"
+                                      title={visibleMedia[task.id] ? "Ocultar mídia" : "Mostrar mídia"}
+                                    >
+                                      {visibleMedia[task.id] ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
+                                      <ImageIcon className="h-3 w-3" />{taskMedia[task.id].count}
+                                    </button>
+                                  )}
+                                  {commentCounts[task.id] > 0 && (
+                                    <span className="flex items-center gap-0.5 text-xs text-muted-foreground shrink-0" title="Comentários">
+                                      <MessageSquare className="h-3 w-3" />{commentCounts[task.id]}
+                                    </span>
+                                  )}
+                                  <Badge className={`text-[10px] shrink-0 ${PRIORITY_COLORS[task.priority] || ""}`} variant="secondary">
+                                    {task.priority}
+                                  </Badge>
+                                  {task.due_date && (
+                                    <span className="flex items-center gap-1 text-xs text-muted-foreground shrink-0" onClick={() => setSelectedTask(task.id)}>
+                                      <Calendar className="h-3 w-3" />
+                                      {new Date(task.due_date).toLocaleDateString("pt-BR")}
+                                    </span>
+                                  )}
+                                  {(() => {
+                                    const a = getAssigneeDisplay(task);
+                                    if (!a) return null;
+                                    return (
+                                      <span className="flex items-center gap-1 shrink-0" title={a.name}>
+                                        <Avatar className="h-5 w-5">
+                                          <AvatarImage src={a.avatarUrl || ""} />
+                                          <AvatarFallback className="text-[9px]">{a.initial}</AvatarFallback>
+                                        </Avatar>
+                                        <span className="text-xs text-muted-foreground truncate max-w-[80px]">{a.name}</span>
+                                      </span>
+                                    );
+                                  })()}
+                                </div>
+                                {taskMedia[task.id] && visibleMedia[task.id] && (
+                                  <div className="px-3 pb-2">
+                                    {taskMedia[task.id].file_type === "video" ? (
+                                      <div className="h-20 w-32 bg-muted rounded flex items-center justify-center">
+                                        <Play className="h-6 w-6 text-muted-foreground" />
+                                      </div>
+                                    ) : (
+                                      <img
+                                        src={taskMedia[task.id].file_url}
+                                        alt=""
+                                        className="h-20 w-32 object-cover rounded cursor-pointer"
+                                        onClick={() => setSelectedTask(task.id)}
+                                      />
+                                    )}
+                                  </div>
+                                )}
                               </div>
                             )}
                           </Draggable>
