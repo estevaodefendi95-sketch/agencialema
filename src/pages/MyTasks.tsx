@@ -545,6 +545,14 @@ export default function MyTasks() {
                       <Badge variant="secondary" className="text-[11px] w-fit">{STATUS_COLUMNS.find(s => s.slug === t.status)?.label || t.status}</Badge>
                     </div>
                   ))}
+                  {canEdit && (
+                    <button
+                      onClick={() => openNewTaskDialog()}
+                      className="w-full px-4 py-3 text-sm text-muted-foreground hover:bg-accent/40 hover:text-foreground flex items-center justify-center gap-2 transition-colors"
+                    >
+                      <Plus className="h-4 w-4" /> Adicionar tarefa
+                    </button>
+                  )}
                 </div>
               </CardContent>
             </Card>
