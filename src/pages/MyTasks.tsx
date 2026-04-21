@@ -14,8 +14,11 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
 import { DragDropContext, Droppable, Draggable, type DropResult } from "@hello-pangea/dnd";
-import { LayoutGrid, List, CalendarDays, FolderKanban, ChevronLeft, ChevronRight, Filter, CheckSquare, User } from "lucide-react";
+import { LayoutGrid, List, CalendarDays, FolderKanban, ChevronLeft, ChevronRight, Filter, CheckSquare, User, Plus } from "lucide-react";
 import { AssigneeAvatar } from "@/components/AssigneeAvatar";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import {
   format, isSameDay, isSameMonth, isToday, startOfMonth, endOfMonth,
@@ -82,6 +85,19 @@ export default function MyTasks() {
   const [projectFilter, setProjectFilter] = useState<string>("all");
   const [priorityFilter, setPriorityFilter] = useState<string>("all");
   const [dueFilter, setDueFilter] = useState<string>("all");
+
+  // Nova tarefa
+  const { canEdit } = useAuth();
+  const [allProjects, setAllProjects] = useState<{ id: string; name: string }[]>([]);
+  const [projectMembers, setProjectMembers] = useState<Profile[]>([]);
+  const [openNewTask, setOpenNewTask] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [ntProject, setNtProject] = useState<string>("");
+  const [ntTitle, setNtTitle] = useState("");
+  const [ntDesc, setNtDesc] = useState("");
+  const [ntPriority, setNtPriority] = useState<"baixa" | "media" | "alta" | "urgente">("media");
+  const [ntDue, setNtDue] = useState("");
+  const [ntAssignee, setNtAssignee] = useState<string>("");
 
   const changeView = (v: ViewMode) => {
     if (!v) return;
