@@ -200,46 +200,53 @@ function InstagramPreview({ data }: { data: any }) {
                 </span>
               </div>
 
-              {isFull && (
-                <ProfileHeader
-                  username={data?.username || "yourname"}
-                  displayName={data?.display_name}
-                  bio={data?.bio}
-                  avatarUrl={data?.avatar_url}
-                  postsCount={data?.posts_count}
-                  followersCount={data?.followers_count}
-                  followingCount={data?.following_count}
-                  highlights={highlights}
-                />
-              )}
-
-              {/* Feed grid */}
-              {!isFull && (
-                <div className="flex items-center justify-around border-b border-neutral-200 py-1.5 px-3 text-neutral-400 text-xs">
-                  <span className="text-neutral-900">▦</span>
-                  <span>▷</span>
-                  <span>👤</span>
-                </div>
-              )}
-              <div className="grid grid-cols-3 gap-px bg-neutral-200 pb-6">
-                {images.length === 0 ? (
-                  <div className="col-span-3 aspect-[3/4] flex items-center justify-center text-neutral-400 p-6 text-sm text-center bg-white">
-                    Sem imagens no feed
-                  </div>
-                ) : (
-                  images.map((url, i) => (
-                    <img
-                      key={i}
-                      src={url}
-                      alt=""
-                      className="aspect-square w-full object-cover bg-neutral-100"
-                    />
-                  ))
+              {/* Scrollable content area */}
+              <div className="flex-1 overflow-y-auto scrollbar-none">
+                {isFull && (
+                  <ProfileHeader
+                    username={data?.username || "yourname"}
+                    displayName={data?.display_name}
+                    bio={data?.bio}
+                    avatarUrl={data?.avatar_url}
+                    postsCount={data?.posts_count}
+                    followersCount={data?.followers_count}
+                    followingCount={data?.following_count}
+                    highlights={highlights}
+                  />
                 )}
+
+                {/* Feed-only top tabs */}
+                {!isFull && (
+                  <div className="flex items-center justify-around border-b border-neutral-200 py-1.5 px-3 text-neutral-400 text-xs">
+                    <span className="text-neutral-900">▦</span>
+                    <span>▷</span>
+                    <span>👤</span>
+                  </div>
+                )}
+
+                {/* Feed grid */}
+                <div className="grid grid-cols-3 gap-px bg-neutral-200">
+                  {images.length === 0 ? (
+                    <div className="col-span-3 aspect-[3/4] flex items-center justify-center text-neutral-400 p-6 text-sm text-center bg-white">
+                      Sem imagens no feed
+                    </div>
+                  ) : (
+                    images.map((url, i) => (
+                      <img
+                        key={i}
+                        src={url}
+                        alt=""
+                        className="aspect-square w-full object-cover bg-neutral-100"
+                      />
+                    ))
+                  )}
+                </div>
               </div>
 
               {/* Home indicator */}
-              <div className="absolute bottom-1.5 left-1/2 -translate-x-1/2 w-[90px] h-[3px] rounded-full bg-neutral-900" />
+              <div className="shrink-0 flex justify-center py-2">
+                <div className="w-[100px] h-[4px] rounded-full bg-neutral-900" />
+              </div>
             </div>
           </div>
         </div>
