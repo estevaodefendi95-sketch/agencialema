@@ -252,22 +252,18 @@ export default function MyTasks() {
               <SelectValue placeholder="Ver tarefas de..." />
             </SelectTrigger>
             <SelectContent>
-              {user && (
-                <SelectItem value={user.id}>
-                  <span className="flex items-center gap-2">
-                    {(() => {
-                      const me = members.find((m) => m.id === user.id);
-                      return (
-                        <AssigneeAvatar
-                          url={me?.avatar_url}
-                          name={me?.nickname || me?.full_name || "Eu"}
-                        />
-                      );
-                    })()}
-                    Eu mesmo
-                  </span>
-                </SelectItem>
-              )}
+              {user && (() => {
+                const me = members.find((m) => m.id === user.id);
+                const myName = me?.nickname || me?.full_name || "Eu";
+                return (
+                  <SelectItem value={user.id}>
+                    <span className="flex items-center gap-2">
+                      <AssigneeAvatar url={me?.avatar_url} name={myName} />
+                      {myName}
+                    </span>
+                  </SelectItem>
+                );
+              })()}
               {members.filter((m) => m.id !== user?.id).map((m) => (
                 <SelectItem key={m.id} value={m.id}>
                   <span className="flex items-center gap-2">
