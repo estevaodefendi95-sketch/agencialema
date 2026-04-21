@@ -21,6 +21,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { Checkbox } from "@/components/ui/checkbox";
 import TaskDetail from "@/components/TaskDetail";
 import PrintProjectView from "@/components/PrintProjectView";
+import PresentationBuilder from "@/components/presentation/PresentationBuilder";
 import { useAppSettings } from "@/hooks/useAppSettings";
 
 const COLOR_PALETTE = [
@@ -139,9 +140,9 @@ export default function KanbanBoard() {
   const [editColumnLabel, setEditColumnLabel] = useState("");
   const [deleteColumnId, setDeleteColumnId] = useState<string | null>(null);
 
-  const [viewMode, setViewMode] = useState<"kanban" | "lista">(() => {
+  const [viewMode, setViewMode] = useState<"kanban" | "lista" | "apresentacao">(() => {
     if (!projectId) return "kanban";
-    return (localStorage.getItem(`view-mode-${projectId}`) as "kanban" | "lista") || "kanban";
+    return (localStorage.getItem(`view-mode-${projectId}`) as "kanban" | "lista" | "apresentacao") || "kanban";
   });
   const [sortPrazo, setSortPrazo] = useState<"asc" | "desc">(() =>
     (localStorage.getItem(`sort-prazo-${projectId}`) as "asc" | "desc") || "asc"
