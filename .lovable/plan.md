@@ -1,150 +1,70 @@
 
 
-## Visão geral
+## Melhorias na Apresentação ao Cliente
 
-Vou implementar **3 grandes módulos** complementares ao app atual:
+Quatro ajustes focados no builder e na landing pública:
 
-1. **Minhas Tarefas** — visão pessoal cross-project (Kanban / Lista / Calendário) com filtros e drag-and-drop.
-2. **Apresentação ao Cliente** — aba dentro de cada projeto com builder de blocos (texto, imagens, preview Instagram, planejamento de posts).
-3. **Landing Page pública do cliente** — rota externa por projeto, liberada manualmente pela equipe, sem login.
+### 1) Recorte/enquadramento de imagens no upload
 
-Vou aproveitar o que já existe: tabela `tasks` (com `assigned_to`, `priority`, `status`, `due_date`, `project_id`), bucket `attachments`, sistema de roles (`admin`/`editor`/`visualizador`/`cliente`), e os componentes Kanban/Calendar já construídos.
+Hoje as imagens vão direto pro storage no formato original. Vou reaproveitar o `ImageCropper` (já existe em `src/components/ImageCropper.tsx`, baseado em `react-image-crop`) e plugá-lo nos uploads do builder de apresentação.
 
----
+- **Imagens de bloco "Imagem"** → cropper livre com proporção opcional (16:9, 4:3, 1:1, livre — toggle no topo do cropper).
+- **Galeria** → cropper aplicado uma imagem por vez (fila), proporção 1:1 padrão (altera para livre se o usuário quiser).
+- **Preview Instagram** → **força 1:1** (sem opção), garantindo feed alinhado.
+- **Posts do planejamento** (campo `image_url` do `presentation_posts`) → cropper 4:5 (formato retrato típico de feed).
+- **Logos (cliente/agência)** → mantêm upload direto (logo geralmente vem pronto), mas com `object-contain` melhor enquadrado.
 
-## 1) Minhas Tarefas (`/minhas-tarefas`)
+Vou estender o `ImageCropper` para aceitar `aspect?: number | "free"` em vez de só circular/1:1, e devolver a imagem recortada via callback (usando o mesmo fluxo de upload já existente em `uploadImage`).
 
-### Rota e navegação
-- Nova rota `/minhas-tarefas` em `App.tsx`.
-- Novo item no `AppSidebar` na seção **Principal**: "Minhas Tarefas" (ícone `CheckSquare`), abaixo de Dashboard.
+### 2) Mockup Instagram — só o feed
 
-### Página `src/pages/MyTasks.tsx`
-Carrega `tasks` com join leve em `projects(id, name, company_id)` filtradas por `assigned_to = auth.uid()`.
+No `ClientLanding.tsx`, o componente `InstagramPreview` hoje mostra notch + status bar + header com avatar `@cliente`. Vou simplificar:
 
-**Filtro de usuário (admin)**: se `isAdmin`, mostra um `Select` no topo "Ver tarefas de:" listando todos os profiles aprovados. Padrão = eu mesmo. Usuários comuns não veem o seletor.
+- Remover o header com `@cliente`, o avatar gradiente e a status bar.
+- Manter só o **frame do iPhone** (bordas arredondadas, sombra) com o **grid 3×N do feed** ocupando todo o interior.
+- Título da seção continua: "Preview do Feed".
+- Mesmo ajuste no preview do builder, se houver renderização espelhada.
 
-**Toolbar**:
-- ToggleGroup: **Cards** | **Lista** | **Calendário** (persiste em `localStorage` `mytasks-view`).
-- Filtros: Projeto (Select multi), Prioridade (baixa/média/alta/urgente), Prazo (Hoje / Esta semana / Atrasadas / Sem data / Todas).
-- Botão "Marcar concluída" disponível inline em cada item (checkbox que muda `status` para `concluido`).
+### 3) Landing pública premium
 
-**Visualizações**:
-- **Cards (Kanban)**: 4 colunas fixas por status (`a_fazer`, `em_andamento`, `em_revisao`, `concluido`). Drag-and-drop entre colunas atualiza `status` da task (mesmo padrão do `KanbanBoard` atual usando `@hello-pangea/dnd`). Cada card mostra título, projeto (badge), prioridade (dot colorido), data, descrição truncada.
-- **Lista**: tabela densa com colunas Título / Projeto / Status / Prioridade / Prazo / ✓. Clicar abre o `TaskDetail` modal já existente.
-- **Calendário**: reusa os componentes `MonthView`/`WeekView`/`DayView` já criados em `TaskCalendar.tsx` — vou extrair para `src/components/calendar/` para compartilhar.
+Refinar `src/pages/ClientLanding.tsx` para ficar com cara de apresentação de agência:
 
-### Permissões (RLS já cobre)
-A policy "Users view their tasks" usa `has_company_access`, então um admin que tem acesso a todas as empresas naturalmente vê todas as tarefas. Vou apenas filtrar no client-side por `assigned_to` selecionado.
+- **Hero**: full-bleed com gradiente sutil, logos no topo bem alinhados (cliente esquerda alta, agência canto), título em escala maior (`text-5xl md:text-7xl`), descrição com `max-w-2xl` e fonte mais leve. Animação de entrada (fade-up).
+- **Tipografia**: hierarquia clara (h1/h2/h3), mais respiro vertical (`py-24 md:py-32` entre seções), separadores discretos.
+- **Blocos de imagem**: bordas arredondadas maiores (`rounded-2xl`), sombras suaves, legendas em itálico centralizadas.
+- **Galerias**: masonry/grid responsivo com hover sutil (zoom 1.02).
+- **Mockup Instagram**: centralizado, com glow sutil atrás (gradiente colorido borrado), conforme item 2.
+- **Planejamento de Postagens**: cards com layout maior (imagem 1:3 do card no desktop), data como pílula colorida, copy formatada com line-height generoso, hover eleva o card.
+- **Footer**: marca da agência (logo pequena) + ano + frase discreta.
+- **Detalhes**: scroll-smooth, micro-animações de entrada via `IntersectionObserver` (classes Tailwind `animate-fade-in` se já existirem; senão CSS inline).
+- Totalmente responsivo (mobile-first), respeita `prefers-reduced-motion`.
 
----
+### 4) Preview interno da equipe (mesmo sem publicar)
 
-## 2) Aba "Apresentação ao Cliente" no projeto
+Hoje o botão "Pré-visualizar" no builder abre `/c/:slug`, que faz a query filtrando `status='publicado' AND released=true` — então rascunhos não aparecem.
 
-### UI
-Dentro de `KanbanBoard.tsx` (página do projeto) já existem abas (Kanban/Lista). Vou adicionar uma terceira aba **"Apresentação ao Cliente"** que renderiza um novo componente `ProjectPresentationBuilder`.
+Vou criar uma rota interna:
 
-### Componente Builder (`src/components/presentation/`)
-- **PresentationBuilder.tsx** — container com lista vertical de blocos editáveis + barra "Adicionar bloco".
-- Tipos de bloco (`block_type`):
-  - `header` — logo cliente + logo agência + título
-  - `text` — texto rico simples (textarea com markdown leve)
-  - `image` — upload único, alt, legenda
-  - `gallery` — múltiplas imagens em grid
-  - `instagram_preview` — mockup iPhone com feed (seção 3.2)
-  - `posts_plan` — lista de posts (seção 3.3)
-- Cada bloco: drag handle (reordenar via `@hello-pangea/dnd`), botão editar (abre painel lateral), botão deletar.
-- Toolbar superior: **Status** (`rascunho` / `publicado`), **Visualizar** (preview da landing), **Copiar link público** (visível só se publicado E liberado).
+- **Rota**: `/projetos/:projectId/apresentacao/preview` (dentro do `RequireAuth` + `AppLayout`, ou em layout limpo — limpo é melhor para realmente simular a apresentação). Vou usar layout limpo (sem sidebar) com um banner fixo no topo "Modo Preview — não publicado" + botão "Voltar ao editor".
+- **Página**: `src/pages/PresentationPreview.tsx` — reusa exatamente o mesmo componente de renderização da landing (vou extrair o conteúdo de `ClientLanding.tsx` para um componente `<PresentationView pres blocks posts />` e ambas as páginas o usam).
+- **Carregamento**: usa Supabase autenticado, busca por `project_id` (RLS já permite equipe via `Approved users view presentations`). Sem filtro de status/released.
+- **Botão "Pré-visualizar"** no builder muda para abrir essa rota interna em nova aba (sempre disponível, mesmo em rascunho). O botão "Copiar link público" continua só visível quando publicado+liberado.
 
-### Persistência
-Salvamento automático (debounce 800ms) na tabela `project_presentations` (ver migrations).
-
----
-
-## 3) Landing Page pública do cliente
-
-### Rota pública
-- `/c/:slug` em `App.tsx`, **fora** do `RequireAuth` e do `AppLayout` (sem sidebar).
-- Componente `src/pages/ClientLanding.tsx`.
-- Lê `project_presentations` por slug usando o cliente Supabase normal — RLS abaixo libera SELECT público apenas quando `status = 'publicado' AND released = true`.
-
-### Layout da landing
-1. **Hero** — logo cliente (esquerda) + logo agência (direita) + descrição do projeto/campanha. Tipografia grande, fundo limpo.
-2. **Preview Instagram** — mockup iPhone CSS (frame arredondado, notch, status bar) com grid 3-col simulando feed; suporta clicar em cada post pra abrir lightbox.
-3. **Planejamento de Postagens** — lista responsiva (cards no mobile, tabela rica no desktop): thumb da arte, título, data formatada (`dd/MM/yyyy`), copy com "ver mais".
-4. Rodapé discreto "Apresentado por {agência}".
-
-Ambiente visual premium: gradientes sutis, animações de entrada (fade/slide), totalmente responsivo.
-
----
-
-## 4) Mudanças no banco (migrations)
-
-```sql
--- Apresentação por projeto
-create table public.project_presentations (
-  id uuid primary key default gen_random_uuid(),
-  project_id uuid not null unique,
-  slug text not null unique,                -- usado em /c/:slug
-  status text not null default 'rascunho',  -- rascunho | publicado
-  released boolean not null default false,  -- liberação manual da equipe
-  client_logo_url text,
-  agency_logo_url text,
-  hero_title text,
-  hero_description text,
-  theme jsonb default '{}'::jsonb,
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-
--- Blocos ordenados
-create table public.presentation_blocks (
-  id uuid primary key default gen_random_uuid(),
-  presentation_id uuid not null,
-  block_type text not null,   -- header | text | image | gallery | instagram_preview | posts_plan
-  position integer not null default 0,
-  data jsonb not null default '{}'::jsonb,
-  created_at timestamptz not null default now()
-);
-
--- Posts planejados (seção 3 da landing)
-create table public.presentation_posts (
-  id uuid primary key default gen_random_uuid(),
-  presentation_id uuid not null,
-  position integer not null default 0,
-  image_url text,
-  title text,
-  publish_date date,
-  copy text,
-  created_at timestamptz not null default now()
-);
-```
-
-**RLS** (resumo):
-- Equipe (admin/editor) com `has_company_access` no projeto: ALL.
-- Visualizador aprovado com acesso à empresa: SELECT.
-- **Público anônimo**: SELECT em `project_presentations` somente quando `status='publicado' AND released=true`; mesma regra em cascata para `presentation_blocks` e `presentation_posts` via EXISTS.
-
----
-
-## 5) Arquivos
+### Arquivos
 
 | Arquivo | Mudança |
 |---|---|
-| `src/App.tsx` | Rotas `/minhas-tarefas` e pública `/c/:slug` |
-| `src/components/AppSidebar.tsx` | Item "Minhas Tarefas" em Principal |
-| `src/pages/MyTasks.tsx` | **Novo** — 3 visões + filtros + admin user-picker |
-| `src/components/calendar/{MonthView,WeekView,DayView}.tsx` | **Novo** — extraídos de `TaskCalendar` para reutilizar |
-| `src/pages/TaskCalendar.tsx` | Refactor leve para usar os componentes extraídos |
-| `src/pages/KanbanBoard.tsx` | Aba "Apresentação ao Cliente" |
-| `src/components/presentation/PresentationBuilder.tsx` | **Novo** — editor de blocos |
-| `src/components/presentation/blocks/*.tsx` | **Novo** — um arquivo por tipo de bloco |
-| `src/pages/ClientLanding.tsx` | **Novo** — landing pública `/c/:slug` |
-| migrations SQL | Tabelas + RLS acima |
+| `src/components/ImageCropper.tsx` | Aceitar prop `aspect` (number ou "free") + toggle de proporção |
+| `src/components/presentation/PresentationBuilder.tsx` | Plugar cropper nos uploads (image, gallery, instagram_preview, posts), trocar destino do botão "Pré-visualizar" |
+| `src/components/presentation/PresentationView.tsx` | **Novo** — renderização compartilhada (extraído de ClientLanding) |
+| `src/pages/ClientLanding.tsx` | Usa `PresentationView`; layout premium refinado; mockup IG sem header |
+| `src/pages/PresentationPreview.tsx` | **Novo** — rota interna autenticada com banner "Preview" |
+| `src/App.tsx` | Rota `/projetos/:projectId/apresentacao/preview` |
 
----
+### Resultado
 
-## 6) Escopo intencionalmente fora desta entrega
-
-- **Integração real com API do Instagram**: o preview usa imagens manualmente inseridas (mockado), conforme permitido pelo brief ("mockado ou integrado via API"). Integração via Graph API fica como evolução.
-- **Hospedagem separada de frontend cliente**: a landing fica no mesmo domínio sob `/c/:slug` (rota pública sem layout interno). Domínio separado pode ser configurado depois via custom domain.
+- Equipe recorta cada imagem no upload, garantindo enquadramento consistente.
+- Mockup do Instagram fica limpo, só o feed.
+- Landing do cliente com visual de apresentação de agência (premium, espaçoso, animado).
+- Equipe vê a página exatamente como o cliente verá, mesmo antes de publicar.
 
