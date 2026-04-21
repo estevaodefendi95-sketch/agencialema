@@ -591,7 +591,7 @@ export default function TaskCalendar() {
           <Button variant="outline" size="icon" className="h-8 w-8" onClick={navPrev}>
             <ChevronLeft className="h-4 w-4" />
           </Button>
-          <span className="text-sm font-medium min-w-[200px] text-center capitalize">{periodLabel}</span>
+          <span className="text-sm font-medium min-w-[200px] text-center lowercase">{periodLabel}</span>
           <Button variant="outline" size="icon" className="h-8 w-8" onClick={navNext}>
             <ChevronRight className="h-4 w-4" />
           </Button>
