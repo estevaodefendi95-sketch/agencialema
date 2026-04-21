@@ -572,3 +572,155 @@ function PostEditor({ post, onPatch, onRemove, disabled }: { post: Post; onPatch
     </div>
   );
 }
+
+function ProfileFieldsEditor({
+  block,
+  onChange,
+  disabled,
+  highlights,
+}: {
+  block: any;
+  onChange: (data: any) => void;
+  disabled?: boolean;
+  highlights: { id: string; title: string; cover_url: string }[];
+}) {
+  const [avatarPending, setAvatarPending] = useState<File | null>(null);
+  const [highlightPending, setHighlightPending] = useState<{ id: string; file: File } | null>(null);
+
+  function patch(p: any) {
+    onChange({ ...block.data, ...p });
+  }
+  function addHighlight() {
+    const next = [...highlights, { id: crypto.randomUUID(), title: "Novo", cover_url: "" }];
+    patch({ highlights: next });
+  }
+  function patchHighlight(id: string, p: Partial<{ title: string; cover_url: string }>) {
+    patch({ highlights: highlights.map((h) => (h.id === id ? { ...h, ...p } : h)) });
+  }
+  function removeHighlight(id: string) {
+    patch({ highlights: highlights.filter((h) => h.id !== id) });
+  }
+
+  return (
+    <div className="space-y-3 pt-2 border-t">
+      <div className="flex items-start gap-3">
+        <div className="shrink-0">
+          {block.data.avatar_url ? (
+            <img src={block.data.avatar_url} alt="" className="h-16 w-16 rounded-full object-cover border" />
+          ) : (
+            <div className="h-16 w-16 rounded-full border-2 border-dashed flex items-center justify-center text-xs text-muted-foreground">Avatar</div>
+          )}
+          {!disabled && (
+            <label className="cursor-pointer block mt-1">
+              <Input
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  e.target.value = "";
+                  if (f) setAvatarPending(f);
+                }}
+              />
+              <Button asChild variant="ghost" size="sm" className="text-[10px] h-6 px-2 w-16"><span>Trocar</span></Button>
+            </label>
+          )}
+        </div>
+        <div className="flex-1 space-y-2">
+          <Input placeholder="@username" value={block.data.username || ""} onChange={(e) => patch({ username: e.target.value })} disabled={disabled} />
+          <Input placeholder="Nome de exibição" value={block.data.display_name || ""} onChange={(e) => patch({ display_name: e.target.value })} disabled={disabled} />
+        </div>
+      </div>
+      <Textarea placeholder="Bio (use quebras de linha)" value={block.data.bio || ""} onChange={(e) => patch({ bio: e.target.value })} rows={3} disabled={disabled} />
+      <div className="grid grid-cols-3 gap-2">
+        <div>
+          <Label className="text-[10px] text-muted-foreground">Posts</Label>
+          <Input placeholder="683" value={block.data.posts_count ?? ""} onChange={(e) => patch({ posts_count: e.target.value })} disabled={disabled} />
+        </div>
+        <div>
+          <Label className="text-[10px] text-muted-foreground">Followers</Label>
+          <Input placeholder="14,1 mil" value={block.data.followers_count ?? ""} onChange={(e) => patch({ followers_count: e.target.value })} disabled={disabled} />
+        </div>
+        <div>
+          <Label className="text-[10px] text-muted-foreground">Following</Label>
+          <Input placeholder="1 000" value={block.data.following_count ?? ""} onChange={(e) => patch({ following_count: e.target.value })} disabled={disabled} />
+        </div>
+      </div>
+
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <Label className="text-xs">Story Highlights</Label>
+          {!disabled && highlights.length < 8 && (
+            <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={addHighlight}>
+              <Plus className="h-3 w-3 mr-1" /> Adicionar
+            </Button>
+          )}
+        </div>
+        {highlights.length === 0 && <p className="text-[10px] text-muted-foreground">Nenhum destaque ainda.</p>}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          {highlights.map((h) => (
+            <div key={h.id} className="border rounded p-2 space-y-1.5">
+              <div className="flex justify-center">
+                {h.cover_url ? (
+                  <img src={h.cover_url} alt="" className="h-12 w-12 rounded-full object-cover border" />
+                ) : (
+                  <div className="h-12 w-12 rounded-full border-2 border-dashed flex items-center justify-center text-[9px] text-muted-foreground">Capa</div>
+                )}
+              </div>
+              <Input
+                placeholder="Título"
+                value={h.title}
+                onChange={(e) => patchHighlight(h.id, { title: e.target.value })}
+                disabled={disabled}
+                className="h-7 text-xs"
+              />
+              {!disabled && (
+                <div className="flex gap-1">
+                  <label className="cursor-pointer flex-1">
+                    <Input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        const f = e.target.files?.[0];
+                        e.target.value = "";
+                        if (f) setHighlightPending({ id: h.id, file: f });
+                      }}
+                    />
+                    <Button asChild variant="ghost" size="sm" className="w-full text-[10px] h-6"><span>Capa</span></Button>
+                  </label>
+                  <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => removeHighlight(h.id)}>
+                    <Trash2 className="h-3 w-3" />
+                  </Button>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {avatarPending && (
+        <ImageCropper
+          file={avatarPending}
+          open
+          onClose={() => setAvatarPending(null)}
+          onCropped={(url) => { patch({ avatar_url: url }); setAvatarPending(null); }}
+          aspect={1}
+          circular
+          uploadPath={`presentations/avatars/${crypto.randomUUID()}.png`}
+        />
+      )}
+      {highlightPending && (
+        <ImageCropper
+          file={highlightPending.file}
+          open
+          onClose={() => setHighlightPending(null)}
+          onCropped={(url) => { patchHighlight(highlightPending.id, { cover_url: url }); setHighlightPending(null); }}
+          aspect={1}
+          circular
+          uploadPath={`presentations/highlights/${crypto.randomUUID()}.png`}
+        />
+      )}
+    </div>
+  );
+}
