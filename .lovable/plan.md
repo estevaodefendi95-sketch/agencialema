@@ -1,40 +1,53 @@
 
-## Mockup do Instagram em formato de iPhone (igual referência)
 
-Hoje o `InstagramPreview` em `PresentationView.tsx` já usa um "frame" de iPhone, mas é estilizado (gradiente, glow, bordas grossas) e não bate com a referência enviada — que é um **iPhone branco simples, com notch, bordas finas pretas e botões laterais**, exatamente como nas duas imagens.
+## Foto de perfil + ajuste do mockup do iPhone
 
-Vou refazer o frame para replicar fielmente a referência, mantendo os dois layouts internos (`feed_only` e `full_profile`) já implementados.
+Dois ajustes pequenos e independentes.
 
-### Mudanças
+### 1) Foto de perfil do usuário
 
-**Arquivo único: `src/components/presentation/PresentationView.tsx`** (componente `InstagramPreview` / wrapper do iPhone)
+**Backend (migration):**
+- Atualizar a função `handle_new_user()` para também salvar `avatar_url` quando o provedor (Google/Apple) envia a foto:
+  ```sql
+  COALESCE(
+    NEW.raw_user_meta_data->>'avatar_url',
+    NEW.raw_user_meta_data->>'picture'
+  )
+  ```
+  Assim, ao logar pela primeira vez via Google ou Apple, a foto do provedor entra automaticamente no `profiles.avatar_url`. Email/senha continua sem foto (nulo).
 
-1. **Frame do iPhone realista**:
-   - Corpo branco (`bg-white`) com borda preta fina (≈ 2px) e cantos arredondados grandes (`rounded-[3rem]`).
-   - **Notch central** preto no topo (pílula horizontal com câmera + speaker).
-   - **Botões laterais** desenhados como pequenas barras pretas: volume (esquerda, 2 traços) e power (direita, 1 traço maior).
-   - **Indicador de home** (barra horizontal preta) na base.
-   - Sombra suave (`shadow-2xl`) em vez do glow gradiente atual.
-   - Remover o fundo gradiente colorido por trás — fundo neutro/transparente, igual à referência.
+**Frontend — `src/pages/Profile.tsx`:**
+- Adicionar bloco "Foto de perfil" no topo do card com:
+  - Preview circular (`Avatar`, 96px) usando `avatar_url` do profile, fallback nas iniciais do nome.
+  - Botão "Trocar foto" que abre o `<input type="file">` e em seguida o `ImageCropper` existente (`circular`, `aspect={1}`, upload em `avatars/{user.id}.png` no bucket `attachments`).
+  - Botão "Remover" quando já existir foto (seta `avatar_url` para `null`).
+- Carregar `avatar_url` no `useEffect` e atualizar o profile no banco quando o crop terminar.
 
-2. **Tela interna**:
-   - Fundo branco.
-   - Status bar simples no topo (hora à esquerda, ícones de sinal/wifi/bateria à direita) em cinza claro — igual à referência.
-   - Mantém o conteúdo já existente (`ProfileHeader` + grid para `full_profile`, ou só grid para `feed_only`).
+**Resultado:** a foto já aparece automaticamente em Equipe (`KanbanBoard`), Minhas Tarefas e detalhes de tarefa (`TaskDetail`) — esses já leem `avatar_url`.
 
-3. **Proporção**:
-   - Largura fixa (~280–300px) com aspect ratio de iPhone real (~9:19.5) para parecer um device de verdade, centralizado.
+### 2) Mockup do Instagram — sempre dentro do iPhone
 
-4. **Responsividade**:
-   - Em telas pequenas, o frame escala mantendo proporção (sem deformar).
+Em `src/components/presentation/PresentationView.tsx`, no componente `InstagramPreview`:
+
+- **Manter sempre o frame do iPhone** (já existe), tanto para `feed_only` quanto para `full_profile`.
+- Refinar o frame para ficar fiel à imagem de referência (iPhone branco, bordas finas, notch, botões laterais, home indicator) — já está praticamente assim, só ajustes finos:
+  - Garantir proporção do corpo do iPhone (~9:19).
+  - Preservar exatamente a aparência da referência (cores, raios de borda, sombras).
+- **Comportamento sem personalização:** quando o editor escolher `feed_only` ou não preencher dados de perfil, o iPhone exibe apenas o grid do feed centralizado dentro da tela do aparelho (sem header de perfil), exatamente como na imagem de referência enviada.
+- Não há mais opção de renderizar o feed "solto" — o iPhone é obrigatório nos dois modos.
+
+### Arquivos
+
+| Arquivo | Mudança |
+|---|---|
+| `supabase` migration | `handle_new_user()` passa a gravar `avatar_url` do OAuth |
+| `src/pages/Profile.tsx` | Novo bloco de foto de perfil com upload + crop circular |
+| `src/components/presentation/PresentationView.tsx` | Garante iPhone sempre presente; ajustes finos no frame |
 
 ### Não muda
 
-- Estrutura de dados do bloco (`layout`, `images`, `highlights`, etc.).
-- Editor (`PresentationBuilder.tsx`) — formato de edição permanece igual.
-- Lógica das duas variantes (`feed_only` vs `full_profile`).
-- Demais blocos da apresentação.
+- Estrutura de dados de blocos (`layout`, `images`, `highlights`, `avatar_url` etc.).
+- Editor (`PresentationBuilder.tsx`) — já permite escolher entre `feed_only` e `full_profile`.
+- Login Google/Apple já está configurado via Lovable Cloud — só passa a aproveitar a foto que já vem nos metadados.
+- Componentes de equipe e tarefas — já consomem `avatar_url`.
 
-### Resultado
-
-Preview do Instagram passa a parecer uma foto real de iPhone branco (como as duas imagens enviadas), elevando o padrão visual da apresentação ao cliente.
