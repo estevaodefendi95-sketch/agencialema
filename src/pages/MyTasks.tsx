@@ -582,6 +582,86 @@ export default function MyTasks() {
           )}
         </>
       )}
+
+      {/* Dialog: Nova Tarefa */}
+      <Dialog open={openNewTask} onOpenChange={setOpenNewTask}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Nova Tarefa</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <Label className="text-sm">Projeto *</Label>
+              <Select value={ntProject} onValueChange={(v) => { setNtProject(v); setNtAssignee(""); }}>
+                <SelectTrigger><SelectValue placeholder="Selecione um projeto..." /></SelectTrigger>
+                <SelectContent>
+                  {allProjects.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-sm">Título *</Label>
+              <Input value={ntTitle} onChange={(e) => setNtTitle(e.target.value)} placeholder="O que precisa ser feito?" />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-sm">Descrição</Label>
+              <Textarea value={ntDesc} onChange={(e) => setNtDesc(e.target.value)} rows={3} />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-sm">Prioridade</Label>
+                <Select value={ntPriority} onValueChange={(v) => setNtPriority(v as any)}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="baixa">Baixa</SelectItem>
+                    <SelectItem value="media">Média</SelectItem>
+                    <SelectItem value="alta">Alta</SelectItem>
+                    <SelectItem value="urgente">Urgente</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-sm">Prazo</Label>
+                <Input type="date" value={ntDue} onChange={(e) => setNtDue(e.target.value)} />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-sm">Responsável</Label>
+              <Select value={ntAssignee || (user?.id ?? "")} onValueChange={setNtAssignee} disabled={!ntProject}>
+                <SelectTrigger>
+                  <SelectValue placeholder={ntProject ? "Selecione" : "Escolha um projeto primeiro"} />
+                </SelectTrigger>
+                <SelectContent>
+                  {user && (
+                    <SelectItem value={user.id}>
+                      <span className="flex items-center gap-2">
+                        <AssigneeAvatar name="Eu" />
+                        Eu mesmo
+                      </span>
+                    </SelectItem>
+                  )}
+                  {projectMembers.filter((m) => m.id !== user?.id).map((m) => (
+                    <SelectItem key={m.id} value={m.id}>
+                      <span className="flex items-center gap-2">
+                        <AssigneeAvatar url={m.avatar_url} name={m.nickname || m.full_name} />
+                        {m.nickname || m.full_name || m.id.slice(0, 8)}
+                      </span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOpenNewTask(false)}>Cancelar</Button>
+            <Button onClick={createTask} disabled={!ntProject || !ntTitle.trim() || creating}>
+              {creating ? "Criando..." : "Criar"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
