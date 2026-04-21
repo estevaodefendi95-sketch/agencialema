@@ -490,30 +490,37 @@ function BlockEditor({ block, onChange, posts, onAddPost, onPatchPost, onRemoveP
 }
 
 function PostEditor({ post, onPatch, onRemove, disabled }: { post: Post; onPatch: (p: Partial<Post>) => void; onRemove: () => void; disabled?: boolean }) {
-  const [uploading, setUploading] = useState(false);
-  async function onUpload(e: React.ChangeEvent<HTMLInputElement>) {
+  const [pending, setPending] = useState<File | null>(null);
+  function onPick(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0];
-    if (!f) return;
-    setUploading(true);
-    const url = await uploadImage(f, "presentations/posts");
-    setUploading(false);
-    if (url) onPatch({ image_url: url });
+    e.target.value = "";
+    if (f) setPending(f);
   }
   return (
     <div className="border rounded-lg p-3 grid grid-cols-1 md:grid-cols-[120px_1fr_auto] gap-3">
       <div>
         {post.image_url ? (
-          <img src={post.image_url} alt="" className="aspect-square w-full object-cover rounded" />
+          <img src={post.image_url} alt="" className="aspect-[4/5] w-full object-cover rounded" />
         ) : (
-          <div className="aspect-square w-full border-2 border-dashed rounded flex items-center justify-center text-muted-foreground">
+          <div className="aspect-[4/5] w-full border-2 border-dashed rounded flex items-center justify-center text-muted-foreground">
             <ImageIcon className="h-5 w-5" />
           </div>
         )}
         {!disabled && (
           <label className="cursor-pointer block mt-1">
-            <Input type="file" accept="image/*" className="hidden" onChange={onUpload} />
-            <Button asChild variant="ghost" size="sm" className="w-full text-xs h-7"><span>{uploading ? "..." : "Enviar"}</span></Button>
+            <Input type="file" accept="image/*" className="hidden" onChange={onPick} />
+            <Button asChild variant="ghost" size="sm" className="w-full text-xs h-7"><span>Enviar e recortar</span></Button>
           </label>
+        )}
+        {pending && (
+          <ImageCropper
+            file={pending}
+            open
+            onClose={() => setPending(null)}
+            onCropped={(url) => { onPatch({ image_url: url }); setPending(null); }}
+            aspect={4 / 5}
+            uploadPath={`presentations/posts/${crypto.randomUUID()}.png`}
+          />
         )}
       </div>
       <div className="space-y-2">
