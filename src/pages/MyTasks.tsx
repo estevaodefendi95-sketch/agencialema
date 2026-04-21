@@ -87,10 +87,12 @@ export default function MyTasks() {
   const [dueFilter, setDueFilter] = useState<string>("all");
 
   // Nova tarefa
-  const [allProjects, setAllProjects] = useState<{ id: string; name: string }[]>([]);
+  const [allCompanies, setAllCompanies] = useState<{ id: string; name: string }[]>([]);
+  const [allProjects, setAllProjects] = useState<{ id: string; name: string; company_id: string }[]>([]);
   const [projectMembers, setProjectMembers] = useState<Profile[]>([]);
   const [openNewTask, setOpenNewTask] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [ntCompany, setNtCompany] = useState<string>("");
   const [ntProject, setNtProject] = useState<string>("");
   const [ntTitle, setNtTitle] = useState("");
   const [ntDesc, setNtDesc] = useState("");
