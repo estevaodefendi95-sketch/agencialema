@@ -18,6 +18,7 @@ import {
 } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 import { Calendar } from "@/components/ui/calendar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -69,6 +70,7 @@ const priorityLabel: Record<string, string> = {
 
 export default function TaskCalendar() {
   const navigate = useNavigate();
+  const { avatarUrl, user } = useAuth();
   const [tasks, setTasks] = useState<TaskWithRelations[]>([]);
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
   const [cursor, setCursor] = useState<Date>(new Date());
@@ -529,7 +531,7 @@ export default function TaskCalendar() {
           <SelectContent>
             <SelectItem value="all">
               <span className="flex items-center gap-2">
-                <AssigneeAvatar placeholder="all" />
+                <AssigneeAvatar url={avatarUrl} name={user?.email || "Eu"} />
                 Todos os responsáveis
               </span>
             </SelectItem>
