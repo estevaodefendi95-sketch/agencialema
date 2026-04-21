@@ -14,5 +14,6 @@ No seletor de "Ver tarefas de..." em **`src/pages/MyTasks.tsx`**, o item do pró
 ### Não muda
 
 - Demais membros já mostram apelido/full_name.
-- Título do header permanece igual.
-- Outros seletores não têm "Eu mesmo".
+- Título do header (`"Minhas tarefas"`) permanece igual.
+- Outros seletores (Calendário, Kanban) não têm "Eu mesmo".
+
