@@ -146,7 +146,7 @@ function BlockRender({ block, posts }: { block: Block; posts: Post[] }) {
     );
   }
   if (block.block_type === "instagram_preview") {
-    return <InstagramPreview images={block.data.images || []} />;
+    return <InstagramPreview data={block.data} />;
   }
   if (block.block_type === "posts_plan") {
     return <PostsPlanSection posts={posts} />;
