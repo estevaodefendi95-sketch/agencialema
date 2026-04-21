@@ -188,6 +188,7 @@ export default function PresentationBuilder({ projectId, projectName }: { projec
   }
 
   const publicUrl = pres ? `${window.location.origin}/c/${pres.slug}` : "";
+  const internalPreviewUrl = `${window.location.origin}/projetos/${projectId}/apresentacao/preview`;
 
   function copyLink() {
     navigator.clipboard.writeText(publicUrl);
