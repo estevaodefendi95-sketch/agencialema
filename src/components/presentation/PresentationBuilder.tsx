@@ -219,6 +219,10 @@ export default function PresentationBuilder({ projectId, projectName }: { projec
             <Label className="text-xs">Liberar para o cliente</Label>
             <Switch checked={pres.released} onCheckedChange={(v) => patchPres({ released: v })} disabled={!canEdit} />
           </div>
+          <p className="text-[11px] text-muted-foreground max-w-[280px] leading-snug">
+            O Status controla se a página existe; o toggle controla se o cliente pode acessá-la.{" "}
+            <strong className="font-medium">Os dois precisam estar em "Publicado" + ligado</strong> para o cliente ver a página.
+          </p>
           <div className="flex-1" />
           <Button variant="outline" size="sm" onClick={() => window.open(internalPreviewUrl, "_blank")}>
             <Eye className="h-4 w-4 mr-1.5" /> Pré-visualizar (equipe)
@@ -239,10 +243,12 @@ export default function PresentationBuilder({ projectId, projectName }: { projec
           <div className="md:col-span-2 space-y-1.5">
             <Label className="text-xs">Título</Label>
             <Input value={pres.hero_title || ""} onChange={(e) => patchPres({ hero_title: e.target.value })} disabled={!canEdit} />
+            <p className="text-[10px] text-muted-foreground text-right">{(pres.hero_title || "").length}/60 recomendado</p>
           </div>
           <div className="md:col-span-2 space-y-1.5">
             <Label className="text-xs">Descrição da campanha</Label>
             <Textarea value={pres.hero_description || ""} onChange={(e) => patchPres({ hero_description: e.target.value })} disabled={!canEdit} rows={3} />
+            <p className="text-[10px] text-muted-foreground text-right">{(pres.hero_description || "").length}/200 recomendado</p>
           </div>
         </CardContent>
       </Card>
@@ -330,9 +336,9 @@ function LogoField({ label, value, onChange, disabled, folder }: { label: string
       <Label className="text-xs">{label}</Label>
       <div className="flex items-center gap-3">
         {value ? (
-          <img src={value} alt={label} className="h-14 w-14 object-contain border rounded bg-muted/30 p-1" />
+          <img src={value} alt={label} className="h-16 w-16 object-contain border rounded bg-muted p-1.5" />
         ) : (
-          <div className="h-14 w-14 border rounded flex items-center justify-center text-muted-foreground bg-muted/30">
+          <div className="h-16 w-16 border rounded flex items-center justify-center text-muted-foreground bg-muted">
             <ImageIcon className="h-5 w-5" />
           </div>
         )}

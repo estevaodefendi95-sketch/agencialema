@@ -55,6 +55,8 @@ export default {
           DEFAULT: "hsl(var(--warning))",
           foreground: "hsl(var(--warning-foreground))",
         },
+        "brand-accent": "hsl(var(--brand-accent))",
+        "brand-accent-foreground": "hsl(var(--brand-accent-foreground))",
         sidebar: {
           DEFAULT: "hsl(var(--sidebar-background))",
           foreground: "hsl(var(--sidebar-foreground))",

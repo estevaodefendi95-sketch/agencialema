@@ -75,9 +75,9 @@ export default function PresentationPreview() {
       <div className="sticky top-0 z-50 bg-foreground text-background px-4 py-2.5 flex items-center justify-between gap-3 shadow-md">
         <div className="flex items-center gap-2 text-sm">
           <EyeOff className="h-4 w-4" />
-          <span className="font-medium">Modo Preview</span>
-          <span className="opacity-70 hidden sm:inline">
-            · {isLive ? "Publicado e liberado" : pres.status === "publicado" ? "Publicado, não liberado" : "Rascunho"}
+          <span className="font-medium">Modo pré-visualização</span>
+          <span className="opacity-80">
+            — o cliente {isLive ? "já vê" : "ainda não vê"} esta página
           </span>
         </div>
         <Button asChild size="sm" variant="secondary" className="h-7">

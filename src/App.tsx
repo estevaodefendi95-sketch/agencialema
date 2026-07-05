@@ -1,11 +1,12 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Route, Routes, Navigate, Outlet } from "react-router-dom";
+import { BrowserRouter, Route, Routes, Navigate, Outlet, useLocation } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import { AppLayout } from "@/components/AppLayout";
+import { ClientPortalLayout } from "@/components/ClientPortalLayout";
 import Login from "@/pages/Login";
 import PendingApproval from "@/pages/PendingApproval";
 import Dashboard from "@/pages/Dashboard";
@@ -15,19 +16,24 @@ import KanbanBoard from "@/pages/KanbanBoard";
 import TaskCalendar from "@/pages/TaskCalendar";
 import AdminUsers from "@/pages/AdminUsers";
 import AdminSettings from "@/pages/AdminSettings";
+import AsanaImport from "@/pages/AsanaImport";
 import Profile from "@/pages/Profile";
 
 import Notifications from "@/pages/Notifications";
 import MyTasks from "@/pages/MyTasks";
 import Team from "@/pages/Team";
 import ClientLanding from "@/pages/ClientLanding";
+import ClientPortal from "@/pages/ClientPortal";
 import PresentationPreview from "@/pages/PresentationPreview";
 import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient();
 
+const PORTAL_PATH = "/portal";
+
 function RequireAuth() {
-  const { user, loading, status } = useAuth();
+  const { user, loading, status, isClient } = useAuth();
+  const location = useLocation();
 
   if (loading) {
     return (
@@ -39,6 +45,11 @@ function RequireAuth() {
 
   if (!user) return <Navigate to="/login" replace />;
   if (status === "pendente" || status === "bloqueado") return <PendingApproval />;
+
+  // Clientes só podem acessar o portal dedicado; qualquer outra rota interna redireciona para lá.
+  if (isClient && location.pathname !== PORTAL_PATH) return <Navigate to={PORTAL_PATH} replace />;
+  // Equipe interna (não-cliente) não deve acessar o portal do cliente.
+  if (!isClient && location.pathname === PORTAL_PATH) return <Navigate to="/" replace />;
 
   return <Outlet />;
 }
@@ -60,6 +71,9 @@ function AppRoutes() {
       <Route path="/c/:slug" element={<ClientLanding />} />
       <Route element={<RequireAuth />}>
         <Route path="/projetos/:projectId/apresentacao/preview" element={<PresentationPreview />} />
+        <Route element={<ClientPortalLayout />}>
+          <Route path="/portal" element={<ClientPortal />} />
+        </Route>
         <Route element={<AppLayout />}>
           <Route path="/" element={<Dashboard />} />
           <Route path="/empresas" element={<Companies />} />
@@ -70,6 +84,7 @@ function AppRoutes() {
           <Route path="/minhas-tarefas" element={<MyTasks />} />
           <Route path="/admin/usuarios" element={<AdminUsers />} />
           <Route path="/admin/configuracoes" element={<AdminSettings />} />
+          <Route path="/admin/importar-asana" element={<AsanaImport />} />
           <Route path="/notificacoes" element={<Notifications />} />
           <Route path="/perfil" element={<Profile />} />
           <Route path="*" element={<NotFound />} />

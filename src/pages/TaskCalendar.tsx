@@ -40,12 +40,20 @@ type TaskWithRelations = {
   assigned_to: string | null;
   assignee_name: string | null;
   project_id: string;
+  status: string;
   projects: { name: string; company_id: string; companies: { name: string; logo_url: string | null } | null } | null;
   assignee?: { full_name: string | null; nickname?: string | null; avatar_url: string | null } | null;
   comment_count?: number;
 };
 
 type ViewMode = "mes" | "semana" | "dia";
+
+const DEFAULT_STATUS_COLUMNS = [
+  { slug: "a_fazer", label: "A Fazer" },
+  { slug: "em_andamento", label: "Em Andamento" },
+  { slug: "concluido", label: "Concluído" },
+  { slug: "aprovado", label: "Aprovado" },
+];
 
 const priorityColor: Record<string, string> = {
   baixa: "bg-blue-500",
@@ -79,7 +87,14 @@ export default function TaskCalendar() {
   });
   const [loading, setLoading] = useState(true);
   const [companyFilter, setCompanyFilter] = useState<string>("all");
+  const [projectFilter, setProjectFilter] = useState<string>("all");
   const [assigneeFilter, setAssigneeFilter] = useState<string>("all");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [companyAccessUserIds, setCompanyAccessUserIds] = useState<string[]>([]);
+  const [companyAccessProfiles, setCompanyAccessProfiles] = useState<
+    Record<string, { full_name: string | null; nickname: string | null; avatar_url: string | null }>
+  >({});
+  const [statusColumns, setStatusColumns] = useState<{ slug: string; label: string }[]>(DEFAULT_STATUS_COLUMNS);
 
   const changeViewMode = (m: ViewMode) => {
     if (!m) return;
@@ -87,15 +102,97 @@ export default function TaskCalendar() {
     localStorage.setItem("calendar-view-mode", m);
   };
 
+  const handleCompanyChange = (value: string) => {
+    setCompanyFilter(value);
+    setProjectFilter("all");
+    setAssigneeFilter("all");
+    setStatusFilter("all");
+  };
+
+  const handleProjectChange = (value: string) => {
+    setProjectFilter(value);
+    setStatusFilter("all");
+  };
+
   useEffect(() => {
     loadTasks();
   }, []);
+
+  useEffect(() => {
+    if (companyFilter === "all") {
+      setCompanyAccessUserIds([]);
+      setCompanyAccessProfiles({});
+      return;
+    }
+    loadCompanyAccess(companyFilter);
+  }, [companyFilter]);
+
+  useEffect(() => {
+    loadStatusColumns();
+  }, [projectFilter, companyFilter, tasks]);
+
+  async function loadCompanyAccess(companyId: string) {
+    const { data } = await supabase
+      .from("user_company_access")
+      .select("user_id")
+      .eq("company_id", companyId);
+    const ids = Array.from(new Set((data || []).map((r: any) => r.user_id)));
+    setCompanyAccessUserIds(ids);
+    if (ids.length === 0) {
+      setCompanyAccessProfiles({});
+      return;
+    }
+    const { data: profiles } = await supabase
+      .from("profiles")
+      .select("id, full_name, nickname, avatar_url")
+      .in("id", ids);
+    const map: Record<string, { full_name: string | null; nickname: string | null; avatar_url: string | null }> = {};
+    (profiles || []).forEach((p: any) => {
+      map[p.id] = { full_name: p.full_name, nickname: p.nickname, avatar_url: p.avatar_url };
+    });
+    setCompanyAccessProfiles(map);
+  }
+
+  async function loadStatusColumns() {
+    let projectIds: string[] = [];
+    if (projectFilter !== "all") {
+      projectIds = [projectFilter];
+    } else if (companyFilter !== "all") {
+      const ids = new Set<string>();
+      tasks.forEach((t) => {
+        if (t.projects?.company_id === companyFilter) ids.add(t.project_id);
+      });
+      projectIds = Array.from(ids);
+    }
+
+    if (projectIds.length === 0) {
+      setStatusColumns(DEFAULT_STATUS_COLUMNS);
+      return;
+    }
+
+    const { data } = await supabase
+      .from("project_columns")
+      .select("slug, label, position")
+      .in("project_id", projectIds)
+      .order("position", { ascending: true });
+
+    if (!data || data.length === 0) {
+      setStatusColumns(DEFAULT_STATUS_COLUMNS);
+      return;
+    }
+
+    const map = new Map<string, string>();
+    (data as any[]).forEach((c) => {
+      if (!map.has(c.slug)) map.set(c.slug, c.label);
+    });
+    setStatusColumns(Array.from(map.entries()).map(([slug, label]) => ({ slug, label })));
+  }
 
   async function loadTasks() {
     setLoading(true);
     const { data, error } = await supabase
       .from("tasks")
-      .select("id, title, due_date, priority, assigned_to, assignee_name, project_id, projects(name, company_id, companies(name, logo_url))")
+      .select("id, title, due_date, priority, assigned_to, assignee_name, project_id, status, projects(name, company_id, companies(name, logo_url))")
       .not("due_date", "is", null)
       .order("due_date", { ascending: true });
 
@@ -148,11 +245,22 @@ export default function TaskCalendar() {
     return Array.from(map.entries()).map(([id, name]) => ({ id, name }));
   }, [tasks]);
 
+  const projectOptions = useMemo(() => {
+    const map = new Map<string, string>();
+    tasks.forEach((t) => {
+      if (companyFilter !== "all" && t.projects?.company_id !== companyFilter) return;
+      if (t.project_id && t.projects?.name) map.set(t.project_id, t.projects.name);
+    });
+    return Array.from(map.entries()).map(([id, name]) => ({ id, name }));
+  }, [tasks, companyFilter]);
+
   const assigneeOptions = useMemo(() => {
     const map = new Map<string, { name: string; avatar_url: string | null }>();
     const freeSet = new Map<string, string>();
     let hasUnassigned = false;
-    tasks.forEach((t) => {
+    const relevantTasks =
+      companyFilter === "all" ? tasks : tasks.filter((t) => t.projects?.company_id === companyFilter);
+    relevantTasks.forEach((t) => {
       if (!t.assigned_to) {
         if (t.assignee_name && t.assignee_name.trim()) {
           const key = t.assignee_name.trim().toLowerCase();
@@ -165,14 +273,25 @@ export default function TaskCalendar() {
       const name = (t.assignee as any)?.nickname?.trim() || t.assignee?.full_name || "Sem nome";
       map.set(t.assigned_to, { name, avatar_url: t.assignee?.avatar_url ?? null });
     });
+    if (companyFilter !== "all") {
+      companyAccessUserIds.forEach((id) => {
+        if (!map.has(id)) {
+          const p = companyAccessProfiles[id];
+          const name = p?.nickname?.trim() || p?.full_name || "Sem nome";
+          map.set(id, { name, avatar_url: p?.avatar_url ?? null });
+        }
+      });
+    }
     const list = Array.from(map.entries()).map(([id, v]) => ({ id, name: v.name, avatar_url: v.avatar_url }));
     const freeNames = Array.from(freeSet.values()).sort((a, b) => a.localeCompare(b));
     return { list, hasUnassigned, freeNames };
-  }, [tasks]);
+  }, [tasks, companyFilter, companyAccessUserIds, companyAccessProfiles]);
 
   const filteredTasks = useMemo(() => {
     return tasks.filter((t) => {
       if (companyFilter !== "all" && t.projects?.company_id !== companyFilter) return false;
+      if (projectFilter !== "all" && t.project_id !== projectFilter) return false;
+      if (statusFilter !== "all" && t.status !== statusFilter) return false;
       if (assigneeFilter === "all") return true;
       if (assigneeFilter === "none") return !t.assigned_to && !t.assignee_name;
       if (assigneeFilter.startsWith("name:")) {
@@ -181,7 +300,7 @@ export default function TaskCalendar() {
       }
       return t.assigned_to === assigneeFilter;
     });
-  }, [tasks, companyFilter, assigneeFilter]);
+  }, [tasks, companyFilter, projectFilter, assigneeFilter, statusFilter]);
 
   const tasksByDay = useMemo(() => {
     const map = new Map<string, TaskWithRelations[]>();
@@ -205,7 +324,8 @@ export default function TaskCalendar() {
     return filteredTasks.filter((t) => isSameDay(new Date(t.due_date + "T00:00:00"), selectedDate));
   }, [filteredTasks, selectedDate]);
 
-  const hasFilters = companyFilter !== "all" || assigneeFilter !== "all";
+  const hasFilters =
+    companyFilter !== "all" || projectFilter !== "all" || assigneeFilter !== "all" || statusFilter !== "all";
 
   // Period label + nav
   const periodLabel = useMemo(() => {
@@ -512,7 +632,7 @@ export default function TaskCalendar() {
 
       {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center">
-        <Select value={companyFilter} onValueChange={setCompanyFilter}>
+        <Select value={companyFilter} onValueChange={handleCompanyChange}>
           <SelectTrigger className="w-full sm:w-[240px]">
             <SelectValue placeholder="Empresa" />
           </SelectTrigger>
@@ -520,6 +640,18 @@ export default function TaskCalendar() {
             <SelectItem value="all">Todas as empresas</SelectItem>
             {companyOptions.map((c) => (
               <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Select value={projectFilter} onValueChange={handleProjectChange}>
+          <SelectTrigger className="w-full sm:w-[240px]">
+            <SelectValue placeholder="Projeto" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos os projetos</SelectItem>
+            {projectOptions.map((p) => (
+              <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -567,8 +699,29 @@ export default function TaskCalendar() {
           </SelectContent>
         </Select>
 
+        <Select value={statusFilter} onValueChange={setStatusFilter}>
+          <SelectTrigger className="w-full sm:w-[240px]">
+            <SelectValue placeholder="Status" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos os status</SelectItem>
+            {statusColumns.map((c) => (
+              <SelectItem key={c.slug} value={c.slug}>{c.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
         {hasFilters && (
-          <Button variant="ghost" size="sm" onClick={() => { setCompanyFilter("all"); setAssigneeFilter("all"); }}>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              setCompanyFilter("all");
+              setProjectFilter("all");
+              setAssigneeFilter("all");
+              setStatusFilter("all");
+            }}
+          >
             <X className="h-4 w-4 mr-1" /> Limpar filtros
           </Button>
         )}

@@ -18,6 +18,7 @@ interface AuthContextType {
   isAdmin: boolean;
   isEditor: boolean;
   isViewer: boolean;
+  isClient: boolean;
   canEdit: boolean;
 }
 
@@ -115,11 +116,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const isAdmin = role === "admin";
   const isEditor = role === "editor";
   const isViewer = role === "visualizador";
+  const isClient = role === "cliente";
   const canEdit = isAdmin || isEditor;
 
   return (
     <AuthContext.Provider
-      value={{ user, session, role, status, avatarUrl, loading, signIn, signUp, signOut, isAdmin, isEditor, isViewer, canEdit }}
+      value={{ user, session, role, status, avatarUrl, loading, signIn, signUp, signOut, isAdmin, isEditor, isViewer, isClient, canEdit }}
     >
       {children}
     </AuthContext.Provider>

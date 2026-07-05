@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useLocation } from "react-router-dom";
 import {
-  LayoutDashboard, Building2, FolderKanban, Users, Bell, LogOut, Sun, Moon, Settings, CalendarDays, UserCircle, ChevronRight, CheckSquare,
+  LayoutDashboard, Building2, FolderKanban, Users, Bell, LogOut, Sun, Moon, Settings, CalendarDays, UserCircle, ChevronRight, CheckSquare, Upload,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/contexts/AuthContext";
@@ -54,6 +54,7 @@ export function AppSidebar() {
           items: [
             { title: "Usuários", url: "/admin/usuarios", icon: Users },
             { title: "Configurações", url: "/admin/configuracoes", icon: Settings },
+            { title: "Importar do Asana", url: "/admin/importar-asana", icon: Upload },
           ],
         } as Section]
       : []),
