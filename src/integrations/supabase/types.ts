@@ -708,7 +708,19 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      team_workload: {
+        Row: {
+          user_id: string
+          full_name: string | null
+          email: string | null
+          avatar_url: string | null
+          tarefas_ativas: number
+          tarefas_aprovadas: number
+          tarefas_atrasadas: number
+          tarefas_urgentes: number
+        }
+        Relationships: []
+      }
     }
     Functions: {
       has_company_access: {

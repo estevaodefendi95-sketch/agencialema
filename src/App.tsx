@@ -19,6 +19,7 @@ import Profile from "@/pages/Profile";
 
 import Notifications from "@/pages/Notifications";
 import MyTasks from "@/pages/MyTasks";
+import Team from "@/pages/Team";
 import ClientLanding from "@/pages/ClientLanding";
 import PresentationPreview from "@/pages/PresentationPreview";
 import NotFound from "@/pages/NotFound";
@@ -65,6 +66,7 @@ function AppRoutes() {
           <Route path="/projetos" element={<Projects />} />
           <Route path="/projetos/:id" element={<KanbanBoard />} />
           <Route path="/calendario" element={<TaskCalendar />} />
+          <Route path="/equipe" element={<Team />} />
           <Route path="/minhas-tarefas" element={<MyTasks />} />
           <Route path="/admin/usuarios" element={<AdminUsers />} />
           <Route path="/admin/configuracoes" element={<AdminSettings />} />

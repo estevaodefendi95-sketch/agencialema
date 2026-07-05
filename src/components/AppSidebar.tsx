@@ -21,7 +21,7 @@ type Section = { label: string; items: SectionItem[]; defaultOpen: boolean };
 const STORAGE_KEY = "sidebar-sections-open";
 
 export function AppSidebar() {
-  const { isAdmin, signOut, avatarUrl, user } = useAuth();
+  const { isAdmin, canEdit, signOut, avatarUrl, user } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const { state } = useSidebar();
   const { app_name, logo_url } = useAppSettings();
@@ -44,6 +44,7 @@ export function AppSidebar() {
       items: [
         { title: "Empresas", url: "/empresas", icon: Building2 },
         { title: "Projetos", url: "/projetos", icon: FolderKanban },
+        ...(canEdit ? [{ title: "Equipe", url: "/equipe", icon: Users }] : []),
       ],
     },
     ...(isAdmin
