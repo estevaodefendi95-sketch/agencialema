@@ -11,7 +11,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { UserCheck, UserX, Shield, Building2, Plus, Clock } from "lucide-react";
+import { UserCheck, UserX, Shield, Building2, Plus, Clock, Copy } from "lucide-react";
 
 interface Profile {
   id: string;
@@ -50,6 +50,7 @@ export default function AdminUsers() {
   const [newRole, setNewRole] = useState("cliente");
   const [newCompanies, setNewCompanies] = useState<string[]>([]);
   const [creating, setCreating] = useState(false);
+  const [accessLink, setAccessLink] = useState<string | null>(null);
   const [tab, setTab] = useState<"pendentes" | "todos">("pendentes");
 
   const load = async () => {
@@ -129,18 +130,21 @@ export default function AdminUsers() {
       });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
-      toast({
-        title: "Convite enviado!",
-        description: "O usuário vai receber um e-mail para definir a senha e acessar o sistema.",
-      });
       setCreateOpen(false);
       setNewName(""); setNewEmail(""); setNewRole("cliente"); setNewCompanies([]);
+      setAccessLink(data.access_link);
       load();
     } catch (err: any) {
       toast({ title: "Erro ao enviar convite", description: err.message, variant: "destructive" });
     } finally {
       setCreating(false);
     }
+  };
+
+  const copyAccessLink = () => {
+    if (!accessLink) return;
+    navigator.clipboard.writeText(accessLink);
+    toast({ title: "Link copiado!" });
   };
 
   const statusBadge = (status: string) => {
@@ -352,6 +356,31 @@ export default function AdminUsers() {
             <Button onClick={createUser} disabled={creating || !newName || !newEmail}>
               {creating ? "Enviando..." : "Enviar convite"}
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Access link dialog */}
+      <Dialog open={!!accessLink} onOpenChange={(open) => !open && setAccessLink(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Convite gerado</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <Label>Link de primeiro acesso</Label>
+            <div className="flex gap-2">
+              <Input value={accessLink || ""} readOnly onFocus={(e) => e.target.select()} />
+              <Button variant="outline" onClick={copyAccessLink} className="gap-2 shrink-0">
+                <Copy className="h-4 w-4" /> Copiar link
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Envie esse link para o cliente por WhatsApp, e-mail ou como preferir. Ele expira em algumas horas —
+              se não for usado a tempo, gere um novo convite.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button onClick={() => setAccessLink(null)}>Fechar</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

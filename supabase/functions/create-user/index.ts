@@ -60,11 +60,16 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Create the user and send Supabase's invite email in one step — the user sets
+    // Create the user and get back a first-access link — this does NOT send an email,
+    // so the admin decides how to deliver it (WhatsApp, e-mail, etc). The user sets
     // their own password via the link, so we never handle/store a password here.
-    const { data: newUser, error: inviteError } = await adminClient.auth.admin.inviteUserByEmail(email, {
-      data: { full_name },
-      redirectTo: `${Deno.env.get("SITE_URL") ?? "https://SEU-DOMINIO"}/login`,
+    const { data: linkData, error: inviteError } = await adminClient.auth.admin.generateLink({
+      type: "invite",
+      email,
+      options: {
+        data: { full_name },
+        redirectTo: `${Deno.env.get("SITE_URL") ?? "https://SEU-DOMINIO"}/login`,
+      },
     });
 
     if (inviteError) {
@@ -82,7 +87,8 @@ Deno.serve(async (req) => {
       });
     }
 
-    const userId = newUser.user.id;
+    const userId = linkData.user.id;
+    const accessLink = linkData.properties.action_link;
 
     // Set status to approved
     await adminClient.from("profiles").update({ status: "aprovado" }).eq("id", userId);
@@ -97,7 +103,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    return new Response(JSON.stringify({ user_id: userId, success: true }), {
+    return new Response(JSON.stringify({ user_id: userId, success: true, access_link: accessLink }), {
       status: 200,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
