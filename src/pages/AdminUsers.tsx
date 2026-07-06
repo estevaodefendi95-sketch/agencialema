@@ -47,7 +47,6 @@ export default function AdminUsers() {
   const [createOpen, setCreateOpen] = useState(false);
   const [newName, setNewName] = useState("");
   const [newEmail, setNewEmail] = useState("");
-  const [newPassword, setNewPassword] = useState("");
   const [newRole, setNewRole] = useState("cliente");
   const [newCompanies, setNewCompanies] = useState<string[]>([]);
   const [creating, setCreating] = useState(false);
@@ -117,13 +116,12 @@ export default function AdminUsers() {
   };
 
   const createUser = async () => {
-    if (!newName || !newEmail || !newPassword) return;
+    if (!newName || !newEmail) return;
     setCreating(true);
     try {
       const { data, error } = await supabase.functions.invoke("create-user", {
         body: {
           email: newEmail,
-          password: newPassword,
           full_name: newName,
           role: newRole,
           company_ids: newCompanies,
@@ -131,12 +129,15 @@ export default function AdminUsers() {
       });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
-      toast({ title: "Usuário criado com sucesso" });
+      toast({
+        title: "Convite enviado!",
+        description: "O usuário vai receber um e-mail para definir a senha e acessar o sistema.",
+      });
       setCreateOpen(false);
-      setNewName(""); setNewEmail(""); setNewPassword(""); setNewRole("cliente"); setNewCompanies([]);
+      setNewName(""); setNewEmail(""); setNewRole("cliente"); setNewCompanies([]);
       load();
     } catch (err: any) {
-      toast({ title: "Erro ao criar usuário", description: err.message, variant: "destructive" });
+      toast({ title: "Erro ao enviar convite", description: err.message, variant: "destructive" });
     } finally {
       setCreating(false);
     }
@@ -316,10 +317,6 @@ export default function AdminUsers() {
               <Input type="email" value={newEmail} onChange={(e) => setNewEmail(e.target.value)} placeholder="email@exemplo.com" />
             </div>
             <div className="space-y-2">
-              <Label>Senha temporária</Label>
-              <Input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="Mínimo 6 caracteres" />
-            </div>
-            <div className="space-y-2">
               <Label>Perfil</Label>
               <Select value={newRole} onValueChange={setNewRole}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
@@ -352,8 +349,8 @@ export default function AdminUsers() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setCreateOpen(false)}>Cancelar</Button>
-            <Button onClick={createUser} disabled={creating || !newName || !newEmail || !newPassword}>
-              {creating ? "Criando..." : "Criar Usuário"}
+            <Button onClick={createUser} disabled={creating || !newName || !newEmail}>
+              {creating ? "Enviando..." : "Enviar convite"}
             </Button>
           </DialogFooter>
         </DialogContent>

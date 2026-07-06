@@ -51,25 +51,32 @@ Deno.serve(async (req) => {
       });
     }
 
-    const { email, password, full_name, role, company_ids } = await req.json();
+    const { email, full_name, role, company_ids } = await req.json();
 
-    if (!email || !password || !full_name || !role) {
+    if (!email || !full_name || !role) {
       return new Response(JSON.stringify({ error: "Missing required fields" }), {
         status: 400,
         headers: corsHeaders,
       });
     }
 
-    // Create user via admin API
-    const { data: newUser, error: createError } = await adminClient.auth.admin.createUser({
-      email,
-      password,
-      email_confirm: true,
-      user_metadata: { full_name },
+    // Create the user and send Supabase's invite email in one step — the user sets
+    // their own password via the link, so we never handle/store a password here.
+    const { data: newUser, error: inviteError } = await adminClient.auth.admin.inviteUserByEmail(email, {
+      data: { full_name },
+      redirectTo: `${Deno.env.get("SITE_URL") ?? "https://SEU-DOMINIO"}/login`,
     });
 
-    if (createError) {
-      return new Response(JSON.stringify({ error: createError.message }), {
+    if (inviteError) {
+      const code = (inviteError as any).code;
+      const alreadyExists = code === "email_exists" || /already been registered|already exists/i.test(inviteError.message || "");
+      if (alreadyExists) {
+        return new Response(JSON.stringify({ error: "Este e-mail já possui uma conta" }), {
+          status: 400,
+          headers: corsHeaders,
+        });
+      }
+      return new Response(JSON.stringify({ error: inviteError.message }), {
         status: 400,
         headers: corsHeaders,
       });

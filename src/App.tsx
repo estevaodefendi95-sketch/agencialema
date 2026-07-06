@@ -56,6 +56,14 @@ function RequireAuth() {
   return <Outlet />;
 }
 
+function RequireAdmin() {
+  const { isAdmin } = useAuth();
+
+  if (!isAdmin) return <Navigate to="/" replace />;
+
+  return <Outlet />;
+}
+
 function AppRoutes() {
   const { user, loading } = useAuth();
 
@@ -86,9 +94,11 @@ function AppRoutes() {
           <Route path="/calendario" element={<TaskCalendar />} />
           <Route path="/equipe" element={<Team />} />
           <Route path="/minhas-tarefas" element={<MyTasks />} />
-          <Route path="/admin/usuarios" element={<AdminUsers />} />
-          <Route path="/admin/configuracoes" element={<AdminSettings />} />
-          <Route path="/admin/importar-asana" element={<AsanaImport />} />
+          <Route element={<RequireAdmin />}>
+            <Route path="/admin/usuarios" element={<AdminUsers />} />
+            <Route path="/admin/configuracoes" element={<AdminSettings />} />
+            <Route path="/admin/importar-asana" element={<AsanaImport />} />
+          </Route>
           <Route path="/notificacoes" element={<Notifications />} />
           <Route path="/perfil" element={<Profile />} />
           <Route path="*" element={<NotFound />} />

@@ -69,7 +69,7 @@ export default function PresentationView({
       </header>
 
       {/* BLOCKS */}
-      <main className="max-w-6xl mx-auto px-6 pb-24 space-y-20 md:space-y-28">
+      <main className="max-w-6xl mx-auto px-6 pb-24 space-y-10 md:space-y-16">
         {blocks.map((b) => (
           <BlockRender key={b.id} block={b} posts={posts} />
         ))}
@@ -95,9 +95,9 @@ export default function PresentationView({
 function BlockRender({ block, posts }: { block: Block; posts: Post[] }) {
   if (block.block_type === "header") {
     return (
-      <section className="text-center py-6 animate-fade-in">
+      <section className="text-center py-2 animate-fade-in">
         {block.data.title && (
-          <h2 className="text-3xl md:text-5xl font-bold mb-3 tracking-tight">{block.data.title}</h2>
+          <h2 className="text-3xl md:text-5xl font-bold mb-2 tracking-tight">{block.data.title}</h2>
         )}
         {block.data.subtitle && (
           <p className="text-lg text-muted-foreground max-w-2xl mx-auto">{block.data.subtitle}</p>
@@ -107,7 +107,7 @@ function BlockRender({ block, posts }: { block: Block; posts: Post[] }) {
   }
   if (block.block_type === "text") {
     return (
-      <section className="prose prose-neutral dark:prose-invert max-w-3xl mx-auto animate-fade-in">
+      <section className="prose prose-neutral dark:prose-invert max-w-2xl mx-auto text-center animate-fade-in">
         <p className="whitespace-pre-line text-lg md:text-xl leading-relaxed font-light text-foreground/90">
           {block.data.content}
         </p>
@@ -116,33 +116,37 @@ function BlockRender({ block, posts }: { block: Block; posts: Post[] }) {
   }
   if (block.block_type === "image" && block.data.url) {
     return (
-      <section className="animate-fade-in">
-        <img
-          src={block.data.url}
-          alt={block.data.caption || ""}
-          className="w-full rounded-2xl border shadow-xl"
-        />
-        {block.data.caption && (
-          <p className="text-sm text-muted-foreground text-center mt-4 italic">
-            {block.data.caption}
-          </p>
-        )}
-      </section>
+      <div className="py-2">
+        <section className="animate-fade-in">
+          <img
+            src={block.data.url}
+            alt={block.data.caption || ""}
+            className="w-full rounded-2xl border shadow-xl"
+          />
+          {block.data.caption && (
+            <p className="text-sm text-muted-foreground text-center mt-4 italic">
+              {block.data.caption}
+            </p>
+          )}
+        </section>
+      </div>
     );
   }
   if (block.block_type === "gallery") {
     const images: string[] = block.data.images || [];
     return (
-      <section className="grid grid-cols-2 md:grid-cols-3 gap-4 animate-fade-in">
-        {images.map((url, i) => (
-          <img
-            key={i}
-            src={url}
-            alt=""
-            className="aspect-square w-full object-cover rounded-2xl border shadow-md hover:scale-[1.02] transition-transform duration-300"
-          />
-        ))}
-      </section>
+      <div className="py-2">
+        <section className="grid grid-cols-2 md:grid-cols-3 gap-4 animate-fade-in">
+          {images.map((url, i) => (
+            <img
+              key={i}
+              src={url}
+              alt=""
+              className="aspect-square w-full object-cover rounded-2xl border shadow-md hover:scale-[1.02] transition-transform duration-300"
+            />
+          ))}
+        </section>
+      </div>
     );
   }
   if (block.block_type === "instagram_preview") {
