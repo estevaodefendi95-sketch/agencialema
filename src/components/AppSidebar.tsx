@@ -14,6 +14,7 @@ import {
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Button } from "@/components/ui/button";
 import { AssigneeAvatar } from "@/components/AssigneeAvatar";
+import { cn } from "@/lib/utils";
 
 type SectionItem = { title: string; url: string; icon: typeof LayoutDashboard };
 type Section = { label: string; items: SectionItem[]; defaultOpen: boolean };
@@ -145,11 +146,18 @@ export function AppSidebar() {
     <Sidebar collapsible="icon">
       <SidebarHeader className="px-3 py-3 border-b border-sidebar-border">
         <div className="flex items-center gap-2">
-          {logo_url ? (
-            <img src={logo_url} alt="Logo" className="h-6 w-6 object-contain rounded shrink-0" />
-          ) : (
-            <LayoutDashboard className="h-5 w-5 shrink-0" />
-          )}
+          <div
+            className={cn(
+              "flex items-center justify-center shrink-0 overflow-hidden rounded-md bg-muted",
+              collapsed ? "h-6 w-6" : "h-8 w-8",
+            )}
+          >
+            {logo_url ? (
+              <img src={logo_url} alt="Logo" className="max-h-full max-w-full object-contain" />
+            ) : (
+              <LayoutDashboard className="h-5 w-5" />
+            )}
+          </div>
           {!collapsed && <span className="font-bold text-base truncate">{app_name}</span>}
         </div>
       </SidebarHeader>

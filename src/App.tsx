@@ -24,6 +24,8 @@ import MyTasks from "@/pages/MyTasks";
 import Team from "@/pages/Team";
 import ClientLanding from "@/pages/ClientLanding";
 import ClientPortal from "@/pages/ClientPortal";
+import ClientTasks from "@/pages/ClientTasks";
+import ClientCalendar from "@/pages/ClientCalendar";
 import PresentationPreview from "@/pages/PresentationPreview";
 import NotFound from "@/pages/NotFound";
 
@@ -46,10 +48,10 @@ function RequireAuth() {
   if (!user) return <Navigate to="/login" replace />;
   if (status === "pendente" || status === "bloqueado") return <PendingApproval />;
 
-  // Clientes só podem acessar o portal dedicado; qualquer outra rota interna redireciona para lá.
-  if (isClient && location.pathname !== PORTAL_PATH) return <Navigate to={PORTAL_PATH} replace />;
+  // Clientes só podem acessar o portal dedicado (e suas sub-rotas); qualquer outra rota interna redireciona para lá.
+  if (isClient && !location.pathname.startsWith(PORTAL_PATH)) return <Navigate to={PORTAL_PATH} replace />;
   // Equipe interna (não-cliente) não deve acessar o portal do cliente.
-  if (!isClient && location.pathname === PORTAL_PATH) return <Navigate to="/" replace />;
+  if (!isClient && location.pathname.startsWith(PORTAL_PATH)) return <Navigate to="/" replace />;
 
   return <Outlet />;
 }
@@ -73,6 +75,8 @@ function AppRoutes() {
         <Route path="/projetos/:projectId/apresentacao/preview" element={<PresentationPreview />} />
         <Route element={<ClientPortalLayout />}>
           <Route path="/portal" element={<ClientPortal />} />
+          <Route path="/portal/tarefas" element={<ClientTasks />} />
+          <Route path="/portal/calendario" element={<ClientCalendar />} />
         </Route>
         <Route element={<AppLayout />}>
           <Route path="/" element={<Dashboard />} />

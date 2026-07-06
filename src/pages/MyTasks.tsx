@@ -42,11 +42,14 @@ type Task = {
 
 type Profile = { id: string; full_name: string | null; nickname: string | null; avatar_url: string | null };
 
-const STATUS_COLUMNS = [
-  { slug: "a_fazer", label: "A Fazer", color: "#94a3b8" },
-  { slug: "em_andamento", label: "Em Andamento", color: "#3B82F6" },
-  { slug: "em_revisao", label: "Em Revisão", color: "#a855f7" },
-  { slug: "concluido", label: "Concluído", color: "#22c55e" },
+type StatusColumn = { slug: string; label: string; color: string; position: number };
+
+// Fallback usado apenas se a busca de project_columns falhar ou vier vazia
+const DEFAULT_STATUS_COLUMNS: StatusColumn[] = [
+  { slug: "a_fazer", label: "A Fazer", color: "#94a3b8", position: 0 },
+  { slug: "em_andamento", label: "Em Andamento", color: "#3B82F6", position: 1 },
+  { slug: "em_revisao", label: "Em Revisão", color: "#a855f7", position: 2 },
+  { slug: "concluido", label: "Concluído", color: "#22c55e", position: 3 },
 ];
 
 const PRIORITY_COLOR: Record<string, string> = {
@@ -78,6 +81,7 @@ export default function MyTasks() {
   const [cursor, setCursor] = useState<Date>(new Date());
 
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [statusColumns, setStatusColumns] = useState<StatusColumn[]>(DEFAULT_STATUS_COLUMNS);
   const [loading, setLoading] = useState(true);
   const [members, setMembers] = useState<Profile[]>([]);
   const [selectedUser, setSelectedUser] = useState<string>(user?.id || "");
@@ -231,9 +235,44 @@ export default function MyTasks() {
       console.error(error);
       toast({ title: "Erro ao carregar tarefas", variant: "destructive" });
     }
-    setTasks((data || []) as any);
+    const taskList = (data || []) as any as Task[];
+    setTasks(taskList);
+    await loadStatusColumns(taskList);
     setLoading(false);
   }
+
+  // Colunas reais dos projetos das tarefas carregadas (cada projeto tem as suas em project_columns,
+  // que podem divergir do conjunto padrão do Kanban — inclusive colunas personalizadas).
+  async function loadStatusColumns(taskList: Task[]) {
+    const projectIds = Array.from(new Set(taskList.map((t) => t.project_id)));
+    if (projectIds.length === 0) {
+      setStatusColumns(DEFAULT_STATUS_COLUMNS);
+      return;
+    }
+
+    const { data } = await supabase
+      .from("project_columns")
+      .select("project_id, slug, label, color, position")
+      .in("project_id", projectIds);
+
+    if (!data || data.length === 0) {
+      setStatusColumns(DEFAULT_STATUS_COLUMNS);
+      return;
+    }
+
+    // Combina por slug: se dois projetos compartilham o mesmo slug (ex: "a_fazer"), mantém
+    // só o registro de menor position; slugs exclusivos (colunas personalizadas) entram à parte.
+    const bySlug = new Map<string, StatusColumn>();
+    (data as any[]).forEach((c) => {
+      const existing = bySlug.get(c.slug);
+      if (!existing || c.position < existing.position) {
+        bySlug.set(c.slug, { slug: c.slug, label: c.label, color: c.color, position: c.position });
+      }
+    });
+    setStatusColumns(Array.from(bySlug.values()).sort((a, b) => a.position - b.position));
+  }
+
+  const statusLabel = (slug: string) => statusColumns.find((s) => s.slug === slug)?.label || slug;
 
   // Filters
   const projectOptions = useMemo(() => {
@@ -435,7 +474,7 @@ export default function MyTasks() {
           {view === "cards" && (
             <DragDropContext onDragEnd={onDragEnd}>
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
-                {STATUS_COLUMNS.map((col) => {
+                {statusColumns.map((col) => {
                   const colTasks = filteredTasks.filter((t) => t.status === col.slug);
                   return (
                     <Droppable droppableId={col.slug} key={col.slug}>
@@ -527,7 +566,7 @@ export default function MyTasks() {
             <Card>
               <CardContent className="p-0">
                 <div className="divide-y">
-                  <div className="grid grid-cols-[auto_2fr_1fr_1fr_1fr_auto] gap-3 px-4 py-2 bg-muted/40 text-xs font-medium text-muted-foreground">
+                  <div className="grid grid-cols-[auto_2fr_1fr_110px_130px_150px] gap-3 px-4 py-2 bg-muted/40 text-xs font-medium text-muted-foreground">
                     <span></span>
                     <span>Tarefa</span>
                     <span>Projeto</span>
@@ -541,7 +580,7 @@ export default function MyTasks() {
                     <div
                       key={t.id}
                       onClick={() => navigate(`/projetos/${t.project_id}`)}
-                      className="grid grid-cols-[auto_2fr_1fr_1fr_1fr_auto] gap-3 px-4 py-2.5 items-center hover:bg-accent/40 cursor-pointer text-sm"
+                      className="grid grid-cols-[auto_2fr_1fr_110px_130px_150px] gap-3 px-4 py-2.5 items-center hover:bg-accent/40 cursor-pointer text-sm"
                     >
                       <Checkbox
                         checked={t.status === "concluido"}
@@ -551,11 +590,13 @@ export default function MyTasks() {
                       <span className={cn("truncate", t.status === "concluido" && "line-through text-muted-foreground")}>{t.title}</span>
                       <span className="text-xs text-muted-foreground truncate">{t.projects?.name || "—"}</span>
                       <span className="text-xs">{t.due_date ? format(parseISO(t.due_date), "dd/MM/yy") : "—"}</span>
-                      <Badge variant="outline" className="text-[11px] w-fit">
-                        <span className={cn("h-1.5 w-1.5 rounded-full mr-1", PRIORITY_COLOR[t.priority])} />
+                      <Badge variant="outline" className="text-[11px] max-w-full truncate" title={PRIORITY_LABEL[t.priority]}>
+                        <span className={cn("h-1.5 w-1.5 rounded-full mr-1 shrink-0", PRIORITY_COLOR[t.priority])} />
                         {PRIORITY_LABEL[t.priority]}
                       </Badge>
-                      <Badge variant="secondary" className="text-[11px] w-fit">{STATUS_COLUMNS.find(s => s.slug === t.status)?.label || t.status}</Badge>
+                      <Badge variant="secondary" className="text-[11px] max-w-full truncate" title={statusLabel(t.status)}>
+                        {statusLabel(t.status)}
+                      </Badge>
                     </div>
                   ))}
                   {canEdit && (
