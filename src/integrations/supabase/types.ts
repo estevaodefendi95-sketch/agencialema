@@ -141,6 +141,9 @@ export type Database = {
       }
       presentation_posts: {
         Row: {
+          client_comment: string | null
+          client_responded_at: string | null
+          client_status: string
           copy: string | null
           created_at: string
           id: string
@@ -151,6 +154,9 @@ export type Database = {
           title: string | null
         }
         Insert: {
+          client_comment?: string | null
+          client_responded_at?: string | null
+          client_status?: string
           copy?: string | null
           created_at?: string
           id?: string
@@ -161,6 +167,9 @@ export type Database = {
           title?: string | null
         }
         Update: {
+          client_comment?: string | null
+          client_responded_at?: string | null
+          client_status?: string
           copy?: string | null
           created_at?: string
           id?: string
@@ -710,14 +719,14 @@ export type Database = {
     Views: {
       team_workload: {
         Row: {
-          user_id: string
-          full_name: string | null
-          email: string | null
           avatar_url: string | null
-          tarefas_ativas: number
-          tarefas_aprovadas: number
-          tarefas_atrasadas: number
-          tarefas_urgentes: number
+          email: string | null
+          full_name: string | null
+          tarefas_aprovadas: number | null
+          tarefas_ativas: number | null
+          tarefas_atrasadas: number | null
+          tarefas_urgentes: number | null
+          user_id: string | null
         }
         Relationships: []
       }
@@ -735,6 +744,10 @@ export type Database = {
         Returns: boolean
       }
       is_approved: { Args: { _user_id: string }; Returns: boolean }
+      respond_to_presentation_post: {
+        Args: { _comment?: string; _post_id: string; _status: string }
+        Returns: undefined
+      }
     }
     Enums: {
       app_role: "admin" | "cliente" | "editor" | "visualizador" | "agency_admin"
