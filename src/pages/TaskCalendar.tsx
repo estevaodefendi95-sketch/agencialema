@@ -29,10 +29,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Button } from "@/components/ui/button";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { CalendarDays, Building2, FolderKanban, User, X, MessageSquare, ChevronLeft, ChevronRight } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { CalendarDays, Building2, FolderKanban, User, X, MessageSquare, ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { AssigneeAvatar } from "@/components/AssigneeAvatar";
 import { cn } from "@/lib/utils";
 import { getEntityColor, PROJECT_COLOR_PALETTE, TEAM_COLOR_PALETTE } from "@/lib/colorPalette";
+import { useToast } from "@/hooks/use-toast";
 
 type TaskWithRelations = {
   id: string;
@@ -51,6 +55,7 @@ type TaskWithRelations = {
 
 type ViewMode = "mes" | "semana" | "dia";
 type ColorMode = "projeto" | "responsavel";
+type Profile = { id: string; full_name: string | null; nickname: string | null; avatar_url: string | null };
 
 const DEFAULT_STATUS_COLUMNS = [
   { slug: "a_fazer", label: "A Fazer" },
@@ -82,7 +87,8 @@ const priorityLabel: Record<string, string> = {
 
 export default function TaskCalendar() {
   const navigate = useNavigate();
-  const { avatarUrl, user } = useAuth();
+  const { avatarUrl, user, canEdit } = useAuth();
+  const { toast } = useToast();
   const [tasks, setTasks] = useState<TaskWithRelations[]>([]);
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
   const [cursor, setCursor] = useState<Date>(new Date());
@@ -102,6 +108,16 @@ export default function TaskCalendar() {
     Record<string, { full_name: string | null; nickname: string | null; avatar_url: string | null; color: string | null }>
   >({});
   const [statusColumns, setStatusColumns] = useState<{ slug: string; label: string }[]>(DEFAULT_STATUS_COLUMNS);
+
+  // Nova tarefa direto do calendário
+  const [newTaskOpen, setNewTaskOpen] = useState(false);
+  const [ntProject, setNtProject] = useState("");
+  const [ntTitle, setNtTitle] = useState("");
+  const [ntPriority, setNtPriority] = useState<"baixa" | "media" | "alta" | "urgente">("media");
+  const [ntDue, setNtDue] = useState("");
+  const [ntAssignee, setNtAssignee] = useState("");
+  const [projectMembers, setProjectMembers] = useState<Profile[]>([]);
+  const [creating, setCreating] = useState(false);
 
   const changeViewMode = (m: ViewMode) => {
     if (!m) return;
@@ -143,6 +159,69 @@ export default function TaskCalendar() {
   useEffect(() => {
     loadStatusColumns();
   }, [projectFilter, companyFilter, tasks]);
+
+  useEffect(() => {
+    if (ntProject) loadProjectMembers(ntProject);
+    else setProjectMembers([]);
+  }, [ntProject]);
+
+  async function loadProjectMembers(projectId: string) {
+    const { data } = await supabase
+      .from("project_members")
+      .select("user_id, status, profiles(id, full_name, nickname, avatar_url)")
+      .eq("project_id", projectId)
+      .eq("status", "ativo");
+    const list: Profile[] = ((data || []) as any[])
+      .filter((m) => m.user_id && m.profiles)
+      .map((m) => ({
+        id: m.user_id,
+        full_name: m.profiles.full_name,
+        nickname: m.profiles.nickname,
+        avatar_url: m.profiles.avatar_url,
+      }));
+    setProjectMembers(list);
+  }
+
+  function openNewTaskDialog(date: Date) {
+    setNtProject(projectFilter !== "all" ? projectFilter : "");
+    setNtTitle("");
+    setNtPriority("media");
+    setNtDue(format(date, "yyyy-MM-dd"));
+    setNtAssignee("");
+    setNewTaskOpen(true);
+  }
+
+  async function createTask() {
+    if (!ntProject || !ntTitle.trim() || !user) return;
+    setCreating(true);
+    const { data: cols } = await supabase
+      .from("project_columns")
+      .select("slug")
+      .eq("project_id", ntProject)
+      .order("position", { ascending: true })
+      .limit(1);
+    const initialStatus = cols?.[0]?.slug || "a_fazer";
+
+    const { error } = await supabase.from("tasks").insert({
+      project_id: ntProject,
+      title: ntTitle.trim(),
+      priority: ntPriority,
+      due_date: ntDue || null,
+      assigned_to: ntAssignee || user.id,
+      status: initialStatus,
+      created_by: user.id,
+      position: 0,
+    } as any);
+
+    setCreating(false);
+    if (error) {
+      toast({ title: "Erro ao criar tarefa", description: error.message, variant: "destructive" });
+      return;
+    }
+    toast({ title: "Tarefa criada" });
+    setNewTaskOpen(false);
+    loadTasks();
+  }
 
   async function loadCompanyAccess(companyId: string) {
     const { data } = await supabase
@@ -473,7 +552,7 @@ export default function TaskCalendar() {
                 key={day.toISOString()}
                 onClick={() => openDayInDayView(day)}
                 className={cn(
-                  "min-h-[110px] border-r border-b last:border-r-0 p-1.5 flex flex-col gap-1 cursor-pointer hover:bg-accent/30 transition-colors",
+                  "group min-h-[110px] border-r border-b last:border-r-0 p-1.5 flex flex-col gap-1 cursor-pointer hover:bg-accent/30 transition-colors",
                   !inMonth && "bg-muted/20 text-muted-foreground",
                 )}
               >
@@ -486,6 +565,15 @@ export default function TaskCalendar() {
                   >
                     {format(day, "d")}
                   </span>
+                  {canEdit && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); openNewTaskDialog(day); }}
+                      className="opacity-0 group-hover:opacity-100 h-5 w-5 inline-flex items-center justify-center rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-opacity"
+                      title="Nova tarefa neste dia"
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                    </button>
+                  )}
                 </div>
                 <div className="flex flex-col gap-0.5">
                   {visible.map((t) => (
@@ -537,25 +625,33 @@ export default function TaskCalendar() {
                 key={day.toISOString()}
                 className="border-r last:border-r-0 flex flex-col min-h-[500px]"
               >
-                <button
-                  onClick={() => openDayInDayView(day)}
-                  className={cn(
-                    "px-2 py-2 border-b text-left hover:bg-accent/30 transition-colors",
-                    today && "bg-primary/5",
-                  )}
-                >
-                  <div className="text-[10px] uppercase text-muted-foreground tracking-wide">
-                    {format(day, "EEE", { locale: ptBR })}
-                  </div>
-                  <div
-                    className={cn(
-                      "text-lg font-semibold inline-flex h-7 min-w-7 px-1 items-center justify-center rounded-full",
-                      today && "bg-primary text-primary-foreground",
-                    )}
+                <div className={cn("group flex items-center justify-between px-2 py-2 border-b", today && "bg-primary/5")}>
+                  <button
+                    onClick={() => openDayInDayView(day)}
+                    className="text-left hover:opacity-80 flex-1 transition-colors"
                   >
-                    {format(day, "d")}
-                  </div>
-                </button>
+                    <div className="text-[10px] uppercase text-muted-foreground tracking-wide">
+                      {format(day, "EEE", { locale: ptBR })}
+                    </div>
+                    <div
+                      className={cn(
+                        "text-lg font-semibold inline-flex h-7 min-w-7 px-1 items-center justify-center rounded-full",
+                        today && "bg-primary text-primary-foreground",
+                      )}
+                    >
+                      {format(day, "d")}
+                    </div>
+                  </button>
+                  {canEdit && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); openNewTaskDialog(day); }}
+                      className="opacity-0 group-hover:opacity-100 h-6 w-6 inline-flex items-center justify-center rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-opacity"
+                      title="Nova tarefa neste dia"
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </div>
                 <div className="p-1.5 flex flex-col gap-1 flex-1 overflow-y-auto">
                   {dayTasks.length === 0 ? (
                     <span className="text-[10px] text-muted-foreground text-center mt-4">—</span>
@@ -603,13 +699,20 @@ export default function TaskCalendar() {
         </Card>
 
         <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">
-              {format(cursor, "EEEE, d 'de' MMMM 'de' yyyy", { locale: ptBR })}
-            </CardTitle>
-            <p className="text-sm text-muted-foreground">
-              {dayTasks.length} {dayTasks.length === 1 ? "tarefa" : "tarefas"}
-            </p>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0">
+            <div>
+              <CardTitle className="text-lg">
+                {format(cursor, "EEEE, d 'de' MMMM 'de' yyyy", { locale: ptBR })}
+              </CardTitle>
+              <p className="text-sm text-muted-foreground">
+                {dayTasks.length} {dayTasks.length === 1 ? "tarefa" : "tarefas"}
+              </p>
+            </div>
+            {canEdit && (
+              <Button size="sm" variant="outline" className="gap-1.5 shrink-0" onClick={() => openNewTaskDialog(cursor)}>
+                <Plus className="h-4 w-4" /> Nova Tarefa
+              </Button>
+            )}
           </CardHeader>
           <CardContent>
             {loading ? (
@@ -852,6 +955,81 @@ export default function TaskCalendar() {
           ))}
         </div>
       )}
+
+      {/* Nova Tarefa */}
+      <Dialog open={newTaskOpen} onOpenChange={setNewTaskOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Nova Tarefa</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <Label className="text-sm">Projeto *</Label>
+              <Select value={ntProject} onValueChange={(v) => { setNtProject(v); setNtAssignee(""); }}>
+                <SelectTrigger><SelectValue placeholder="Selecione um projeto..." /></SelectTrigger>
+                <SelectContent>
+                  {projectOptions.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-sm">Título *</Label>
+              <Input value={ntTitle} onChange={(e) => setNtTitle(e.target.value)} placeholder="O que precisa ser feito?" />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-sm">Responsável</Label>
+                <Select value={ntAssignee || (user?.id ?? "")} onValueChange={setNtAssignee} disabled={!ntProject}>
+                  <SelectTrigger>
+                    <SelectValue placeholder={ntProject ? "Selecione" : "Escolha um projeto"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {user && (
+                      <SelectItem value={user.id}>
+                        <span className="flex items-center gap-2">
+                          <AssigneeAvatar name="Eu" />
+                          Eu mesmo
+                        </span>
+                      </SelectItem>
+                    )}
+                    {projectMembers.filter((m) => m.id !== user?.id).map((m) => (
+                      <SelectItem key={m.id} value={m.id}>
+                        <span className="flex items-center gap-2">
+                          <AssigneeAvatar url={m.avatar_url} name={m.nickname || m.full_name} />
+                          {m.nickname || m.full_name || m.id.slice(0, 8)}
+                        </span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-sm">Prioridade</Label>
+                <Select value={ntPriority} onValueChange={(v) => setNtPriority(v as typeof ntPriority)}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {Object.entries(priorityLabel).map(([key, label]) => (
+                      <SelectItem key={key} value={key}>{label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-sm">Prazo</Label>
+              <Input type="date" value={ntDue} onChange={(e) => setNtDue(e.target.value)} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setNewTaskOpen(false)}>Cancelar</Button>
+            <Button onClick={createTask} disabled={!ntProject || !ntTitle.trim() || creating}>
+              {creating ? "Criando..." : "Criar"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
