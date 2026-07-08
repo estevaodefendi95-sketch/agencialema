@@ -510,17 +510,20 @@ export default function TaskCalendar() {
   };
 
   // Pill
-  const TaskPill = ({ task }: { task: TaskWithRelations }) => (
-    <button
-      onClick={(e) => { e.stopPropagation(); navigate(`/projetos/${task.project_id}`); }}
-      className="w-full text-left px-1.5 py-0.5 rounded text-xs flex items-center gap-1 bg-card hover:bg-accent border-l-2 truncate"
-      style={{ borderLeftColor: getTaskColor(task) }}
-      title={task.title}
-    >
-      <span className={cn("h-1.5 w-1.5 rounded-full shrink-0", priorityColor[task.priority])} />
-      <span className="truncate">{task.title}</span>
-    </button>
-  );
+  const TaskPill = ({ task }: { task: TaskWithRelations }) => {
+    const color = getTaskColor(task);
+    return (
+      <button
+        onClick={(e) => { e.stopPropagation(); navigate(`/projetos/${task.project_id}`); }}
+        className="w-full text-left px-1.5 py-0.5 rounded text-xs flex items-center gap-1 border-l-4 truncate"
+        style={{ borderLeftColor: color, backgroundColor: `${color}15` }}
+        title={task.title}
+      >
+        <span className={cn("h-1.5 w-1.5 rounded-full shrink-0", priorityColor[task.priority])} />
+        <span className="truncate">{task.title}</span>
+      </button>
+    );
+  };
 
   // ========== Month View ==========
   const MonthView = () => {
@@ -722,12 +725,14 @@ export default function TaskCalendar() {
             ) : (
               <ScrollArea className="h-[500px] pr-3">
                 <div className="space-y-2">
-                  {dayTasks.map((task) => (
+                  {dayTasks.map((task) => {
+                    const color = getTaskColor(task);
+                    return (
                     <button
                       key={task.id}
                       onClick={() => navigate(`/projetos/${task.project_id}`)}
-                      className="w-full text-left p-3 rounded-lg border border-l-4 bg-card hover:bg-accent/50 transition-colors"
-                      style={{ borderLeftColor: getTaskColor(task) }}
+                      className="w-full text-left p-3 rounded-lg border border-l-4 transition-colors"
+                      style={{ borderLeftColor: color, backgroundColor: `${color}15` }}
                     >
                       <div className="flex items-start justify-between gap-2 mb-2">
                         <h3 className="font-medium text-sm">{task.title}</h3>
@@ -781,7 +786,8 @@ export default function TaskCalendar() {
                         )}
                       </div>
                     </button>
-                  ))}
+                    );
+                  })}
                 </div>
               </ScrollArea>
             )}
@@ -899,19 +905,24 @@ export default function TaskCalendar() {
           </Button>
         )}
 
-        <ToggleGroup
-          type="single"
-          value={colorMode}
-          onValueChange={(v) => changeColorMode(v as ColorMode)}
-          className="border rounded-md p-0.5 bg-muted/40"
-        >
-          <ToggleGroupItem value="projeto" className="h-8 px-3 text-xs gap-1.5 data-[state=on]:bg-background">
+        <div className="flex items-center border rounded-lg overflow-hidden">
+          <Button
+            variant={colorMode === "projeto" ? "default" : "ghost"}
+            size="sm"
+            className="rounded-none gap-1.5 text-xs"
+            onClick={() => changeColorMode("projeto")}
+          >
             <FolderKanban className="h-3.5 w-3.5" /> Por Projeto
-          </ToggleGroupItem>
-          <ToggleGroupItem value="responsavel" className="h-8 px-3 text-xs gap-1.5 data-[state=on]:bg-background">
+          </Button>
+          <Button
+            variant={colorMode === "responsavel" ? "default" : "ghost"}
+            size="sm"
+            className="rounded-none gap-1.5 text-xs"
+            onClick={() => changeColorMode("responsavel")}
+          >
             <User className="h-3.5 w-3.5" /> Por Responsável
-          </ToggleGroupItem>
-        </ToggleGroup>
+          </Button>
+        </div>
       </div>
 
       {/* Calendar toolbar */}
