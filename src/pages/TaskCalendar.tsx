@@ -810,9 +810,9 @@ export default function TaskCalendar() {
       </div>
 
       {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center">
+      <div className="flex flex-col lg:flex-row lg:flex-wrap gap-3 items-stretch lg:items-center">
         <Select value={companyFilter} onValueChange={handleCompanyChange}>
-          <SelectTrigger className="w-full sm:w-[240px]">
+          <SelectTrigger className="w-full lg:w-[200px]">
             <SelectValue placeholder="Empresa" />
           </SelectTrigger>
           <SelectContent>
@@ -824,7 +824,7 @@ export default function TaskCalendar() {
         </Select>
 
         <Select value={projectFilter} onValueChange={handleProjectChange}>
-          <SelectTrigger className="w-full sm:w-[240px]">
+          <SelectTrigger className="w-full lg:w-[200px]">
             <SelectValue placeholder="Projeto" />
           </SelectTrigger>
           <SelectContent>
@@ -836,7 +836,7 @@ export default function TaskCalendar() {
         </Select>
 
         <Select value={assigneeFilter} onValueChange={setAssigneeFilter}>
-          <SelectTrigger className="w-full sm:w-[240px] gap-2">
+          <SelectTrigger className="w-full lg:w-[200px] gap-2">
             <SelectValue placeholder="Responsável" />
           </SelectTrigger>
           <SelectContent>
@@ -879,7 +879,7 @@ export default function TaskCalendar() {
         </Select>
 
         <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-full sm:w-[240px]">
+          <SelectTrigger className="w-full lg:w-[200px]">
             <SelectValue placeholder="Status" />
           </SelectTrigger>
           <SelectContent>
@@ -905,7 +905,7 @@ export default function TaskCalendar() {
           </Button>
         )}
 
-        <div className="flex items-center border rounded-lg overflow-hidden">
+        <div className="flex items-center border rounded-lg overflow-hidden ml-0 lg:ml-auto">
           <Button
             variant={colorMode === "projeto" ? "default" : "ghost"}
             size="sm"
@@ -926,7 +926,7 @@ export default function TaskCalendar() {
       </div>
 
       {/* Calendar toolbar */}
-      <div className="flex flex-col sm:flex-row sm:items-center gap-3 justify-between">
+      <div className="flex flex-col lg:flex-row lg:items-center gap-3 justify-between">
         <ToggleGroup
           type="single"
           value={viewMode}
