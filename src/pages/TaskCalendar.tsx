@@ -5,6 +5,7 @@ import {
   isSameDay,
   isSameMonth,
   isToday,
+  isWithinInterval,
   startOfMonth,
   endOfMonth,
   startOfWeek,
@@ -28,9 +29,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Button } from "@/components/ui/button";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { CalendarDays, Building2, FolderKanban, X, MessageSquare, ChevronLeft, ChevronRight } from "lucide-react";
+import { CalendarDays, Building2, FolderKanban, User, X, MessageSquare, ChevronLeft, ChevronRight } from "lucide-react";
 import { AssigneeAvatar } from "@/components/AssigneeAvatar";
 import { cn } from "@/lib/utils";
+import { getEntityColor, PROJECT_COLOR_PALETTE, TEAM_COLOR_PALETTE } from "@/lib/colorPalette";
 
 type TaskWithRelations = {
   id: string;
@@ -41,12 +43,14 @@ type TaskWithRelations = {
   assignee_name: string | null;
   project_id: string;
   status: string;
-  projects: { name: string; company_id: string; companies: { name: string; logo_url: string | null } | null } | null;
-  assignee?: { full_name: string | null; nickname?: string | null; avatar_url: string | null } | null;
+  color: string | null;
+  projects: { name: string; company_id: string; color: string | null; companies: { name: string; logo_url: string | null } | null } | null;
+  assignee?: { full_name: string | null; nickname?: string | null; avatar_url: string | null; color?: string | null } | null;
   comment_count?: number;
 };
 
 type ViewMode = "mes" | "semana" | "dia";
+type ColorMode = "projeto" | "responsavel";
 
 const DEFAULT_STATUS_COLUMNS = [
   { slug: "a_fazer", label: "A Fazer" },
@@ -85,6 +89,9 @@ export default function TaskCalendar() {
   const [viewMode, setViewMode] = useState<ViewMode>(() => {
     return (localStorage.getItem("calendar-view-mode") as ViewMode) || "mes";
   });
+  const [colorMode, setColorMode] = useState<ColorMode>(() => {
+    return (localStorage.getItem("calendar-color-mode") as ColorMode) || "projeto";
+  });
   const [loading, setLoading] = useState(true);
   const [companyFilter, setCompanyFilter] = useState<string>("all");
   const [projectFilter, setProjectFilter] = useState<string>("all");
@@ -92,7 +99,7 @@ export default function TaskCalendar() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [companyAccessUserIds, setCompanyAccessUserIds] = useState<string[]>([]);
   const [companyAccessProfiles, setCompanyAccessProfiles] = useState<
-    Record<string, { full_name: string | null; nickname: string | null; avatar_url: string | null }>
+    Record<string, { full_name: string | null; nickname: string | null; avatar_url: string | null; color: string | null }>
   >({});
   const [statusColumns, setStatusColumns] = useState<{ slug: string; label: string }[]>(DEFAULT_STATUS_COLUMNS);
 
@@ -100,6 +107,12 @@ export default function TaskCalendar() {
     if (!m) return;
     setViewMode(m);
     localStorage.setItem("calendar-view-mode", m);
+  };
+
+  const changeColorMode = (m: ColorMode) => {
+    if (!m) return;
+    setColorMode(m);
+    localStorage.setItem("calendar-color-mode", m);
   };
 
   const handleCompanyChange = (value: string) => {
@@ -144,11 +157,11 @@ export default function TaskCalendar() {
     }
     const { data: profiles } = await supabase
       .from("profiles")
-      .select("id, full_name, nickname, avatar_url")
+      .select("id, full_name, nickname, avatar_url, color")
       .in("id", ids);
-    const map: Record<string, { full_name: string | null; nickname: string | null; avatar_url: string | null }> = {};
+    const map: Record<string, { full_name: string | null; nickname: string | null; avatar_url: string | null; color: string | null }> = {};
     (profiles || []).forEach((p: any) => {
-      map[p.id] = { full_name: p.full_name, nickname: p.nickname, avatar_url: p.avatar_url };
+      map[p.id] = { full_name: p.full_name, nickname: p.nickname, avatar_url: p.avatar_url, color: p.color };
     });
     setCompanyAccessProfiles(map);
   }
@@ -192,7 +205,7 @@ export default function TaskCalendar() {
     setLoading(true);
     const { data, error } = await supabase
       .from("tasks")
-      .select("id, title, due_date, priority, assigned_to, assignee_name, project_id, status, projects(name, company_id, companies(name, logo_url))")
+      .select("id, title, due_date, priority, assigned_to, assignee_name, project_id, status, color, projects(name, company_id, color, companies(name, logo_url))")
       .not("due_date", "is", null)
       .order("due_date", { ascending: true });
 
@@ -203,14 +216,14 @@ export default function TaskCalendar() {
     }
 
     const assigneeIds = Array.from(new Set((data || []).map((t: any) => t.assigned_to).filter(Boolean)));
-    let assigneeMap: Record<string, { full_name: string | null; nickname: string | null; avatar_url: string | null }> = {};
+    let assigneeMap: Record<string, { full_name: string | null; nickname: string | null; avatar_url: string | null; color: string | null }> = {};
     if (assigneeIds.length > 0) {
       const { data: profiles } = await supabase
         .from("profiles")
-        .select("id, full_name, nickname, avatar_url")
+        .select("id, full_name, nickname, avatar_url, color")
         .in("id", assigneeIds);
       (profiles || []).forEach((p: any) => {
-        assigneeMap[p.id] = { full_name: p.full_name, nickname: p.nickname, avatar_url: p.avatar_url };
+        assigneeMap[p.id] = { full_name: p.full_name, nickname: p.nickname, avatar_url: p.avatar_url, color: p.color };
       });
     }
 
@@ -327,6 +340,64 @@ export default function TaskCalendar() {
   const hasFilters =
     companyFilter !== "all" || projectFilter !== "all" || assigneeFilter !== "all" || statusFilter !== "all";
 
+  const getTaskColor = (task: TaskWithRelations): string => {
+    if (task.color) return task.color;
+    if (colorMode === "projeto") {
+      return getEntityColor(task.project_id, task.projects?.color ?? null, PROJECT_COLOR_PALETTE);
+    }
+    if (task.assigned_to) {
+      return getEntityColor(task.assigned_to, task.assignee?.color ?? null, TEAM_COLOR_PALETTE);
+    }
+    if (task.assignee_name) {
+      return getEntityColor(task.assignee_name.trim().toLowerCase(), null, TEAM_COLOR_PALETTE);
+    }
+    return "#94a3b8";
+  };
+
+  // Range of dates actually rendered by the current view, used to scope the legend.
+  const periodRange = useMemo(() => {
+    if (viewMode === "mes") {
+      return { start: startOfWeek(startOfMonth(cursor), { weekStartsOn: 0 }), end: endOfWeek(endOfMonth(cursor), { weekStartsOn: 0 }) };
+    }
+    if (viewMode === "semana") {
+      return { start: startOfWeek(cursor, { weekStartsOn: 0 }), end: endOfWeek(cursor, { weekStartsOn: 0 }) };
+    }
+    return { start: cursor, end: cursor };
+  }, [viewMode, cursor]);
+
+  const periodTasks = useMemo(() => {
+    return filteredTasks.filter((t) => isWithinInterval(new Date(t.due_date + "T00:00:00"), periodRange));
+  }, [filteredTasks, periodRange]);
+
+  const legendItems = useMemo(() => {
+    const map = new Map<string, { label: string; color: string }>();
+    periodTasks.forEach((t) => {
+      if (colorMode === "projeto") {
+        if (!t.project_id) return;
+        if (!map.has(t.project_id)) {
+          map.set(t.project_id, {
+            label: t.projects?.name || "Projeto",
+            color: getEntityColor(t.project_id, t.projects?.color ?? null, PROJECT_COLOR_PALETTE),
+          });
+        }
+      } else {
+        const key = t.assigned_to || (t.assignee_name ? `nome:${t.assignee_name.trim().toLowerCase()}` : "sem-responsavel");
+        if (!map.has(key)) {
+          const label = t.assigned_to
+            ? (t.assignee?.nickname?.trim() || t.assignee?.full_name || "Sem nome")
+            : (t.assignee_name?.trim() || "Sem responsável");
+          const color = t.assigned_to
+            ? getEntityColor(t.assigned_to, t.assignee?.color ?? null, TEAM_COLOR_PALETTE)
+            : t.assignee_name
+              ? getEntityColor(t.assignee_name.trim().toLowerCase(), null, TEAM_COLOR_PALETTE)
+              : "#94a3b8";
+          map.set(key, { label, color });
+        }
+      }
+    });
+    return Array.from(map.values()).sort((a, b) => a.label.localeCompare(b.label));
+  }, [periodTasks, colorMode]);
+
   // Period label + nav
   const periodLabel = useMemo(() => {
     if (viewMode === "mes") return format(cursor, "MMMM 'de' yyyy", { locale: ptBR });
@@ -363,10 +434,8 @@ export default function TaskCalendar() {
   const TaskPill = ({ task }: { task: TaskWithRelations }) => (
     <button
       onClick={(e) => { e.stopPropagation(); navigate(`/projetos/${task.project_id}`); }}
-      className={cn(
-        "w-full text-left px-1.5 py-0.5 rounded text-xs flex items-center gap-1 bg-card hover:bg-accent border-l-2 truncate",
-        priorityBorder[task.priority],
-      )}
+      className="w-full text-left px-1.5 py-0.5 rounded text-xs flex items-center gap-1 bg-card hover:bg-accent border-l-2 truncate"
+      style={{ borderLeftColor: getTaskColor(task) }}
       title={task.title}
     >
       <span className={cn("h-1.5 w-1.5 rounded-full shrink-0", priorityColor[task.priority])} />
@@ -554,7 +623,8 @@ export default function TaskCalendar() {
                     <button
                       key={task.id}
                       onClick={() => navigate(`/projetos/${task.project_id}`)}
-                      className="w-full text-left p-3 rounded-lg border bg-card hover:bg-accent/50 transition-colors"
+                      className="w-full text-left p-3 rounded-lg border border-l-4 bg-card hover:bg-accent/50 transition-colors"
+                      style={{ borderLeftColor: getTaskColor(task) }}
                     >
                       <div className="flex items-start justify-between gap-2 mb-2">
                         <h3 className="font-medium text-sm">{task.title}</h3>
@@ -725,6 +795,20 @@ export default function TaskCalendar() {
             <X className="h-4 w-4 mr-1" /> Limpar filtros
           </Button>
         )}
+
+        <ToggleGroup
+          type="single"
+          value={colorMode}
+          onValueChange={(v) => changeColorMode(v as ColorMode)}
+          className="border rounded-md p-0.5 bg-muted/40"
+        >
+          <ToggleGroupItem value="projeto" className="h-8 px-3 text-xs gap-1.5 data-[state=on]:bg-background">
+            <FolderKanban className="h-3.5 w-3.5" /> Por Projeto
+          </ToggleGroupItem>
+          <ToggleGroupItem value="responsavel" className="h-8 px-3 text-xs gap-1.5 data-[state=on]:bg-background">
+            <User className="h-3.5 w-3.5" /> Por Responsável
+          </ToggleGroupItem>
+        </ToggleGroup>
       </div>
 
       {/* Calendar toolbar */}
@@ -757,6 +841,17 @@ export default function TaskCalendar() {
       {viewMode === "mes" && <MonthView />}
       {viewMode === "semana" && <WeekView />}
       {viewMode === "dia" && <DayView />}
+
+      {legendItems.length > 0 && (
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 px-1 pt-1 text-xs text-muted-foreground">
+          {legendItems.map((item) => (
+            <span key={item.label} className="flex items-center gap-1.5">
+              <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: item.color }} />
+              {item.label}
+            </span>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

@@ -21,6 +21,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { CalendarDays, ChevronLeft, ChevronRight, FolderKanban } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { getEntityColor, PROJECT_COLOR_PALETTE } from "@/lib/colorPalette";
 
 type CalendarTask = {
   id: string;
@@ -29,6 +30,7 @@ type CalendarTask = {
   status: string;
   project_id: string;
   projectName: string;
+  color: string;
 };
 
 const DEFAULT_STATUS_COLUMNS = [
@@ -69,7 +71,7 @@ export default function ClientCalendar() {
 
     const { data: projectsData } = await supabase
       .from("projects")
-      .select("id, name, company_id")
+      .select("id, name, company_id, color")
       .in("company_id", companyIds)
       .eq("archived", false)
       .order("name");
@@ -85,13 +87,14 @@ export default function ClientCalendar() {
     const [{ data: tasksData }, { data: columnsData }] = await Promise.all([
       supabase
         .from("tasks")
-        .select("id, title, due_date, status, project_id")
+        .select("id, title, due_date, status, project_id, color")
         .in("project_id", projectIds)
         .not("due_date", "is", null),
       supabase.from("project_columns").select("project_id, slug, label").in("project_id", projectIds),
     ]);
 
     const projectNameMap = new Map((projectsData || []).map((p: any) => [p.id, p.name as string]));
+    const projectColorMap = new Map((projectsData || []).map((p: any) => [p.id, p.color as string | null]));
     const labelMap = new Map<string, string>();
     (columnsData || []).forEach((c: any) => labelMap.set(`${c.project_id}:${c.slug}`, c.label));
     setColumnLabels(labelMap);
@@ -103,6 +106,7 @@ export default function ClientCalendar() {
       status: t.status,
       project_id: t.project_id,
       projectName: projectNameMap.get(t.project_id) || "Projeto",
+      color: t.color || getEntityColor(t.project_id, projectColorMap.get(t.project_id) ?? null, PROJECT_COLOR_PALETTE),
     }));
     setTasks(enriched);
     setLoading(false);
@@ -226,7 +230,8 @@ export default function ClientCalendar() {
                     {visible.map((t) => (
                       <div
                         key={t.id}
-                        className="w-full truncate rounded bg-primary/10 px-1.5 py-0.5 text-[11px] text-primary"
+                        className="w-full truncate rounded border-l-2 bg-primary/10 px-1.5 py-0.5 text-[11px] text-primary"
+                        style={{ borderLeftColor: t.color }}
                         title={t.title}
                       >
                         {t.title}
@@ -254,7 +259,7 @@ export default function ClientCalendar() {
             ) : (
               <div className="space-y-2">
                 {selectedDayTasks.map((t) => (
-                  <div key={t.id} className="flex items-center justify-between gap-3 rounded-lg border p-3">
+                  <div key={t.id} className="flex items-center justify-between gap-3 rounded-lg border border-l-4 p-3" style={{ borderLeftColor: t.color }}>
                     <div className="min-w-0">
                       <p className="text-sm font-medium truncate">{t.title}</p>
                       <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">

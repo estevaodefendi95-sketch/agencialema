@@ -20,6 +20,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
+import { getEntityColor, PROJECT_COLOR_PALETTE } from "@/lib/colorPalette";
 import {
   format, isSameDay, isSameMonth, isToday, startOfMonth, endOfMonth,
   startOfWeek, endOfWeek, eachDayOfInterval, addMonths, addWeeks, addDays,
@@ -37,7 +38,8 @@ type Task = {
   assigned_to: string | null;
   project_id: string;
   position: number;
-  projects: { name: string; company_id: string; companies: { name: string } | null } | null;
+  color: string | null;
+  projects: { name: string; company_id: string; color: string | null; companies: { name: string } | null } | null;
 };
 
 type Profile = { id: string; full_name: string | null; nickname: string | null; avatar_url: string | null };
@@ -228,7 +230,7 @@ export default function MyTasks() {
     setLoading(true);
     const { data, error } = await supabase
       .from("tasks")
-      .select("id, title, description, status, priority, due_date, assigned_to, project_id, position, projects(name, company_id, companies(name))")
+      .select("id, title, description, status, priority, due_date, assigned_to, project_id, position, color, projects(name, company_id, color, companies(name))")
       .eq("assigned_to", uid)
       .order("due_date", { ascending: true, nullsFirst: false });
     if (error) {
@@ -508,10 +510,8 @@ export default function MyTasks() {
                                   {...p.draggableProps}
                                   {...p.dragHandleProps}
                                   onClick={() => navigate(`/projetos/${t.project_id}`)}
-                                  className={cn(
-                                    "p-3 rounded-md border bg-card cursor-pointer hover:border-primary transition-colors border-l-4",
-                                    PRIORITY_BORDER[t.priority],
-                                  )}
+                                  className="p-3 rounded-md border bg-card cursor-pointer hover:border-primary transition-colors border-l-4"
+                                  style={{ borderLeftColor: t.color || getEntityColor(t.project_id, t.projects?.color ?? null, PROJECT_COLOR_PALETTE) }}
                                 >
                                   <div className="flex items-start gap-2">
                                     <Checkbox

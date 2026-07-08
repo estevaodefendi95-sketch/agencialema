@@ -11,6 +11,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { AssigneeAvatar } from "@/components/AssigneeAvatar";
+import { ColorSwatchPicker } from "@/components/ColorSwatchPicker";
+import { TEAM_COLOR_PALETTE } from "@/lib/colorPalette";
 import { Users, AlertTriangle, Zap, Pencil, Building2, FolderKanban } from "lucide-react";
 
 type Member = {
@@ -18,6 +20,7 @@ type Member = {
   full_name: string | null;
   email: string | null;
   avatar_url: string | null;
+  color: string | null;
   tarefas_ativas: number;
   tarefas_aprovadas: number;
   tarefas_atrasadas: number;
@@ -38,6 +41,7 @@ export default function Team() {
 
   const [selected, setSelected] = useState<Member | null>(null);
   const [editName, setEditName] = useState("");
+  const [editColor, setEditColor] = useState<string | null>(null);
   const [editCompanies, setEditCompanies] = useState<string[]>([]);
   const [editProjects, setEditProjects] = useState<string[]>([]);
   const [initialProjects, setInitialProjects] = useState<string[]>([]);
@@ -76,6 +80,7 @@ export default function Team() {
   async function openEdit(m: Member) {
     setSelected(m);
     setEditName(m.full_name || "");
+    setEditColor(m.color || null);
     setDialogLoading(true);
     const [{ data: access }, { data: pm }] = await Promise.all([
       supabase.from("user_company_access").select("company_id").eq("user_id", m.user_id),
@@ -105,7 +110,7 @@ export default function Team() {
     try {
       const { error } = await supabase
         .from("profiles")
-        .update({ full_name: editName.trim() || null })
+        .update({ full_name: editName.trim() || null, color: editColor } as any)
         .eq("id", selected.user_id);
       if (error) throw error;
     } catch (err: any) {
@@ -232,6 +237,17 @@ export default function Team() {
               <div className="space-y-2">
                 <Label>Nome</Label>
                 <Input value={editName} onChange={(e) => setEditName(e.target.value)} placeholder="Nome do membro" />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Cor</Label>
+                <ColorSwatchPicker
+                  value={editColor}
+                  onChange={setEditColor}
+                  palette={TEAM_COLOR_PALETTE}
+                  allowNone
+                  triggerClassName="h-7 w-7 rounded-full shrink-0 border border-border"
+                />
               </div>
 
               <div className="space-y-2">

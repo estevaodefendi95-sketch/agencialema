@@ -14,6 +14,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { Plus, FolderKanban, Calendar, LayoutGrid, List, ArrowUpDown, Building2, MoreVertical, Pencil, Archive, ArchiveRestore, Trash2, Eye, EyeOff } from "lucide-react";
+import { ColorSwatchPicker } from "@/components/ColorSwatchPicker";
 
 interface Project {
   id: string;
@@ -22,6 +23,7 @@ interface Project {
   due_date: string | null;
   company_id: string;
   archived: boolean;
+  color: string | null;
   companies?: { name: string; logo_url: string | null } | null;
 }
 
@@ -41,6 +43,7 @@ export default function Projects() {
   const [description, setDescription] = useState("");
   const [companyId, setCompanyId] = useState("");
   const [dueDate, setDueDate] = useState("");
+  const [color, setColor] = useState<string | null>(null);
   const [showArchived, setShowArchived] = useState(false);
 
   // Edit project dialog
@@ -49,6 +52,7 @@ export default function Projects() {
   const [editName, setEditName] = useState("");
   const [editDescription, setEditDescription] = useState("");
   const [editDueDate, setEditDueDate] = useState("");
+  const [editColor, setEditColor] = useState<string | null>(null);
 
   // Delete confirm
   const [deleteProjectId, setDeleteProjectId] = useState<string | null>(null);
@@ -159,13 +163,13 @@ export default function Projects() {
   };
 
   const save = async () => {
-    const { data } = await supabase.from("projects").insert({ name, description, company_id: companyId, due_date: dueDate || null }).select().single();
+    const { data } = await supabase.from("projects").insert({ name, description, company_id: companyId, due_date: dueDate || null, color } as any).select().single();
     if (data) {
       await logHistory(data.id, "create", null, { name, description, due_date: dueDate || null });
     }
     toast({ title: "Projeto criado" });
     setOpen(false);
-    setName(""); setDescription(""); setCompanyId(""); setDueDate("");
+    setName(""); setDescription(""); setCompanyId(""); setDueDate(""); setColor(null);
     load();
   };
 
@@ -174,6 +178,7 @@ export default function Projects() {
     setEditName(p.name);
     setEditDescription(p.description || "");
     setEditDueDate(p.due_date || "");
+    setEditColor(p.color || null);
     setEditOpen(true);
   };
 
@@ -198,6 +203,9 @@ export default function Projects() {
       updates.due_date = newDue;
       prev.due_date = editProject.due_date;
       next.due_date = newDue;
+    }
+    if (editColor !== (editProject.color || null)) {
+      updates.color = editColor;
     }
 
     if (Object.keys(updates).length === 0) {
@@ -487,6 +495,10 @@ export default function Projects() {
               <Label>Prazo</Label>
               <Input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
             </div>
+            <div className="space-y-2">
+              <Label>Cor</Label>
+              <ColorSwatchPicker value={color} onChange={setColor} allowNone triggerClassName="h-7 w-7 rounded-full shrink-0 border border-border" />
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
@@ -511,6 +523,10 @@ export default function Projects() {
             <div className="space-y-2">
               <Label>Prazo</Label>
               <Input type="date" value={editDueDate} onChange={(e) => setEditDueDate(e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label>Cor</Label>
+              <ColorSwatchPicker value={editColor} onChange={setEditColor} allowNone triggerClassName="h-7 w-7 rounded-full shrink-0 border border-border" />
             </div>
           </div>
           <DialogFooter>

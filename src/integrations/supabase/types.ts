@@ -192,6 +192,7 @@ export type Database = {
       profiles: {
         Row: {
           avatar_url: string | null
+          color: string | null
           created_at: string
           email: string | null
           full_name: string | null
@@ -202,6 +203,7 @@ export type Database = {
         }
         Insert: {
           avatar_url?: string | null
+          color?: string | null
           created_at?: string
           email?: string | null
           full_name?: string | null
@@ -212,6 +214,7 @@ export type Database = {
         }
         Update: {
           avatar_url?: string | null
+          color?: string | null
           created_at?: string
           email?: string | null
           full_name?: string | null
@@ -390,6 +393,7 @@ export type Database = {
       projects: {
         Row: {
           archived: boolean
+          color: string | null
           company_id: string
           created_at: string
           created_by: string | null
@@ -401,6 +405,7 @@ export type Database = {
         }
         Insert: {
           archived?: boolean
+          color?: string | null
           company_id: string
           created_at?: string
           created_by?: string | null
@@ -412,6 +417,7 @@ export type Database = {
         }
         Update: {
           archived?: boolean
+          color?: string | null
           company_id?: string
           created_at?: string
           created_by?: string | null
@@ -720,6 +726,7 @@ export type Database = {
       team_workload: {
         Row: {
           avatar_url: string | null
+          color: string | null
           email: string | null
           full_name: string | null
           tarefas_aprovadas: number | null
