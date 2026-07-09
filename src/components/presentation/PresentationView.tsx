@@ -1,7 +1,13 @@
+import { useEffect, useState } from "react";
 import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Card, CardContent } from "@/components/ui/card";
+import { Carousel, CarouselContent, CarouselItem, CarouselPrevious, CarouselNext, type CarouselApi } from "@/components/ui/carousel";
 import { Image as ImageIcon } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { getGalleryItems, getPostMediaItems, type MediaItem, type PostMediaRow } from "./mediaUtils";
+
+export type { PostMediaRow } from "./mediaUtils";
 
 export type PresentationData = {
   id: string;
@@ -28,10 +34,12 @@ export default function PresentationView({
   pres,
   blocks,
   posts,
+  postMedia = [],
 }: {
   pres: PresentationData;
   blocks: Block[];
   posts: Post[];
+  postMedia?: PostMediaRow[];
 }) {
   return (
     <div className="min-h-screen bg-gradient-to-b from-background via-background to-muted/30">
@@ -71,12 +79,12 @@ export default function PresentationView({
       {/* BLOCKS */}
       <main className="max-w-6xl mx-auto px-6 pb-24 space-y-10 md:space-y-16">
         {blocks.map((b) => (
-          <BlockRender key={b.id} block={b} posts={posts} />
+          <BlockRender key={b.id} block={b} posts={posts} postMedia={postMedia} />
         ))}
 
         {/* Fallback: render posts plan if not in any block */}
         {!blocks.some((b) => b.block_type === "posts_plan") && posts.length > 0 && (
-          <PostsPlanSection posts={posts} />
+          <PostsPlanSection posts={posts} postMedia={postMedia} />
         )}
       </main>
 
@@ -92,7 +100,7 @@ export default function PresentationView({
   );
 }
 
-function BlockRender({ block, posts }: { block: Block; posts: Post[] }) {
+function BlockRender({ block, posts, postMedia }: { block: Block; posts: Post[]; postMedia: PostMediaRow[] }) {
   if (block.block_type === "header") {
     return (
       <section className="text-center py-2 animate-fade-in">
@@ -133,18 +141,12 @@ function BlockRender({ block, posts }: { block: Block; posts: Post[] }) {
     );
   }
   if (block.block_type === "gallery") {
-    const images: string[] = block.data.images || [];
+    const items = getGalleryItems(block.data);
+    if (items.length === 0) return null;
     return (
       <div className="py-2">
-        <section className="grid grid-cols-2 md:grid-cols-3 gap-4 animate-fade-in">
-          {images.map((url, i) => (
-            <img
-              key={i}
-              src={url}
-              alt=""
-              className="aspect-square w-full object-cover rounded-2xl border shadow-md hover:scale-[1.02] transition-transform duration-300"
-            />
-          ))}
+        <section className="max-w-2xl mx-auto animate-fade-in">
+          <MediaCarousel items={items} />
         </section>
       </div>
     );
@@ -153,9 +155,68 @@ function BlockRender({ block, posts }: { block: Block; posts: Post[] }) {
     return <InstagramPreview data={block.data} />;
   }
   if (block.block_type === "posts_plan") {
-    return <PostsPlanSection posts={posts} />;
+    return <PostsPlanSection posts={posts} postMedia={postMedia} />;
   }
   return null;
+}
+
+// Carrossel simples (dots + setas nas laterais em telas maiores) usado tanto
+// pela Galeria quanto pelos posts do Planejamento. Sem carrossel quando há
+// só 1 item — mostra a mídia direto.
+function MediaCarousel({ items, mediaClassName }: { items: MediaItem[]; mediaClassName?: string }) {
+  const [api, setApi] = useState<CarouselApi>();
+  const [selected, setSelected] = useState(0);
+
+  useEffect(() => {
+    if (!api) return;
+    setSelected(api.selectedScrollSnap());
+    const onSelect = () => setSelected(api.selectedScrollSnap());
+    api.on("select", onSelect);
+    return () => {
+      api.off("select", onSelect);
+    };
+  }, [api]);
+
+  if (items.length === 0) return null;
+  if (items.length === 1) return <MediaTile item={items[0]} className={mediaClassName} />;
+
+  return (
+    <div className="h-full flex flex-col">
+      <Carousel setApi={setApi} className="w-full flex-1 min-h-0">
+        <CarouselContent className="h-full">
+          {items.map((item, i) => (
+            <CarouselItem key={i} className="h-full">
+              <MediaTile item={item} className={mediaClassName} />
+            </CarouselItem>
+          ))}
+        </CarouselContent>
+        <CarouselPrevious className="hidden md:flex -left-4" />
+        <CarouselNext className="hidden md:flex -right-4" />
+      </Carousel>
+      <div className="flex justify-center gap-1.5 mt-3 shrink-0">
+        {items.map((_, i) => (
+          <button
+            key={i}
+            type="button"
+            onClick={() => api?.scrollTo(i)}
+            className={cn(
+              "h-1.5 rounded-full transition-all",
+              i === selected ? "w-4 bg-primary" : "w-1.5 bg-muted-foreground/30",
+            )}
+            aria-label={`Ir para item ${i + 1}`}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function MediaTile({ item, className }: { item: MediaItem; className?: string }) {
+  const cls = className || "aspect-square w-full object-cover rounded-2xl border shadow-md";
+  if (item.type === "video") {
+    return <video src={item.url} controls className={cn(cls, "bg-black")} />;
+  }
+  return <img src={item.url} alt="" className={cn(cls, "hover:scale-[1.02] transition-transform duration-300")} />;
 }
 
 function InstagramPreview({ data }: { data: any }) {
@@ -371,7 +432,7 @@ function FakeBtn({ children, className = "" }: { children: React.ReactNode; clas
   );
 }
 
-function PostsPlanSection({ posts }: { posts: Post[] }) {
+function PostsPlanSection({ posts, postMedia }: { posts: Post[]; postMedia: PostMediaRow[] }) {
   if (posts.length === 0) return null;
   return (
     <section className="animate-fade-in">
@@ -382,18 +443,21 @@ function PostsPlanSection({ posts }: { posts: Post[] }) {
         Cronograma e copies dos próximos posts
       </p>
       <div className="space-y-6">
-        {posts.map((p) => (
+        {posts.map((p) => {
+          const items = getPostMediaItems(p, postMedia);
+          return (
           <Card
             key={p.id}
             className="overflow-hidden border shadow-lg hover:shadow-xl transition-shadow duration-300 rounded-2xl"
           >
             <CardContent className="p-0 grid grid-cols-1 md:grid-cols-[280px_1fr] gap-0">
-              {p.image_url ? (
-                <img
-                  src={p.image_url}
-                  alt={p.title || ""}
-                  className="w-full aspect-square md:aspect-auto md:h-full object-cover"
-                />
+              {items.length > 0 ? (
+                <div className="w-full aspect-square md:aspect-auto md:h-full">
+                  <MediaCarousel
+                    items={items.map((m) => ({ url: m.media_url, type: m.media_type }))}
+                    mediaClassName="w-full h-full object-cover"
+                  />
+                </div>
               ) : (
                 <div className="w-full aspect-square md:aspect-auto bg-muted flex items-center justify-center">
                   <ImageIcon className="h-10 w-10 text-muted-foreground" />
@@ -418,7 +482,8 @@ function PostsPlanSection({ posts }: { posts: Post[] }) {
               </div>
             </CardContent>
           </Card>
-        ))}
+          );
+        })}
       </div>
     </section>
   );

@@ -1,13 +1,14 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import PresentationView, { type PresentationData, type Block, type Post } from "@/components/presentation/PresentationView";
+import PresentationView, { type PresentationData, type Block, type Post, type PostMediaRow } from "@/components/presentation/PresentationView";
 
 export default function ClientLanding() {
   const { slug } = useParams<{ slug: string }>();
   const [pres, setPres] = useState<PresentationData | null>(null);
   const [blocks, setBlocks] = useState<Block[]>([]);
   const [posts, setPosts] = useState<Post[]>([]);
+  const [postMedia, setPostMedia] = useState<PostMediaRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
 
@@ -34,6 +35,13 @@ export default function ClientLanding() {
       ]);
       setBlocks((b || []) as any);
       setPosts((p || []) as any);
+      const postIds = (p || []).map((x) => x.id);
+      if (postIds.length > 0) {
+        const { data: pm } = await supabase.from("presentation_post_media").select("*").in("post_id", postIds).order("position");
+        setPostMedia((pm || []) as any);
+      } else {
+        setPostMedia([]);
+      }
       setLoading(false);
     })();
   }, [slug]);
@@ -57,5 +65,5 @@ export default function ClientLanding() {
     );
   }
 
-  return <PresentationView pres={pres} blocks={blocks} posts={posts} />;
+  return <PresentationView pres={pres} blocks={blocks} posts={posts} postMedia={postMedia} />;
 }

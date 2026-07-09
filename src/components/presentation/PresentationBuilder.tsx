@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -11,10 +11,36 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { DragDropContext, Droppable, Draggable, type DropResult } from "@hello-pangea/dnd";
-import { Plus, GripVertical, Trash2, Image as ImageIcon, Type, Smartphone, ListOrdered, Eye, ExternalLink, Copy, Heading, Upload } from "lucide-react";
+import { Plus, GripVertical, Trash2, Image as ImageIcon, Type, Smartphone, ListOrdered, Eye, ExternalLink, Copy, Heading, Upload, Play, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import ImageCropper from "@/components/ImageCropper";
+import { detectMediaType, getGalleryItems, getPostMediaItems, isLegacyPostMedia, type MediaItem, type PostMediaRow } from "./mediaUtils";
+
+const MAX_MEDIA_MB = 50;
+
+// Upload direto (sem recorte) pra arquivos que o ImageCropper não processa,
+// como vídeo. Usado pelas galerias e pelos posts do planejamento.
+async function uploadRawMedia(file: File, folder: string): Promise<{ url: string | null; error: string | null }> {
+  if (file.size > MAX_MEDIA_MB * 1024 * 1024) {
+    return {
+      url: null,
+      error: `Arquivo muito grande (${(file.size / 1024 / 1024).toFixed(1)}MB). O limite recomendado é ${MAX_MEDIA_MB}MB por arquivo.`,
+    };
+  }
+  const ext = file.name.split(".").pop() || "bin";
+  const path = `${folder}/${crypto.randomUUID()}.${ext}`;
+  const { error } = await supabase.storage.from("attachments").upload(path, file, { upsert: false });
+  if (error) {
+    const msg = error.message?.toLowerCase() || "";
+    if (msg.includes("exceeded") || msg.includes("too large") || msg.includes("payload") || msg.includes("413")) {
+      return { url: null, error: `Arquivo muito grande pro upload. O limite recomendado é ${MAX_MEDIA_MB}MB por arquivo.` };
+    }
+    return { url: null, error: error.message || "Erro ao enviar arquivo." };
+  }
+  const { data } = supabase.storage.from("attachments").getPublicUrl(path);
+  return { url: data.publicUrl, error: null };
+}
 
 type Presentation = {
   id: string;
@@ -78,7 +104,11 @@ export default function PresentationBuilder({ projectId, projectName }: { projec
   const [pres, setPres] = useState<Presentation | null>(null);
   const [blocks, setBlocks] = useState<Block[]>([]);
   const [posts, setPosts] = useState<Post[]>([]);
+  const [postMedia, setPostMedia] = useState<PostMediaRow[]>([]);
   const [loading, setLoading] = useState(true);
+  // Contador local de posição por post — evita corrida quando várias mídias
+  // são enviadas em sequência antes do estado `postMedia` (React) atualizar.
+  const nextPostMediaPosition = useRef<Record<string, number>>({});
 
   useEffect(() => {
     loadOrCreate();
@@ -117,7 +147,20 @@ export default function PresentationBuilder({ projectId, projectName }: { projec
         supabase.from("presentation_posts").select("*").eq("presentation_id", p.id).order("position"),
       ]);
       setBlocks((b || []) as any);
-      setPosts((po || []) as any);
+      const postList = (po || []) as Post[];
+      setPosts(postList);
+      const postIds = postList.map((x) => x.id);
+      if (postIds.length > 0) {
+        const { data: pm } = await supabase
+          .from("presentation_post_media")
+          .select("*")
+          .in("post_id", postIds)
+          .order("position");
+        setPostMedia((pm || []) as any);
+      } else {
+        setPostMedia([]);
+      }
+      nextPostMediaPosition.current = {};
     }
     setLoading(false);
   }
@@ -184,7 +227,30 @@ export default function PresentationBuilder({ projectId, projectName }: { projec
   }
   async function removePost(id: string) {
     setPosts((prev) => prev.filter((p) => p.id !== id));
+    setPostMedia((prev) => prev.filter((m) => m.post_id !== id));
+    delete nextPostMediaPosition.current[id];
     await supabase.from("presentation_posts").delete().eq("id", id);
+  }
+
+  async function addPostMedia(postId: string, url: string, type: "image" | "video") {
+    if (nextPostMediaPosition.current[postId] === undefined) {
+      nextPostMediaPosition.current[postId] = postMedia.filter((m) => m.post_id === postId).length;
+    }
+    const position = nextPostMediaPosition.current[postId]++;
+    const { data, error } = await supabase
+      .from("presentation_post_media")
+      .insert({ post_id: postId, media_url: url, media_type: type, position })
+      .select("*").single();
+    if (error) {
+      toast({ title: "Erro ao salvar mídia", description: error.message, variant: "destructive" });
+      return;
+    }
+    setPostMedia((prev) => [...prev, data as any]);
+  }
+
+  async function removePostMedia(mediaId: string) {
+    setPostMedia((prev) => prev.filter((m) => m.id !== mediaId));
+    await supabase.from("presentation_post_media").delete().eq("id", mediaId);
   }
 
   const publicUrl = pres ? `${window.location.origin}/c/${pres.slug}` : "";
@@ -281,9 +347,12 @@ export default function PresentationBuilder({ projectId, projectName }: { projec
                           block={b}
                           onChange={(d) => patchBlock(b.id, d)}
                           posts={posts}
+                          postMedia={postMedia}
                           onAddPost={addPost}
                           onPatchPost={patchPost}
                           onRemovePost={removePost}
+                          onAddPostMedia={addPostMedia}
+                          onRemovePostMedia={removePostMedia}
                           disabled={!canEdit}
                         />
                       </CardContent>
@@ -356,9 +425,11 @@ function LogoField({ label, value, onChange, disabled, folder }: { label: string
   );
 }
 
-function BlockEditor({ block, onChange, posts, onAddPost, onPatchPost, onRemovePost, disabled }: any) {
+function BlockEditor({ block, onChange, posts, postMedia, onAddPost, onPatchPost, onRemovePost, onAddPostMedia, onRemovePostMedia, disabled }: any) {
+  const { toast } = useToast();
   const [queue, setQueue] = useState<File[]>([]);
   const [current, setCurrent] = useState<File | null>(null);
+  const [uploadingGallery, setUploadingGallery] = useState(false);
 
   function handleFiles(e: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(e.target.files || []);
@@ -368,8 +439,47 @@ function BlockEditor({ block, onChange, posts, onAddPost, onPatchPost, onRemoveP
     setCurrent(files[0]);
   }
 
+  // Bloco Galeria: separa vídeos (upload direto, sem recorte) de imagens
+  // (seguem pra fila de recorte existente).
+  async function handleGalleryFiles(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files || []);
+    e.target.value = "";
+    if (!files.length) return;
+    const videos = files.filter((f) => detectMediaType(f.name) === "video");
+    const images = files.filter((f) => detectMediaType(f.name) !== "video");
+
+    if (videos.length > 0) {
+      setUploadingGallery(true);
+      // Acumula localmente: cada onChange dispara um patchBlock no pai, mas
+      // como isso é um loop síncrono não dá tempo do prop `block` atualizar
+      // entre uma volta e outra — sem isso, só o último vídeo sobreviveria.
+      let accItems = getGalleryItems(block.data);
+      for (const file of videos) {
+        const { url, error } = await uploadRawMedia(file, "presentations/media");
+        if (error) {
+          toast({ title: "Erro ao enviar vídeo", description: error, variant: "destructive" });
+          continue;
+        }
+        if (url) {
+          accItems = [...accItems, { url, type: "video" as const }];
+          const { images: _legacy, ...rest } = block.data;
+          onChange({ ...rest, items: accItems });
+        }
+      }
+      setUploadingGallery(false);
+    }
+    if (images.length > 0) {
+      setQueue(images.slice(1));
+      setCurrent(images[0]);
+    }
+  }
+
   function handleCropped(url: string, isMulti: boolean) {
-    if (isMulti) {
+    if (isGallery) {
+      const items = getGalleryItems(block.data);
+      const { images: _legacy, ...rest } = block.data;
+      onChange({ ...rest, items: [...items, { url, type: "image" as const }] });
+    } else if (isMulti) {
       onChange({ ...block.data, images: [...(block.data.images || []), url] });
     } else {
       onChange({ ...block.data, url });
@@ -437,51 +547,48 @@ function BlockEditor({ block, onChange, posts, onAddPost, onPatchPost, onRemoveP
       </div>
     );
   }
-  if (isGallery || isInsta) {
+  if (isInsta) {
     const images: string[] = block.data.images || [];
     const layout: "feed_only" | "full_profile" = block.data.layout || "feed_only";
     const highlights: { id: string; title: string; cover_url: string }[] = block.data.highlights || [];
     return (
       <div className="space-y-3">
-        {isInsta && (
-          <div className="space-y-3 p-3 rounded-md bg-muted/40 border">
-            <div>
-              <Label className="text-xs">Formato da apresentação</Label>
-              <div className="grid grid-cols-2 gap-2 mt-1.5">
-                <button
-                  type="button"
-                  disabled={disabled}
-                  onClick={() => onChange({ ...block.data, layout: "feed_only" })}
-                  className={cn(
-                    "text-xs px-3 py-2 rounded border text-left transition-colors",
-                    layout === "feed_only" ? "border-primary bg-primary/10 text-primary font-medium" : "border-input hover:bg-accent",
-                  )}
-                >
-                  📱 Só feed
-                  <span className="block text-[10px] opacity-70 font-normal mt-0.5">Apenas o grid 3×N</span>
-                </button>
-                <button
-                  type="button"
-                  disabled={disabled}
-                  onClick={() => onChange({ ...block.data, layout: "full_profile" })}
-                  className={cn(
-                    "text-xs px-3 py-2 rounded border text-left transition-colors",
-                    layout === "full_profile" ? "border-primary bg-primary/10 text-primary font-medium" : "border-input hover:bg-accent",
-                  )}
-                >
-                  👤 Perfil completo
-                  <span className="block text-[10px] opacity-70 font-normal mt-0.5">Cabeçalho + stories + feed</span>
-                </button>
-              </div>
+        <div className="space-y-3 p-3 rounded-md bg-muted/40 border">
+          <div>
+            <Label className="text-xs">Formato da apresentação</Label>
+            <div className="grid grid-cols-2 gap-2 mt-1.5">
+              <button
+                type="button"
+                disabled={disabled}
+                onClick={() => onChange({ ...block.data, layout: "feed_only" })}
+                className={cn(
+                  "text-xs px-3 py-2 rounded border text-left transition-colors",
+                  layout === "feed_only" ? "border-primary bg-primary/10 text-primary font-medium" : "border-input hover:bg-accent",
+                )}
+              >
+                📱 Só feed
+                <span className="block text-[10px] opacity-70 font-normal mt-0.5">Apenas o grid 3×N</span>
+              </button>
+              <button
+                type="button"
+                disabled={disabled}
+                onClick={() => onChange({ ...block.data, layout: "full_profile" })}
+                className={cn(
+                  "text-xs px-3 py-2 rounded border text-left transition-colors",
+                  layout === "full_profile" ? "border-primary bg-primary/10 text-primary font-medium" : "border-input hover:bg-accent",
+                )}
+              >
+                👤 Perfil completo
+                <span className="block text-[10px] opacity-70 font-normal mt-0.5">Cabeçalho + stories + feed</span>
+              </button>
             </div>
-            {layout === "full_profile" && (
-              <ProfileFieldsEditor block={block} onChange={onChange} disabled={disabled} highlights={highlights} />
-            )}
           </div>
-        )}
-        {isGallery && <p className="text-xs text-muted-foreground">Cada imagem será recortada em 1:1 para um layout consistente.</p>}
-        {isInsta && <p className="text-xs text-muted-foreground">Imagens do feed em 1:1 (recorte obrigatório).</p>}
-        <div className={cn("grid gap-2", isInsta ? "grid-cols-3 max-w-xs" : "grid-cols-3 sm:grid-cols-4")}>
+          {layout === "full_profile" && (
+            <ProfileFieldsEditor block={block} onChange={onChange} disabled={disabled} highlights={highlights} />
+          )}
+        </div>
+        <p className="text-xs text-muted-foreground">Imagens do feed em 1:1 (recorte obrigatório).</p>
+        <div className="grid gap-2 grid-cols-3 max-w-xs">
           {images.map((url, i) => (
             <div key={i} className="relative aspect-square">
               <img src={url} alt="" className="w-full h-full object-cover rounded border" />
@@ -515,13 +622,82 @@ function BlockEditor({ block, onChange, posts, onAddPost, onPatchPost, onRemoveP
       </div>
     );
   }
+  if (isGallery) {
+    const items: MediaItem[] = getGalleryItems(block.data);
+    return (
+      <div className="space-y-3">
+        <p className="text-xs text-muted-foreground">
+          Imagens são recortadas em 1:1 para um layout consistente; vídeos não são recortados automaticamente, envie já no formato desejado.
+        </p>
+        <div className="grid gap-2 grid-cols-3 sm:grid-cols-4">
+          {items.map((item, i) => (
+            <div key={i} className="relative aspect-square">
+              {item.type === "video" ? (
+                <video src={item.url} muted loop autoPlay playsInline className="w-full h-full object-cover rounded border" />
+              ) : (
+                <img src={item.url} alt="" className="w-full h-full object-cover rounded border" />
+              )}
+              {item.type === "video" && (
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                  <Play className="h-6 w-6 text-white drop-shadow" fill="white" />
+                </div>
+              )}
+              {!disabled && (
+                <button
+                  onClick={() => {
+                    const { images: _legacy, ...rest } = block.data;
+                    onChange({ ...rest, items: items.filter((_, j) => j !== i) });
+                  }}
+                  className="absolute top-1 right-1 bg-background/80 rounded p-0.5"
+                >
+                  <Trash2 className="h-3 w-3" />
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+        {!disabled && (
+          <>
+            <label className="cursor-pointer inline-block">
+              <Input type="file" accept="image/*,video/*" multiple className="hidden" onChange={handleGalleryFiles} disabled={uploadingGallery} />
+              <Button asChild variant="outline" size="sm" disabled={uploadingGallery}>
+                <span><Upload className="h-3.5 w-3.5 mr-1.5" />{uploadingGallery ? "Enviando vídeo..." : "Adicionar mídia"}</span>
+              </Button>
+            </label>
+            <p className="text-[10px] text-muted-foreground">
+              Vídeos grandes podem demorar pra carregar — recomendado até {MAX_MEDIA_MB}MB por arquivo.
+            </p>
+          </>
+        )}
+        {current && (
+          <ImageCropper
+            file={current}
+            open
+            onClose={cancelCrop}
+            onCropped={(url) => handleCropped(url, true)}
+            aspect={aspect}
+            uploadPath={`presentations/media/${crypto.randomUUID()}.png`}
+          />
+        )}
+      </div>
+    );
+  }
   if (block.block_type === "posts_plan") {
     return (
       <div className="space-y-3">
         <div className="space-y-2">
           {posts.length === 0 && <p className="text-xs text-muted-foreground">Nenhum post planejado ainda.</p>}
           {posts.map((p: Post) => (
-            <PostEditor key={p.id} post={p} onPatch={(patch) => onPatchPost(p.id, patch)} onRemove={() => onRemovePost(p.id)} disabled={disabled} />
+            <PostEditor
+              key={p.id}
+              post={p}
+              media={(postMedia as PostMediaRow[]).filter((m) => m.post_id === p.id)}
+              onPatch={(patch) => onPatchPost(p.id, patch)}
+              onRemove={() => onRemovePost(p.id)}
+              onAddMedia={onAddPostMedia}
+              onRemoveMedia={onRemovePostMedia}
+              disabled={disabled}
+            />
           ))}
         </div>
         {!disabled && (
@@ -533,36 +709,131 @@ function BlockEditor({ block, onChange, posts, onAddPost, onPatchPost, onRemoveP
   return null;
 }
 
-function PostEditor({ post, onPatch, onRemove, disabled }: { post: Post; onPatch: (p: Partial<Post>) => void; onRemove: () => void; disabled?: boolean }) {
-  const [pending, setPending] = useState<File | null>(null);
-  function onPick(e: React.ChangeEvent<HTMLInputElement>) {
-    const f = e.target.files?.[0];
+function PostEditor({
+  post,
+  media,
+  onPatch,
+  onRemove,
+  onAddMedia,
+  onRemoveMedia,
+  disabled,
+}: {
+  post: Post;
+  media: PostMediaRow[];
+  onPatch: (p: Partial<Post>) => void;
+  onRemove: () => void;
+  onAddMedia: (postId: string, url: string, type: "image" | "video") => void;
+  onRemoveMedia: (mediaId: string) => void;
+  disabled?: boolean;
+}) {
+  const { toast } = useToast();
+  const [imageQueue, setImageQueue] = useState<File[]>([]);
+  const [croppingFile, setCroppingFile] = useState<File | null>(null);
+  const [uploadingVideo, setUploadingVideo] = useState(false);
+
+  const items = getPostMediaItems(post, media);
+
+  async function onPick(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files || []);
     e.target.value = "";
-    if (f) setPending(f);
+    if (!files.length) return;
+    const videos = files.filter((f) => detectMediaType(f.name) === "video");
+    const images = files.filter((f) => detectMediaType(f.name) !== "video");
+
+    if (videos.length > 0) {
+      setUploadingVideo(true);
+      for (const file of videos) {
+        const { url, error } = await uploadRawMedia(file, "presentations/posts");
+        if (error) {
+          toast({ title: "Erro ao enviar vídeo", description: error, variant: "destructive" });
+        } else if (url) {
+          await onAddMedia(post.id, url, "video");
+        }
+      }
+      setUploadingVideo(false);
+    }
+    if (images.length > 0) {
+      if (croppingFile) {
+        setImageQueue((prev) => [...prev, ...images]);
+      } else {
+        setCroppingFile(images[0]);
+        setImageQueue(images.slice(1));
+      }
+    }
   }
+
+  function handleCropped(url: string) {
+    onAddMedia(post.id, url, "image");
+    if (imageQueue.length > 0) {
+      const [next, ...rest] = imageQueue;
+      setCroppingFile(next);
+      setImageQueue(rest);
+    } else {
+      setCroppingFile(null);
+    }
+  }
+
+  function removeItem(item: PostMediaRow) {
+    if (isLegacyPostMedia(item.id)) onPatch({ image_url: null });
+    else onRemoveMedia(item.id);
+  }
+
   return (
-    <div className="border rounded-lg p-3 grid grid-cols-1 md:grid-cols-[120px_1fr_auto] gap-3">
-      <div>
-        {post.image_url ? (
-          <img src={post.image_url} alt="" className="aspect-[4/5] w-full object-cover rounded" />
-        ) : (
+    <div className="border rounded-lg p-3 grid grid-cols-1 md:grid-cols-[160px_1fr_auto] gap-3">
+      <div className="space-y-1.5">
+        {items.length === 0 ? (
           <div className="aspect-[4/5] w-full border-2 border-dashed rounded flex items-center justify-center text-muted-foreground">
             <ImageIcon className="h-5 w-5" />
           </div>
+        ) : (
+          <div className="flex flex-wrap gap-1.5">
+            {items.map((item, i) => (
+              <div key={item.id} className="relative w-14 h-14 shrink-0">
+                {item.media_type === "video" ? (
+                  <video src={item.media_url} muted className="w-full h-full object-cover rounded border" />
+                ) : (
+                  <img src={item.media_url} alt="" className="w-full h-full object-cover rounded border" />
+                )}
+                {item.media_type === "video" && (
+                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                    <Play className="h-4 w-4 text-white drop-shadow" fill="white" />
+                  </div>
+                )}
+                <span className="absolute -top-1 -left-1 h-4 w-4 rounded-full bg-foreground text-background text-[9px] flex items-center justify-center font-medium">
+                  {i + 1}
+                </span>
+                {!disabled && (
+                  <button
+                    onClick={() => removeItem(item)}
+                    className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-background border border-border flex items-center justify-center"
+                  >
+                    <X className="h-2.5 w-2.5" />
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
         )}
         {!disabled && (
-          <label className="cursor-pointer block mt-1">
-            <Input type="file" accept="image/*" className="hidden" onChange={onPick} />
-            <Button asChild variant="ghost" size="sm" className="w-full text-xs h-7"><span>Enviar e recortar</span></Button>
-          </label>
+          <>
+            <label className="cursor-pointer block">
+              <Input type="file" accept="image/*,video/*" multiple className="hidden" onChange={onPick} disabled={uploadingVideo} />
+              <Button asChild variant="ghost" size="sm" className="w-full text-xs h-7" disabled={uploadingVideo}>
+                <span>{uploadingVideo ? "Enviando vídeo..." : "Adicionar mídia"}</span>
+              </Button>
+            </label>
+            <p className="text-[9px] text-muted-foreground leading-snug">
+              Imagens são recortadas em 1:1. Vídeos não são recortados automaticamente, envie já no formato desejado. Recomendado até {MAX_MEDIA_MB}MB por arquivo.
+            </p>
+          </>
         )}
-        {pending && (
+        {croppingFile && (
           <ImageCropper
-            file={pending}
+            file={croppingFile}
             open
-            onClose={() => setPending(null)}
-            onCropped={(url) => { onPatch({ image_url: url }); setPending(null); }}
-            aspect={4 / 5}
+            onClose={() => { setCroppingFile(null); setImageQueue([]); }}
+            onCropped={handleCropped}
+            aspect={1}
             uploadPath={`presentations/posts/${crypto.randomUUID()}.png`}
           />
         )}

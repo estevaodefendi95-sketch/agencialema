@@ -139,6 +139,41 @@ export type Database = {
           },
         ]
       }
+      presentation_post_media: {
+        Row: {
+          created_at: string
+          id: string
+          media_type: string
+          media_url: string
+          position: number
+          post_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          media_type?: string
+          media_url: string
+          position?: number
+          post_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          media_type?: string
+          media_url?: string
+          position?: number
+          post_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "presentation_post_media_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "presentation_posts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       presentation_posts: {
         Row: {
           client_comment: string | null
