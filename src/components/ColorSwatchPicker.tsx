@@ -10,8 +10,9 @@ interface ColorSwatchPickerProps {
   allowNone?: boolean;
   triggerClassName?: string;
   /** Cor automática (ex: getEntityColor(id, null)) mostrada quando `value` é
-   * null, em vez de um círculo transparente/vazio. Quando presente, um texto
-   * "cor automática" aparece abaixo do círculo enquanto não houver cor manual. */
+   * null, em vez de um círculo transparente/vazio. Quando presente, sempre
+   * aparece uma legenda abaixo do círculo — "cor automática" ou "cor
+   * personalizada" — pra manter a altura igual nos dois casos. */
   fallbackColor?: string;
 }
 
@@ -82,7 +83,9 @@ export function ColorSwatchPicker({
   return (
     <div className="inline-flex flex-col items-center gap-1">
       {trigger}
-      {isAuto && <span className="text-[10px] text-muted-foreground whitespace-nowrap">cor automática</span>}
+      <span className="text-[10px] text-muted-foreground whitespace-nowrap">
+        {isAuto ? "cor automática" : "cor personalizada"}
+      </span>
     </div>
   );
 }
