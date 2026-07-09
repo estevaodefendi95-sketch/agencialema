@@ -45,9 +45,12 @@ export default function PresentationView({
     <div className="min-h-screen bg-gradient-to-b from-background via-background to-muted/30">
       {/* HERO */}
       <header className="relative overflow-hidden">
-        <div className="absolute inset-0 -z-10 bg-gradient-to-br from-primary/10 via-transparent to-accent/10 pointer-events-none" />
+        <div className="absolute inset-0 -z-10 bg-gradient-to-br from-primary/5 via-transparent to-brand-accent/5 pointer-events-none" />
+        {/* pb-20/32 aqui é fixo de propósito — não depende do tamanho da
+            descrição, pra manter o respiro até o próximo bloco constante
+            mesmo quando hero_description está vazia ou é bem curta. */}
         <div className="max-w-6xl mx-auto px-6 pt-16 md:pt-24 pb-20 md:pb-32">
-          <div className="flex items-start justify-between gap-6 mb-16 md:mb-24 animate-fade-in">
+          <div className="flex items-center justify-between gap-6 pb-6 md:pb-8 mb-10 md:mb-14 border-b border-foreground/10 animate-fade-in">
             {pres.client_logo_url ? (
               <img
                 src={pres.client_logo_url}
@@ -65,6 +68,9 @@ export default function PresentationView({
               />
             )}
           </div>
+          <span className="block text-xs md:text-sm font-semibold uppercase tracking-wider text-primary mb-3 md:mb-4 animate-fade-in">
+            Apresentação de Conteúdo
+          </span>
           <h1 className="text-5xl md:text-7xl lg:text-8xl font-bold tracking-tight mb-8 leading-[1.05] animate-fade-in">
             {pres.hero_title || "Apresentação"}
           </h1>
