@@ -14,8 +14,9 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
 import { DragDropContext, Droppable, Draggable, type DropResult } from "@hello-pangea/dnd";
-import { LayoutGrid, List, CalendarDays, FolderKanban, ChevronLeft, ChevronRight, Filter, CheckSquare, User, Plus } from "lucide-react";
+import { LayoutGrid, List, CalendarDays, FolderKanban, ChevronLeft, ChevronRight, Filter, CheckSquare, User, Plus, GripVertical } from "lucide-react";
 import { AssigneeAvatar } from "@/components/AssigneeAvatar";
+import { ColorSwatchPicker } from "@/components/ColorSwatchPicker";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -105,6 +106,7 @@ export default function MyTasks() {
   const [ntPriority, setNtPriority] = useState<"baixa" | "media" | "alta" | "urgente">("media");
   const [ntDue, setNtDue] = useState("");
   const [ntAssignee, setNtAssignee] = useState<string>("");
+  const [ntStatus, setNtStatus] = useState<string | null>(null);
 
   const changeView = (v: ViewMode) => {
     if (!v) return;
@@ -178,14 +180,18 @@ export default function MyTasks() {
   async function createTask() {
     if (!ntProject || !ntTitle.trim() || !user) return;
     setCreating(true);
-    // Status inicial = primeira coluna do projeto
-    const { data: cols } = await supabase
-      .from("project_columns")
-      .select("slug")
-      .eq("project_id", ntProject)
-      .order("position", { ascending: true })
-      .limit(1);
-    const initialStatus = cols?.[0]?.slug || "a_fazer";
+    // Status inicial: usa a coluna pré-selecionada (ex: "+" de uma coluna específica
+    // no board), senão cai na primeira coluna do projeto.
+    let initialStatus = ntStatus;
+    if (!initialStatus) {
+      const { data: cols } = await supabase
+        .from("project_columns")
+        .select("slug")
+        .eq("project_id", ntProject)
+        .order("position", { ascending: true })
+        .limit(1);
+      initialStatus = cols?.[0]?.slug || "a_fazer";
+    }
 
     const { error } = await supabase.from("tasks").insert({
       project_id: ntProject,
@@ -207,14 +213,20 @@ export default function MyTasks() {
     toast({ title: "Tarefa criada" });
     setOpenNewTask(false);
     setNtCompany(""); setNtProject(""); setNtTitle(""); setNtDesc(""); setNtPriority("media");
-    setNtDue(""); setNtAssignee("");
+    setNtDue(""); setNtAssignee(""); setNtStatus(null);
     if (selectedUser) loadTasks(selectedUser);
   }
 
-  function openNewTaskDialog(prefillDate?: Date) {
+  function openNewTaskDialog(prefillDate?: Date, statusSlug?: string) {
     if (prefillDate) setNtDue(format(prefillDate, "yyyy-MM-dd"));
     else setNtDue("");
+    setNtStatus(statusSlug ?? null);
     setOpenNewTask(true);
+  }
+
+  async function saveTaskColor(taskId: string, color: string | null) {
+    setTasks((prev) => prev.map((t) => (t.id === taskId ? { ...t, color } : t)));
+    await supabase.from("tasks").update({ color }).eq("id", taskId);
   }
 
   async function loadMembers() {
@@ -394,7 +406,7 @@ export default function MyTasks() {
 
         <div className="flex items-center gap-2">
           {canEdit && (
-            <Button onClick={() => setOpenNewTask(true)} className="gap-2" size="sm">
+            <Button onClick={() => openNewTaskDialog()} className="gap-2" size="sm">
               <Plus className="h-4 w-4" /> Nova Tarefa
             </Button>
           )}
@@ -484,7 +496,8 @@ export default function MyTasks() {
                         <div
                           ref={prov.innerRef}
                           {...prov.droppableProps}
-                          className="bg-muted/30 rounded-lg p-2 flex flex-col gap-2 min-h-[200px]"
+                          className="rounded-lg p-2 flex flex-col gap-2 min-h-[200px]"
+                          style={{ backgroundColor: `${col.color}10` }}
                         >
                           <div className="flex items-center gap-2 px-1 pb-1 border-b">
                             <span className="h-2.5 w-2.5 rounded-full" style={{ background: col.color }} />
@@ -504,16 +517,28 @@ export default function MyTasks() {
                           </div>
                           {colTasks.map((t, idx) => (
                             <Draggable key={t.id} draggableId={t.id} index={idx}>
-                              {(p) => (
+                              {(p, snapshot) => (
                                 <div
                                   ref={p.innerRef}
                                   {...p.draggableProps}
-                                  {...p.dragHandleProps}
                                   onClick={() => navigate(`/projetos/${t.project_id}`)}
-                                  className="p-3 rounded-md border bg-card cursor-pointer hover:border-primary transition-colors border-l-4"
-                                  style={{ borderLeftColor: t.color || getEntityColor(t.project_id, t.projects?.color ?? null, PROJECT_COLOR_PALETTE) }}
+                                  className={cn(
+                                    "p-3 rounded-md border bg-card cursor-pointer transition-shadow border-l-4",
+                                    snapshot.isDragging ? "shadow-lg" : "hover:border-primary hover:shadow-sm",
+                                  )}
+                                  style={{
+                                    ...p.draggableProps.style,
+                                    borderLeftColor: t.color || getEntityColor(t.project_id, t.projects?.color ?? null, PROJECT_COLOR_PALETTE),
+                                  }}
                                 >
                                   <div className="flex items-start gap-2">
+                                    <div
+                                      {...p.dragHandleProps}
+                                      onClick={(e) => e.stopPropagation()}
+                                      className="mt-0.5 cursor-grab"
+                                    >
+                                      <GripVertical className="h-4 w-4 text-muted-foreground" />
+                                    </div>
                                     <Checkbox
                                       checked={t.status === "concluido"}
                                       onClick={(e) => e.stopPropagation()}
@@ -541,6 +566,16 @@ export default function MyTasks() {
                                           <span className={cn("h-1.5 w-1.5 rounded-full mr-1", PRIORITY_COLOR[t.priority])} />
                                           {PRIORITY_LABEL[t.priority]}
                                         </Badge>
+                                        {canEdit && (
+                                          <span className="ml-auto" onClick={(e) => e.stopPropagation()}>
+                                            <ColorSwatchPicker
+                                              value={t.color}
+                                              onChange={(c) => saveTaskColor(t.id, c)}
+                                              allowNone
+                                              triggerClassName="h-3.5 w-3.5 rounded-full shrink-0 border border-border"
+                                            />
+                                          </span>
+                                        )}
                                       </div>
                                     </div>
                                   </div>
@@ -551,6 +586,19 @@ export default function MyTasks() {
                           {prov.placeholder}
                           {colTasks.length === 0 && (
                             <p className="text-xs text-muted-foreground text-center py-6">Nenhuma tarefa</p>
+                          )}
+                          {canEdit && (
+                            <div className="flex justify-center mt-auto pt-1">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
+                                onClick={() => openNewTaskDialog(undefined, col.slug)}
+                                title="Nova tarefa nesta coluna"
+                              >
+                                <Plus className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
                           )}
                         </div>
                       )}

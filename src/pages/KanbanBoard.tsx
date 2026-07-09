@@ -100,6 +100,13 @@ const PRIORITY_COLORS: Record<string, string> = {
   urgente: "bg-destructive/20 text-destructive",
 };
 
+const PRIORITY_LABEL: Record<string, string> = {
+  baixa: "Baixa",
+  media: "Média",
+  alta: "Alta",
+  urgente: "Urgente",
+};
+
 export default function KanbanBoard() {
   const { id: projectId } = useParams<{ id: string }>();
   const { isAdmin, user, canEdit, avatarUrl } = useAuth();
@@ -951,7 +958,7 @@ export default function KanbanBoard() {
                                     </span>
                                   )}
                                   <Badge className={`text-[10px] shrink-0 ${PRIORITY_COLORS[task.priority] || ""}`} variant="secondary">
-                                    {task.priority}
+                                    {PRIORITY_LABEL[task.priority] || task.priority}
                                   </Badge>
                                   {task.due_date && (
                                     <span className="flex items-center gap-1 text-xs text-muted-foreground shrink-0" onClick={() => setSelectedTask(task.id)}>
@@ -1142,7 +1149,7 @@ export default function KanbanBoard() {
                                       </div>
                                       <div className="flex items-center gap-2 mt-2 flex-wrap">
                                         <Badge className={`text-xs ${PRIORITY_COLORS[task.priority] || ""}`} variant="secondary">
-                                          {task.priority}
+                                          {PRIORITY_LABEL[task.priority] || task.priority}
                                         </Badge>
                                         {task.due_date && (
                                           <span className="flex items-center gap-1 text-xs text-muted-foreground">
