@@ -17,11 +17,13 @@ import { DragDropContext, Droppable, Draggable, type DropResult } from "@hello-p
 import { LayoutGrid, List, CalendarDays, FolderKanban, ChevronLeft, ChevronRight, Filter, CheckSquare, User, Plus, GripVertical } from "lucide-react";
 import { AssigneeAvatar } from "@/components/AssigneeAvatar";
 import { ColorSwatchPicker } from "@/components/ColorSwatchPicker";
+import { CalendarColorToggle } from "@/components/CalendarColorToggle";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { getEntityColor, PROJECT_COLOR_PALETTE } from "@/lib/colorPalette";
+import { useCalendarColorMode } from "@/hooks/useCalendarColorMode";
 import {
   format, isSameDay, isSameMonth, isToday, startOfMonth, endOfMonth,
   startOfWeek, endOfWeek, eachDayOfInterval, addMonths, addWeeks, addDays,
@@ -61,12 +63,6 @@ const PRIORITY_COLOR: Record<string, string> = {
   alta: "bg-orange-500",
   urgente: "bg-red-500",
 };
-const PRIORITY_BORDER: Record<string, string> = {
-  baixa: "border-blue-500",
-  media: "border-yellow-500",
-  alta: "border-orange-500",
-  urgente: "border-red-500",
-};
 // Mesmo mapa de PRIORITY_COLORS do KanbanBoard.tsx, usado só no badge de
 // prioridade da visão Cards pra bater com o card do Kanban.
 const PRIORITY_BADGE_BG: Record<string, string> = {
@@ -90,6 +86,7 @@ export default function MyTasks() {
   const [view, setView] = useState<ViewMode>(() => (localStorage.getItem("mytasks-view") as ViewMode) || "cards");
   const [calMode, setCalMode] = useState<CalMode>(() => (localStorage.getItem("mytasks-cal") as CalMode) || "mes");
   const [cursor, setCursor] = useState<Date>(new Date());
+  const { colorMode, setColorMode, getTaskColor: getTaskColorForMode } = useCalendarColorMode();
 
   const [tasks, setTasks] = useState<Task[]>([]);
   const [statusColumns, setStatusColumns] = useState<StatusColumn[]>(DEFAULT_STATUS_COLUMNS);
@@ -379,19 +376,31 @@ export default function MyTasks() {
     else setCursor((c) => addDays(c, 1));
   };
 
-  const TaskMini = ({ task }: { task: Task }) => (
-    <button
-      onClick={(e) => { e.stopPropagation(); navigate(`/projetos/${task.project_id}`); }}
-      className={cn(
-        "w-full text-left px-1.5 py-0.5 rounded text-xs flex items-center gap-1 bg-card hover:bg-accent border-l-2 truncate",
-        PRIORITY_BORDER[task.priority],
-      )}
-      title={task.title}
-    >
-      <span className={cn("h-1.5 w-1.5 rounded-full shrink-0", PRIORITY_COLOR[task.priority])} />
-      <span className="truncate">{task.title}</span>
-    </button>
-  );
+  // Tarefas em Minhas Tarefas são todas do mesmo responsável (selectedUser),
+  // então "Por Responsável" acaba dando a mesma cor pra tudo — ainda assim
+  // mantém o toggle pra ficar consistente com os outros calendários.
+  const getTaskColor = (task: Task) =>
+    getTaskColorForMode({
+      manualColor: task.color,
+      projectId: task.project_id,
+      projectColor: task.projects?.color,
+      assignedTo: task.assigned_to,
+    });
+
+  const TaskMini = ({ task }: { task: Task }) => {
+    const color = getTaskColor(task);
+    return (
+      <button
+        onClick={(e) => { e.stopPropagation(); navigate(`/projetos/${task.project_id}`); }}
+        className="w-full text-left px-1.5 py-0.5 rounded text-xs flex items-center gap-1 border-l-4 truncate"
+        style={{ borderLeftColor: color, backgroundColor: `${color}15` }}
+        title={task.title}
+      >
+        <span className={cn("h-1.5 w-1.5 rounded-full shrink-0", PRIORITY_COLOR[task.priority])} />
+        <span className="truncate">{task.title}</span>
+      </button>
+    );
+  };
 
   const selectedMember = members.find((m) => m.id === selectedUser);
   const selectedLabel = selectedUser === user?.id
@@ -659,6 +668,7 @@ export default function MyTasks() {
                   <ToggleGroupItem value="semana">Semana</ToggleGroupItem>
                   <ToggleGroupItem value="dia">Dia</ToggleGroupItem>
                 </ToggleGroup>
+                <CalendarColorToggle colorMode={colorMode} onChange={setColorMode} />
                 <div className="flex items-center gap-2">
                   <Button variant="outline" size="icon" className="h-8 w-8" onClick={navPrev}><ChevronLeft className="h-4 w-4" /></Button>
                   <span className="text-sm font-medium min-w-[180px] text-center lowercase">{periodLabel}</span>
@@ -689,9 +699,12 @@ export default function MyTasks() {
                       <p className="text-center py-12 text-muted-foreground">Nenhuma tarefa neste dia</p>
                     ) : (
                       <div className="space-y-2">
-                        {getDayTasks(cursor).map((t) => (
+                        {getDayTasks(cursor).map((t) => {
+                          const color = getTaskColor(t);
+                          return (
                           <div key={t.id} onClick={() => navigate(`/projetos/${t.project_id}`)}
-                            className={cn("p-3 border rounded-lg hover:bg-accent/50 cursor-pointer border-l-4", PRIORITY_BORDER[t.priority])}>
+                            className="p-3 border rounded-lg hover:bg-accent/50 cursor-pointer border-l-4"
+                            style={{ borderLeftColor: color, backgroundColor: `${color}15` }}>
                             <div className="flex items-center gap-2">
                               <Checkbox checked={t.status === "concluido"} onClick={(e) => e.stopPropagation()} onCheckedChange={(v) => toggleComplete(t, !!v)} />
                               <span className={cn("font-medium text-sm flex-1", t.status === "concluido" && "line-through text-muted-foreground")}>{t.title}</span>
@@ -699,7 +712,8 @@ export default function MyTasks() {
                             </div>
                             {t.projects?.name && <p className="text-xs text-muted-foreground mt-1 ml-6">{t.projects.name}</p>}
                           </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     )}
                   </CardContent>

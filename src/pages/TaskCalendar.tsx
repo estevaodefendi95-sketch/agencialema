@@ -32,10 +32,12 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { CalendarDays, Building2, FolderKanban, User, X, MessageSquare, ChevronLeft, ChevronRight, Plus } from "lucide-react";
+import { CalendarDays, Building2, FolderKanban, X, MessageSquare, ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { AssigneeAvatar } from "@/components/AssigneeAvatar";
+import { CalendarColorToggle } from "@/components/CalendarColorToggle";
 import { cn } from "@/lib/utils";
 import { getEntityColor, PROJECT_COLOR_PALETTE, TEAM_COLOR_PALETTE } from "@/lib/colorPalette";
+import { useCalendarColorMode } from "@/hooks/useCalendarColorMode";
 import { useToast } from "@/hooks/use-toast";
 
 type TaskWithRelations = {
@@ -54,7 +56,6 @@ type TaskWithRelations = {
 };
 
 type ViewMode = "mes" | "semana" | "dia";
-type ColorMode = "projeto" | "responsavel";
 type Profile = { id: string; full_name: string | null; nickname: string | null; avatar_url: string | null };
 
 const DEFAULT_STATUS_COLUMNS = [
@@ -95,9 +96,7 @@ export default function TaskCalendar() {
   const [viewMode, setViewMode] = useState<ViewMode>(() => {
     return (localStorage.getItem("calendar-view-mode") as ViewMode) || "mes";
   });
-  const [colorMode, setColorMode] = useState<ColorMode>(() => {
-    return (localStorage.getItem("calendar-color-mode") as ColorMode) || "projeto";
-  });
+  const { colorMode, setColorMode, getTaskColor: getTaskColorForMode } = useCalendarColorMode();
   const [loading, setLoading] = useState(true);
   const [companyFilter, setCompanyFilter] = useState<string>("all");
   const [projectFilter, setProjectFilter] = useState<string>("all");
@@ -123,12 +122,6 @@ export default function TaskCalendar() {
     if (!m) return;
     setViewMode(m);
     localStorage.setItem("calendar-view-mode", m);
-  };
-
-  const changeColorMode = (m: ColorMode) => {
-    if (!m) return;
-    setColorMode(m);
-    localStorage.setItem("calendar-color-mode", m);
   };
 
   const handleCompanyChange = (value: string) => {
@@ -419,19 +412,15 @@ export default function TaskCalendar() {
   const hasFilters =
     companyFilter !== "all" || projectFilter !== "all" || assigneeFilter !== "all" || statusFilter !== "all";
 
-  const getTaskColor = (task: TaskWithRelations): string => {
-    if (task.color) return task.color;
-    if (colorMode === "projeto") {
-      return getEntityColor(task.project_id, task.projects?.color ?? null, PROJECT_COLOR_PALETTE);
-    }
-    if (task.assigned_to) {
-      return getEntityColor(task.assigned_to, task.assignee?.color ?? null, TEAM_COLOR_PALETTE);
-    }
-    if (task.assignee_name) {
-      return getEntityColor(task.assignee_name.trim().toLowerCase(), null, TEAM_COLOR_PALETTE);
-    }
-    return "#94a3b8";
-  };
+  const getTaskColor = (task: TaskWithRelations): string =>
+    getTaskColorForMode({
+      manualColor: task.color,
+      projectId: task.project_id,
+      projectColor: task.projects?.color,
+      assignedTo: task.assigned_to,
+      assigneeColor: task.assignee?.color,
+      assigneeName: task.assignee_name,
+    });
 
   // Range of dates actually rendered by the current view, used to scope the legend.
   const periodRange = useMemo(() => {
@@ -905,24 +894,7 @@ export default function TaskCalendar() {
           </Button>
         )}
 
-        <div className="flex items-center border rounded-lg overflow-hidden ml-0 lg:ml-auto">
-          <Button
-            variant={colorMode === "projeto" ? "default" : "ghost"}
-            size="sm"
-            className="rounded-none gap-1.5 text-xs"
-            onClick={() => changeColorMode("projeto")}
-          >
-            <FolderKanban className="h-3.5 w-3.5" /> Por Projeto
-          </Button>
-          <Button
-            variant={colorMode === "responsavel" ? "default" : "ghost"}
-            size="sm"
-            className="rounded-none gap-1.5 text-xs"
-            onClick={() => changeColorMode("responsavel")}
-          >
-            <User className="h-3.5 w-3.5" /> Por Responsável
-          </Button>
-        </div>
+        <CalendarColorToggle colorMode={colorMode} onChange={setColorMode} className="ml-0 lg:ml-auto" />
       </div>
 
       {/* Calendar toolbar */}

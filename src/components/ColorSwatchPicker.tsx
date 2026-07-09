@@ -9,6 +9,10 @@ interface ColorSwatchPickerProps {
   palette?: string[];
   allowNone?: boolean;
   triggerClassName?: string;
+  /** Cor automática (ex: getEntityColor(id, null)) mostrada quando `value` é
+   * null, em vez de um círculo transparente/vazio. Quando presente, um texto
+   * "cor automática" aparece abaixo do círculo enquanto não houver cor manual. */
+  fallbackColor?: string;
 }
 
 // Same swatch-popover pattern used for column/task colors in KanbanBoard.tsx,
@@ -19,14 +23,18 @@ export function ColorSwatchPicker({
   palette = PROJECT_COLOR_PALETTE,
   allowNone = false,
   triggerClassName,
+  fallbackColor,
 }: ColorSwatchPickerProps) {
-  return (
+  const displayColor = value || fallbackColor || "transparent";
+  const isAuto = !value && !!fallbackColor;
+
+  const trigger = (
     <Popover>
       <PopoverTrigger asChild>
         <button
           type="button"
-          className={triggerClassName ?? "h-6 w-6 rounded-full shrink-0 border border-border"}
-          style={{ backgroundColor: value || "transparent" }}
+          className={triggerClassName ?? "h-8 w-8 rounded-full shrink-0 border border-border shadow-sm"}
+          style={{ backgroundColor: displayColor }}
           title="Escolher cor"
         />
       </PopoverTrigger>
@@ -67,5 +75,14 @@ export function ColorSwatchPicker({
         </div>
       </PopoverContent>
     </Popover>
+  );
+
+  if (!fallbackColor) return trigger;
+
+  return (
+    <div className="inline-flex flex-col items-center gap-1">
+      {trigger}
+      {isAuto && <span className="text-[10px] text-muted-foreground whitespace-nowrap">cor automática</span>}
+    </div>
   );
 }

@@ -15,6 +15,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { useToast } from "@/hooks/use-toast";
 import { Plus, FolderKanban, Calendar, LayoutGrid, List, ArrowUpDown, Building2, MoreVertical, Pencil, Archive, ArchiveRestore, Trash2, Eye, EyeOff } from "lucide-react";
 import { ColorSwatchPicker } from "@/components/ColorSwatchPicker";
+import { getEntityColor } from "@/lib/colorPalette";
 
 interface Project {
   id: string;
@@ -497,7 +498,7 @@ export default function Projects() {
             </div>
             <div className="space-y-2">
               <Label>Cor</Label>
-              <ColorSwatchPicker value={color} onChange={setColor} allowNone triggerClassName="h-7 w-7 rounded-full shrink-0 border border-border" />
+              <ColorSwatchPicker value={color} onChange={setColor} allowNone />
             </div>
           </div>
           <DialogFooter>
@@ -526,7 +527,12 @@ export default function Projects() {
             </div>
             <div className="space-y-2">
               <Label>Cor</Label>
-              <ColorSwatchPicker value={editColor} onChange={setEditColor} allowNone triggerClassName="h-7 w-7 rounded-full shrink-0 border border-border" />
+              <ColorSwatchPicker
+                value={editColor}
+                onChange={setEditColor}
+                allowNone
+                fallbackColor={editProject ? getEntityColor(editProject.id, null) : undefined}
+              />
             </div>
           </div>
           <DialogFooter>

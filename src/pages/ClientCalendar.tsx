@@ -230,8 +230,8 @@ export default function ClientCalendar() {
                     {visible.map((t) => (
                       <div
                         key={t.id}
-                        className="w-full truncate rounded border-l-2 bg-primary/10 px-1.5 py-0.5 text-[11px] text-primary"
-                        style={{ borderLeftColor: t.color }}
+                        className="w-full truncate rounded border-l-4 px-1.5 py-0.5 text-[11px]"
+                        style={{ borderLeftColor: t.color, backgroundColor: `${t.color}15` }}
                         title={t.title}
                       >
                         {t.title}
@@ -259,7 +259,7 @@ export default function ClientCalendar() {
             ) : (
               <div className="space-y-2">
                 {selectedDayTasks.map((t) => (
-                  <div key={t.id} className="flex items-center justify-between gap-3 rounded-lg border border-l-4 p-3" style={{ borderLeftColor: t.color }}>
+                  <div key={t.id} className="flex items-center justify-between gap-3 rounded-lg border border-l-4 p-3" style={{ borderLeftColor: t.color, backgroundColor: `${t.color}15` }}>
                     <div className="min-w-0">
                       <p className="text-sm font-medium truncate">{t.title}</p>
                       <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">

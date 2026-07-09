@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { useToast } from "@/hooks/use-toast";
 import { AssigneeAvatar } from "@/components/AssigneeAvatar";
 import { ColorSwatchPicker } from "@/components/ColorSwatchPicker";
-import { TEAM_COLOR_PALETTE } from "@/lib/colorPalette";
+import { getEntityColor, TEAM_COLOR_PALETTE } from "@/lib/colorPalette";
 import { Users, AlertTriangle, Zap, Pencil, Building2, FolderKanban } from "lucide-react";
 
 type Member = {
@@ -182,7 +182,11 @@ export default function Team() {
       ) : (
         <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
           {members.map((m) => (
-            <Card key={m.user_id}>
+            <Card
+              key={m.user_id}
+              className="border-l-4"
+              style={{ borderLeftColor: getEntityColor(m.user_id, m.color, TEAM_COLOR_PALETTE) }}
+            >
               <CardHeader className="flex flex-row items-center gap-3">
                 <AssigneeAvatar url={m.avatar_url} name={m.full_name || m.email} className="h-10 w-10" />
                 <div className="min-w-0 flex-1">
@@ -246,7 +250,7 @@ export default function Team() {
                   onChange={setEditColor}
                   palette={TEAM_COLOR_PALETTE}
                   allowNone
-                  triggerClassName="h-7 w-7 rounded-full shrink-0 border border-border"
+                  fallbackColor={getEntityColor(selected?.user_id || "", null, TEAM_COLOR_PALETTE)}
                 />
               </div>
 

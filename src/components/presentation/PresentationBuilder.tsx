@@ -202,13 +202,55 @@ export default function PresentationBuilder({ projectId, projectName }: { projec
     await supabase.from("presentation_blocks").delete().eq("id", id);
   }
 
+  // Um único DragDropContext cobre a lista de blocos e as listas aninhadas
+  // (itens da Galeria, mídia de cada post) — @hello-pangea/dnd não suporta
+  // DragDropContext aninhado, só Droppables aninhados dentro do mesmo.
+  // O droppableId de origem decide qual lista foi reordenada.
   async function onDragEnd(r: DropResult) {
     if (!r.destination) return;
-    const reord = Array.from(blocks);
-    const [moved] = reord.splice(r.source.index, 1);
-    reord.splice(r.destination.index, 0, moved);
-    setBlocks(reord);
-    await Promise.all(reord.map((b, idx) => supabase.from("presentation_blocks").update({ position: idx }).eq("id", b.id)));
+    const { droppableId } = r.source;
+
+    if (droppableId === "blocks") {
+      const reord = Array.from(blocks);
+      const [moved] = reord.splice(r.source.index, 1);
+      reord.splice(r.destination.index, 0, moved);
+      setBlocks(reord);
+      await Promise.all(reord.map((b, idx) => supabase.from("presentation_blocks").update({ position: idx }).eq("id", b.id)));
+      return;
+    }
+
+    if (droppableId.startsWith("gallery-items:")) {
+      const blockId = droppableId.slice("gallery-items:".length);
+      const block = blocks.find((b) => b.id === blockId);
+      if (!block) return;
+      const items = getGalleryItems(block.data);
+      const reordered = Array.from(items);
+      const [moved] = reordered.splice(r.source.index, 1);
+      reordered.splice(r.destination.index, 0, moved);
+      const { images: _legacy, ...rest } = block.data;
+      await patchBlock(blockId, { ...rest, items: reordered });
+      return;
+    }
+
+    if (droppableId.startsWith("post-media:")) {
+      const postId = droppableId.slice("post-media:".length);
+      const items = getPostMediaItems(
+        posts.find((p) => p.id === postId) || { id: postId, image_url: null },
+        postMedia,
+      ).filter((m) => !isLegacyPostMedia(m.id));
+      if (items.length === 0) return;
+      const reordered = Array.from(items);
+      const [moved] = reordered.splice(r.source.index, 1);
+      reordered.splice(r.destination.index, 0, moved);
+      const withPositions = reordered.map((m, idx) => ({ ...m, position: idx }));
+      setPostMedia((prev) =>
+        prev.map((m) => withPositions.find((u) => u.id === m.id) || m),
+      );
+      await Promise.all(
+        withPositions.map((m) => supabase.from("presentation_post_media").update({ position: m.position }).eq("id", m.id)),
+      );
+      return;
+    }
   }
 
   // Posts CRUD
@@ -629,33 +671,51 @@ function BlockEditor({ block, onChange, posts, postMedia, onAddPost, onPatchPost
         <p className="text-xs text-muted-foreground">
           Imagens são recortadas em 1:1 para um layout consistente; vídeos não são recortados automaticamente, envie já no formato desejado.
         </p>
-        <div className="grid gap-2 grid-cols-3 sm:grid-cols-4">
-          {items.map((item, i) => (
-            <div key={i} className="relative aspect-square">
-              {item.type === "video" ? (
-                <video src={item.url} muted loop autoPlay playsInline className="w-full h-full object-cover rounded border" />
-              ) : (
-                <img src={item.url} alt="" className="w-full h-full object-cover rounded border" />
-              )}
-              {item.type === "video" && (
-                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                  <Play className="h-6 w-6 text-white drop-shadow" fill="white" />
-                </div>
-              )}
-              {!disabled && (
-                <button
-                  onClick={() => {
-                    const { images: _legacy, ...rest } = block.data;
-                    onChange({ ...rest, items: items.filter((_, j) => j !== i) });
-                  }}
-                  className="absolute top-1 right-1 bg-background/80 rounded p-0.5"
-                >
-                  <Trash2 className="h-3 w-3" />
-                </button>
-              )}
+        <Droppable droppableId={`gallery-items:${block.id}`} direction="horizontal" isDropDisabled={disabled}>
+          {(dprov) => (
+            <div ref={dprov.innerRef} {...dprov.droppableProps} className="grid gap-2 grid-cols-3 sm:grid-cols-4">
+              {items.map((item, i) => (
+                <Draggable key={`gallery-item:${block.id}:${i}`} draggableId={`gallery-item:${block.id}:${i}`} index={i} isDragDisabled={disabled}>
+                  {(p) => (
+                    <div ref={p.innerRef} {...p.draggableProps} className="relative aspect-square">
+                      {item.type === "video" ? (
+                        <video src={item.url} muted loop autoPlay playsInline className="w-full h-full object-cover rounded border" />
+                      ) : (
+                        <img src={item.url} alt="" className="w-full h-full object-cover rounded border" />
+                      )}
+                      {item.type === "video" && (
+                        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                          <Play className="h-6 w-6 text-white drop-shadow" fill="white" />
+                        </div>
+                      )}
+                      {!disabled && (
+                        <div
+                          {...p.dragHandleProps}
+                          className="absolute top-1 left-1 h-5 w-5 rounded bg-background/80 flex items-center justify-center cursor-grab"
+                          title="Arrastar para reordenar"
+                        >
+                          <GripVertical className="h-3 w-3" />
+                        </div>
+                      )}
+                      {!disabled && (
+                        <button
+                          onClick={() => {
+                            const { images: _legacy, ...rest } = block.data;
+                            onChange({ ...rest, items: items.filter((_, j) => j !== i) });
+                          }}
+                          className="absolute top-1 right-1 bg-background/80 rounded p-0.5"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </Draggable>
+              ))}
+              {dprov.placeholder}
             </div>
-          ))}
-        </div>
+          )}
+        </Droppable>
         {!disabled && (
           <>
             <label className="cursor-pointer inline-block">
@@ -786,33 +846,56 @@ function PostEditor({
             <ImageIcon className="h-5 w-5" />
           </div>
         ) : (
-          <div className="flex flex-wrap gap-1.5">
-            {items.map((item, i) => (
-              <div key={item.id} className="relative w-14 h-14 shrink-0">
-                {item.media_type === "video" ? (
-                  <video src={item.media_url} muted className="w-full h-full object-cover rounded border" />
-                ) : (
-                  <img src={item.media_url} alt="" className="w-full h-full object-cover rounded border" />
-                )}
-                {item.media_type === "video" && (
-                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                    <Play className="h-4 w-4 text-white drop-shadow" fill="white" />
-                  </div>
-                )}
-                <span className="absolute -top-1 -left-1 h-4 w-4 rounded-full bg-foreground text-background text-[9px] flex items-center justify-center font-medium">
-                  {i + 1}
-                </span>
-                {!disabled && (
-                  <button
-                    onClick={() => removeItem(item)}
-                    className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-background border border-border flex items-center justify-center"
+          <Droppable droppableId={`post-media:${post.id}`} direction="horizontal" isDropDisabled={disabled}>
+            {(dprov) => (
+              <div ref={dprov.innerRef} {...dprov.droppableProps} className="flex flex-wrap gap-1.5">
+                {items.map((item, i) => (
+                  <Draggable
+                    key={`post-media:${post.id}:${item.id}`}
+                    draggableId={`post-media:${post.id}:${item.id}`}
+                    index={i}
+                    isDragDisabled={disabled || isLegacyPostMedia(item.id)}
                   >
-                    <X className="h-2.5 w-2.5" />
-                  </button>
-                )}
+                    {(p) => (
+                      <div ref={p.innerRef} {...p.draggableProps} className="relative w-14 h-14 shrink-0">
+                        {item.media_type === "video" ? (
+                          <video src={item.media_url} muted className="w-full h-full object-cover rounded border" />
+                        ) : (
+                          <img src={item.media_url} alt="" className="w-full h-full object-cover rounded border" />
+                        )}
+                        {item.media_type === "video" && (
+                          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                            <Play className="h-4 w-4 text-white drop-shadow" fill="white" />
+                          </div>
+                        )}
+                        <span className="absolute -top-1 -left-1 h-4 w-4 rounded-full bg-foreground text-background text-[9px] flex items-center justify-center font-medium">
+                          {i + 1}
+                        </span>
+                        {!disabled && !isLegacyPostMedia(item.id) && (
+                          <div
+                            {...p.dragHandleProps}
+                            className="absolute -bottom-1 -left-1 h-4 w-4 rounded-full bg-background border border-border flex items-center justify-center cursor-grab"
+                            title="Arrastar para reordenar"
+                          >
+                            <GripVertical className="h-2.5 w-2.5" />
+                          </div>
+                        )}
+                        {!disabled && (
+                          <button
+                            onClick={() => removeItem(item)}
+                            className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-background border border-border flex items-center justify-center"
+                          >
+                            <X className="h-2.5 w-2.5" />
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </Draggable>
+                ))}
+                {dprov.placeholder}
               </div>
-            ))}
-          </div>
+            )}
+          </Droppable>
         )}
         {!disabled && (
           <>
