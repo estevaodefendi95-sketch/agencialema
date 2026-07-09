@@ -10,9 +10,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandList, CommandEmpty, CommandGroup, CommandItem } from "@/components/ui/command";
 import { useToast } from "@/hooks/use-toast";
 import { DragDropContext, Droppable, Draggable, type DropResult } from "@hello-pangea/dnd";
-import { Plus, GripVertical, Calendar, ThumbsUp, RotateCcw, ImageIcon, Play, LayoutGrid, List, ArrowUpDown, Pencil, Check, X, Trash2, Palette, History, Undo2, Users, UserPlus, FileText, CheckSquare, Upload, Printer, MessageSquare, Eye, EyeOff } from "lucide-react";
+import { Plus, GripVertical, Calendar, ThumbsUp, RotateCcw, ImageIcon, Play, LayoutGrid, List, ArrowUpDown, Pencil, Check, X, Trash2, Palette, History, Undo2, Users, UserPlus, FileText, CheckSquare, Upload, Printer, MessageSquare, Eye, EyeOff, Loader2 } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -142,6 +143,11 @@ export default function KanbanBoard() {
   const [teamOpen, setTeamOpen] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviting, setInviting] = useState(false);
+  const [inviteOpen, setInviteOpen] = useState(false);
+  const [profileResults, setProfileResults] = useState<
+    { id: string; full_name: string | null; nickname: string | null; email: string | null; avatar_url: string | null }[]
+  >([]);
+  const [searchingProfiles, setSearchingProfiles] = useState(false);
 
   // Inline column editing
   const [editingColumnId, setEditingColumnId] = useState<string | null>(null);
@@ -265,6 +271,84 @@ export default function KanbanBoard() {
     }));
     setMembers(enriched);
   }, [projectId]);
+
+  // Busca por nome/e-mail/apelido conforme o usuário digita, pro autocomplete
+  // do convite. Mesmo alcance de RLS que o lookup por e-mail exato de antes.
+  useEffect(() => {
+    const term = inviteEmail.trim();
+    if (term.length < 2) {
+      setProfileResults([]);
+      setSearchingProfiles(false);
+      return;
+    }
+    let cancelled = false;
+    setSearchingProfiles(true);
+    const handle = setTimeout(async () => {
+      const safeTerm = term.replace(/[,()%]/g, "");
+      const pattern = `%${safeTerm}%`;
+      const { data } = await supabase
+        .from("profiles")
+        .select("id, full_name, nickname, email, avatar_url")
+        .or(`full_name.ilike.${pattern},email.ilike.${pattern},nickname.ilike.${pattern}`)
+        .limit(8);
+      if (cancelled) return;
+      setProfileResults((data || []) as any);
+      setSearchingProfiles(false);
+    }, 300);
+    return () => {
+      cancelled = true;
+      clearTimeout(handle);
+    };
+  }, [inviteEmail]);
+
+  // Selecionar um perfil já cadastrado no autocomplete: libera acesso à
+  // empresa do projeto se ainda não tiver, e já entra como "ativo" (nunca
+  // "pendente" pra alguém que já existe e foi escolhido da lista).
+  const selectProfile = async (profile: { id: string; full_name: string | null; nickname: string | null; email: string | null }) => {
+    if (!projectId) return;
+    setInviteOpen(false);
+    setInviting(true);
+
+    const dup = members.some((m) => m.user_id === profile.id);
+    if (dup) {
+      toast({ title: "Já é membro deste projeto", variant: "destructive" });
+      setInviting(false);
+      setInviteEmail("");
+      return;
+    }
+
+    const { data: proj } = await supabase.from("projects").select("company_id").eq("id", projectId).single();
+    const companyId = proj?.company_id;
+
+    if (companyId) {
+      const { data: access } = await (supabase.from as any)("user_company_access")
+        .select("id")
+        .eq("user_id", profile.id)
+        .eq("company_id", companyId)
+        .maybeSingle();
+      if (!access) {
+        await (supabase.from as any)("user_company_access").insert({ user_id: profile.id, company_id: companyId });
+      }
+    }
+
+    const { error } = await (supabase.from as any)("project_members").insert({
+      project_id: projectId,
+      user_id: profile.id,
+      invited_email: null,
+      status: "ativo",
+    });
+
+    setInviting(false);
+    if (error) {
+      toast({ title: "Erro ao adicionar", description: error.message, variant: "destructive" });
+      return;
+    }
+
+    setInviteEmail("");
+    setProfileResults([]);
+    toast({ title: `${profile.nickname?.trim() || profile.full_name || profile.email} adicionado à equipe` });
+    loadMembers();
+  };
 
   const inviteMember = async () => {
     const email = inviteEmail.trim().toLowerCase();
@@ -709,13 +793,53 @@ export default function KanbanBoard() {
               <div className="mt-4 space-y-4">
                 {canEdit && (
                   <div className="flex gap-2">
-                    <Input
-                      placeholder="E-mail do usuário..."
-                      value={inviteEmail}
-                      onChange={(e) => setInviteEmail(e.target.value)}
-                      onKeyDown={(e) => e.key === "Enter" && inviteMember()}
-                      className="text-sm"
-                    />
+                    <Popover open={inviteOpen} onOpenChange={setInviteOpen}>
+                      <PopoverTrigger asChild>
+                        <Input
+                          placeholder="Nome ou e-mail..."
+                          value={inviteEmail}
+                          onChange={(e) => {
+                            setInviteEmail(e.target.value);
+                            setInviteOpen(true);
+                          }}
+                          onKeyDown={(e) => e.key === "Enter" && inviteMember()}
+                          className="text-sm"
+                        />
+                      </PopoverTrigger>
+                      <PopoverContent
+                        className="w-[--radix-popover-trigger-width] p-0"
+                        align="start"
+                        onOpenAutoFocus={(e) => e.preventDefault()}
+                      >
+                        <Command shouldFilter={false}>
+                          <CommandList>
+                            {searchingProfiles && (
+                              <div className="flex items-center gap-2 px-3 py-2.5 text-xs text-muted-foreground">
+                                <Loader2 className="h-3.5 w-3.5 animate-spin" /> Buscando...
+                              </div>
+                            )}
+                            {!searchingProfiles && inviteEmail.trim().length >= 2 && profileResults.length === 0 && (
+                              <CommandEmpty className="px-3 py-2.5 text-xs text-muted-foreground">
+                                Ninguém encontrado — Enter convida por e-mail
+                              </CommandEmpty>
+                            )}
+                            {profileResults.length > 0 && (
+                              <CommandGroup>
+                                {profileResults.map((p) => (
+                                  <CommandItem key={p.id} value={p.id} onSelect={() => selectProfile(p)}>
+                                    <AssigneeAvatar url={p.avatar_url} name={p.nickname || p.full_name || p.email} className="h-6 w-6 mr-2 shrink-0" />
+                                    <div className="flex flex-col min-w-0">
+                                      <span className="truncate text-sm">{p.nickname?.trim() || p.full_name || "Sem nome"}</span>
+                                      {p.email && <span className="truncate text-xs text-muted-foreground">{p.email}</span>}
+                                    </div>
+                                  </CommandItem>
+                                ))}
+                              </CommandGroup>
+                            )}
+                          </CommandList>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
                     <Button size="sm" onClick={inviteMember} disabled={inviting}>
                       <UserPlus className="h-4 w-4" />
                     </Button>

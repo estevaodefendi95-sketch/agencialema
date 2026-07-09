@@ -15,7 +15,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { useToast } from "@/hooks/use-toast";
 import { Plus, FolderKanban, Calendar, LayoutGrid, List, ArrowUpDown, Building2, MoreVertical, Pencil, Archive, ArchiveRestore, Trash2, Eye, EyeOff } from "lucide-react";
 import { ColorSwatchPicker } from "@/components/ColorSwatchPicker";
-import { getEntityColor } from "@/lib/colorPalette";
+import { getEntityColor, PROJECT_COLOR_PALETTE } from "@/lib/colorPalette";
 
 interface Project {
   id: string;
@@ -399,7 +399,12 @@ export default function Projects() {
               </div>
               <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
                 {group.projects.map((p) => (
-                  <Card key={p.id} className="cursor-pointer hover:shadow-md transition-shadow relative" onClick={() => navigate(`/projetos/${p.id}`)}>
+                  <Card
+                    key={p.id}
+                    className="cursor-pointer hover:shadow-md transition-shadow relative border-l-4"
+                    style={{ borderLeftColor: getEntityColor(p.id, p.color, PROJECT_COLOR_PALETTE) }}
+                    onClick={() => navigate(`/projetos/${p.id}`)}
+                  >
                     <CardHeader>
                       <div className="flex items-center gap-3">
                         {(p.companies as any)?.logo_url ? (
