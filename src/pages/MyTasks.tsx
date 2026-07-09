@@ -67,6 +67,14 @@ const PRIORITY_BORDER: Record<string, string> = {
   alta: "border-orange-500",
   urgente: "border-red-500",
 };
+// Mesmo mapa de PRIORITY_COLORS do KanbanBoard.tsx, usado só no badge de
+// prioridade da visão Cards pra bater com o card do Kanban.
+const PRIORITY_BADGE_BG: Record<string, string> = {
+  baixa: "bg-muted text-muted-foreground",
+  media: "bg-primary/20 text-primary",
+  alta: "bg-warning/20 text-warning",
+  urgente: "bg-destructive/20 text-destructive",
+};
 const PRIORITY_LABEL: Record<string, string> = {
   baixa: "Baixa", media: "Média", alta: "Alta", urgente: "Urgente",
 };
@@ -487,122 +495,104 @@ export default function MyTasks() {
           {/* === CARDS / KANBAN === */}
           {view === "cards" && (
             <DragDropContext onDragEnd={onDragEnd}>
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
+              <div className="flex gap-4 overflow-x-auto pb-4 snap-x snap-proximity scrollbar-hide px-1" style={{ WebkitOverflowScrolling: 'touch' }}>
                 {statusColumns.map((col) => {
                   const colTasks = filteredTasks.filter((t) => t.status === col.slug);
                   return (
-                    <Droppable droppableId={col.slug} key={col.slug}>
-                      {(prov) => (
-                        <div
-                          ref={prov.innerRef}
-                          {...prov.droppableProps}
-                          className="rounded-lg p-2 flex flex-col gap-2 min-h-[200px]"
-                          style={{ backgroundColor: `${col.color}10` }}
-                        >
-                          <div className="flex items-center gap-2 px-1 pb-1 border-b">
-                            <span className="h-2.5 w-2.5 rounded-full" style={{ background: col.color }} />
-                            <span className="text-sm font-medium">{col.label}</span>
-                            <Badge variant="secondary" className="ml-auto">{colTasks.length}</Badge>
-                            {canEdit && (
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-6 w-6"
-                                onClick={() => openNewTaskDialog()}
-                                title="Nova tarefa"
-                              >
-                                <Plus className="h-3.5 w-3.5" />
-                              </Button>
-                            )}
-                          </div>
-                          {colTasks.map((t, idx) => (
-                            <Draggable key={t.id} draggableId={t.id} index={idx}>
-                              {(p, snapshot) => (
-                                <div
-                                  ref={p.innerRef}
-                                  {...p.draggableProps}
-                                  onClick={() => navigate(`/projetos/${t.project_id}`)}
-                                  className={cn(
-                                    "p-3 rounded-md border bg-card cursor-pointer transition-shadow border-l-4",
-                                    snapshot.isDragging ? "shadow-lg" : "hover:border-primary hover:shadow-sm",
-                                  )}
-                                  style={{
-                                    ...p.draggableProps.style,
-                                    borderLeftColor: t.color || getEntityColor(t.project_id, t.projects?.color ?? null, PROJECT_COLOR_PALETTE),
-                                  }}
-                                >
-                                  <div className="flex items-start gap-2">
-                                    <div
-                                      {...p.dragHandleProps}
-                                      onClick={(e) => e.stopPropagation()}
-                                      className="mt-0.5 cursor-grab"
-                                    >
-                                      <GripVertical className="h-4 w-4 text-muted-foreground" />
-                                    </div>
-                                    <Checkbox
-                                      checked={t.status === "concluido"}
-                                      onClick={(e) => e.stopPropagation()}
-                                      onCheckedChange={(v) => toggleComplete(t, !!v)}
-                                      className="mt-0.5"
-                                    />
-                                    <div className="flex-1 min-w-0">
-                                      <p className={cn("text-sm font-medium leading-tight", t.status === "concluido" && "line-through text-muted-foreground")}>
-                                        {t.title}
-                                      </p>
-                                      {t.description && (
-                                        <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{t.description}</p>
-                                      )}
-                                      <div className="flex flex-wrap items-center gap-2 mt-2 text-[11px] text-muted-foreground">
-                                        {t.projects?.name && (
-                                          <span className="flex items-center gap-1 bg-muted px-1.5 py-0.5 rounded">
-                                            <FolderKanban className="h-3 w-3" />
-                                            {t.projects.name}
-                                          </span>
-                                        )}
-                                        {t.due_date && (
-                                          <span>{format(parseISO(t.due_date), "dd MMM", { locale: ptBR })}</span>
-                                        )}
-                                        <Badge variant="outline" className="text-[10px] px-1 py-0">
-                                          <span className={cn("h-1.5 w-1.5 rounded-full mr-1", PRIORITY_COLOR[t.priority])} />
-                                          {PRIORITY_LABEL[t.priority]}
-                                        </Badge>
-                                        {canEdit && (
-                                          <span className="ml-auto" onClick={(e) => e.stopPropagation()}>
-                                            <ColorSwatchPicker
-                                              value={t.color}
-                                              onChange={(c) => saveTaskColor(t.id, c)}
-                                              allowNone
-                                              triggerClassName="h-3.5 w-3.5 rounded-full shrink-0 border border-border"
-                                            />
-                                          </span>
-                                        )}
+                    <div key={col.slug} className="group rounded-lg p-3 min-h-[200px] min-w-[280px] w-[280px] shrink-0 snap-start flex flex-col" style={{ backgroundColor: `${col.color}10` }}>
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-2">
+                          <span className="h-4 w-4 rounded-full shrink-0 border border-border" style={{ backgroundColor: col.color }} />
+                          <h3 className="font-semibold text-sm">{col.label}</h3>
+                        </div>
+                        <Badge variant="secondary" className="text-xs">{colTasks.length}</Badge>
+                      </div>
+                      <Droppable droppableId={col.slug}>
+                        {(prov) => (
+                          <div ref={prov.innerRef} {...prov.droppableProps} className="space-y-2 min-h-[100px]">
+                            {colTasks.map((t, idx) => (
+                              <Draggable key={t.id} draggableId={t.id} index={idx}>
+                                {(p, snapshot) => (
+                                  <div
+                                    ref={p.innerRef}
+                                    {...p.draggableProps}
+                                    className={cn(
+                                      "bg-card rounded-lg border overflow-hidden shadow-sm transition-shadow",
+                                      snapshot.isDragging ? "shadow-lg" : "hover:shadow-md",
+                                    )}
+                                    style={{
+                                      ...p.draggableProps.style,
+                                      borderLeft: `4px solid ${t.color || getEntityColor(t.project_id, t.projects?.color ?? null, PROJECT_COLOR_PALETTE)}`,
+                                    }}
+                                  >
+                                    <div className="p-3">
+                                      <div className="flex items-start gap-2">
+                                        <div {...p.dragHandleProps} className="mt-0.5 cursor-grab">
+                                          <GripVertical className="h-4 w-4 text-muted-foreground" />
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                          <p
+                                            className={cn(
+                                              "font-medium text-sm cursor-pointer hover:text-primary truncate",
+                                              t.status === "concluido" && "line-through text-muted-foreground",
+                                            )}
+                                            onClick={() => navigate(`/projetos/${t.project_id}`)}
+                                          >
+                                            {t.title}
+                                          </p>
+                                          {t.description && (
+                                            <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{t.description}</p>
+                                          )}
+                                          <div className="flex items-center gap-2 mt-2 flex-wrap">
+                                            {t.projects?.name && (
+                                              <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                                                <FolderKanban className="h-3 w-3" />
+                                                {t.projects.name}
+                                              </span>
+                                            )}
+                                            <Badge className={`text-xs ${PRIORITY_BADGE_BG[t.priority] || ""}`} variant="secondary">
+                                              {PRIORITY_LABEL[t.priority]}
+                                            </Badge>
+                                            {t.due_date && (
+                                              <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                                                <CalendarDays className="h-3 w-3" />
+                                                {format(parseISO(t.due_date), "dd MMM", { locale: ptBR })}
+                                              </span>
+                                            )}
+                                            {canEdit && (
+                                              <ColorSwatchPicker
+                                                value={t.color}
+                                                onChange={(c) => saveTaskColor(t.id, c)}
+                                                allowNone
+                                                triggerClassName="h-3.5 w-3.5 rounded-full shrink-0 border border-border ml-auto"
+                                              />
+                                            )}
+                                          </div>
+                                        </div>
                                       </div>
                                     </div>
                                   </div>
-                                </div>
-                              )}
-                            </Draggable>
-                          ))}
-                          {prov.placeholder}
-                          {colTasks.length === 0 && (
-                            <p className="text-xs text-muted-foreground text-center py-6">Nenhuma tarefa</p>
-                          )}
-                          {canEdit && (
-                            <div className="flex justify-center mt-auto pt-1">
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
-                                onClick={() => openNewTaskDialog(undefined, col.slug)}
-                                title="Nova tarefa nesta coluna"
-                              >
-                                <Plus className="h-3.5 w-3.5" />
-                              </Button>
-                            </div>
-                          )}
+                                )}
+                              </Draggable>
+                            ))}
+                            {prov.placeholder}
+                          </div>
+                        )}
+                      </Droppable>
+                      {canEdit && (
+                        <div className="flex justify-center mt-auto pt-2">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
+                            onClick={() => openNewTaskDialog(undefined, col.slug)}
+                            title="Nova tarefa nesta coluna"
+                          >
+                            <Plus className="h-3.5 w-3.5" />
+                          </Button>
                         </div>
                       )}
-                    </Droppable>
+                    </div>
                   );
                 })}
               </div>
