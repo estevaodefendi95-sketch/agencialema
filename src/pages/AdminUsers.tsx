@@ -17,6 +17,7 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
@@ -63,6 +64,7 @@ export default function AdminUsers() {
   const [newEmail, setNewEmail] = useState("");
   const [newRole, setNewRole] = useState("cliente");
   const [newCompanies, setNewCompanies] = useState<string[]>([]);
+  const [sendEmailInvite, setSendEmailInvite] = useState(false);
   const [creating, setCreating] = useState(false);
   const [accessLink, setAccessLink] = useState<string | null>(null);
   const [tab, setTab] = useState<"pendentes" | "todos">("pendentes");
@@ -166,13 +168,20 @@ export default function AdminUsers() {
           full_name: newName,
           role: newRole,
           company_ids: newCompanies,
+          send_email: sendEmailInvite,
         },
       });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
       setCreateOpen(false);
+      const invitedEmail = newEmail;
       setNewName(""); setNewEmail(""); setNewRole("cliente"); setNewCompanies([]);
-      setAccessLink(data.access_link);
+      if (sendEmailInvite) {
+        setSendEmailInvite(false);
+        toast({ title: `Convite enviado por e-mail para ${invitedEmail}` });
+      } else {
+        setAccessLink(data.access_link);
+      }
       load();
     } catch (err: any) {
       const message = await getEdgeFunctionErrorMessage(err);
@@ -401,6 +410,12 @@ export default function AdminUsers() {
                 </div>
               </div>
             )}
+            <div className="flex items-center gap-2">
+              <Switch checked={sendEmailInvite} onCheckedChange={setSendEmailInvite} id="send-email-invite" />
+              <Label htmlFor="send-email-invite" className="text-sm font-normal cursor-pointer">
+                Enviar convite por e-mail automaticamente
+              </Label>
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setCreateOpen(false)}>Cancelar</Button>

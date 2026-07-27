@@ -51,7 +51,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    const { email, full_name, role, company_ids } = await req.json();
+    const { email, full_name, role, company_ids, send_email } = await req.json();
 
     if (!email || !full_name || !role) {
       return new Response(JSON.stringify({ error: "Missing required fields" }), {
@@ -60,35 +60,45 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Create the user and get back a first-access link — this does NOT send an email,
-    // so the admin decides how to deliver it (WhatsApp, e-mail, etc). The user sets
-    // their own password via the link, so we never handle/store a password here.
-    const { data: linkData, error: inviteError } = await adminClient.auth.admin.generateLink({
-      type: "invite",
-      email,
-      options: {
+    const redirectTo = `${Deno.env.get("SITE_URL") ?? "https://SEU-DOMINIO"}/login`;
+    let userId: string;
+    let accessLink: string | null = null;
+
+    if (send_email) {
+      // Deixa o Supabase disparar o e-mail de convite automaticamente.
+      const { data: inviteData, error: inviteError } = await adminClient.auth.admin.inviteUserByEmail(email, {
         data: { full_name },
-        redirectTo: `${Deno.env.get("SITE_URL") ?? "https://SEU-DOMINIO"}/login`,
-      },
-    });
-
-    if (inviteError) {
-      const code = (inviteError as any).code;
-      const alreadyExists = code === "email_exists" || /already been registered|already exists/i.test(inviteError.message || "");
-      if (alreadyExists) {
-        return new Response(JSON.stringify({ error: "Este e-mail já possui uma conta" }), {
-          status: 400,
-          headers: corsHeaders,
-        });
-      }
-      return new Response(JSON.stringify({ error: inviteError.message }), {
-        status: 400,
-        headers: corsHeaders,
+        redirectTo,
       });
+      if (inviteError) {
+        const code = (inviteError as any).code;
+        const alreadyExists = code === "email_exists" || /already been registered|already exists/i.test(inviteError.message || "");
+        return new Response(
+          JSON.stringify({ error: alreadyExists ? "Este e-mail já possui uma conta" : inviteError.message }),
+          { status: 400, headers: corsHeaders },
+        );
+      }
+      userId = inviteData.user.id;
+    } else {
+      // Gera só o link de primeiro acesso — não envia e-mail, o admin decide como
+      // entregar (WhatsApp, e-mail manual, etc). O usuário define a própria senha
+      // pelo link, então nunca lidamos com senha aqui.
+      const { data: linkData, error: inviteError } = await adminClient.auth.admin.generateLink({
+        type: "invite",
+        email,
+        options: { data: { full_name }, redirectTo },
+      });
+      if (inviteError) {
+        const code = (inviteError as any).code;
+        const alreadyExists = code === "email_exists" || /already been registered|already exists/i.test(inviteError.message || "");
+        return new Response(
+          JSON.stringify({ error: alreadyExists ? "Este e-mail já possui uma conta" : inviteError.message }),
+          { status: 400, headers: corsHeaders },
+        );
+      }
+      userId = linkData.user.id;
+      accessLink = linkData.properties.action_link;
     }
-
-    const userId = linkData.user.id;
-    const accessLink = linkData.properties.action_link;
 
     // Set status to approved
     await adminClient.from("profiles").update({ status: "aprovado" }).eq("id", userId);
@@ -103,10 +113,10 @@ Deno.serve(async (req) => {
       );
     }
 
-    return new Response(JSON.stringify({ user_id: userId, success: true, access_link: accessLink }), {
-      status: 200,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return new Response(
+      JSON.stringify(accessLink ? { user_id: userId, success: true, access_link: accessLink } : { user_id: userId, success: true }),
+      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+    );
   } catch (err) {
     return new Response(JSON.stringify({ error: err.message }), {
       status: 500,
