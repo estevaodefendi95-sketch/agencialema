@@ -50,6 +50,7 @@ export type Database = {
           description: string | null
           id: string
           instagram_url: string | null
+          is_master: boolean
           logo_url: string | null
           name: string
           planning_label: string | null
@@ -62,6 +63,7 @@ export type Database = {
           description?: string | null
           id?: string
           instagram_url?: string | null
+          is_master?: boolean
           logo_url?: string | null
           name: string
           planning_label?: string | null
@@ -74,6 +76,7 @@ export type Database = {
           description?: string | null
           id?: string
           instagram_url?: string | null
+          is_master?: boolean
           logo_url?: string | null
           name?: string
           planning_label?: string | null
@@ -82,6 +85,42 @@ export type Database = {
           website_url?: string | null
         }
         Relationships: []
+      }
+      project_companies: {
+        Row: {
+          id: string
+          project_id: string
+          company_id: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          project_id: string
+          company_id: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          project_id?: string
+          company_id?: string
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_companies_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_companies_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       company_documents: {
         Row: {
@@ -740,6 +779,7 @@ export type Database = {
           due_date: string | null
           due_time: string | null
           id: string
+          parent_task_id: string | null
           position: number
           priority: Database["public"]["Enums"]["task_priority"]
           project_id: string | null
@@ -759,6 +799,7 @@ export type Database = {
           due_date?: string | null
           due_time?: string | null
           id?: string
+          parent_task_id?: string | null
           position?: number
           priority?: Database["public"]["Enums"]["task_priority"]
           project_id?: string | null
@@ -778,6 +819,7 @@ export type Database = {
           due_date?: string | null
           due_time?: string | null
           id?: string
+          parent_task_id?: string | null
           position?: number
           priority?: Database["public"]["Enums"]["task_priority"]
           project_id?: string | null
@@ -793,6 +835,13 @@ export type Database = {
             columns: ["project_id"]
             isOneToOne: false
             referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tasks_parent_task_id_fkey"
+            columns: ["parent_task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
             referencedColumns: ["id"]
           },
         ]
