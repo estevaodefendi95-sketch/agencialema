@@ -551,21 +551,21 @@ export type Database = {
           created_at: string
           id: string
           task_id: string
-          user_id: string
+          user_id: string | null
         }
         Insert: {
           content: string
           created_at?: string
           id?: string
           task_id: string
-          user_id: string
+          user_id?: string | null
         }
         Update: {
           content?: string
           created_at?: string
           id?: string
           task_id?: string
-          user_id?: string
+          user_id?: string | null
         }
         Relationships: [
           {
@@ -761,7 +761,6 @@ export type Database = {
       team_workload: {
         Row: {
           avatar_url: string | null
-          color: string | null
           email: string | null
           full_name: string | null
           tarefas_aprovadas: number | null
