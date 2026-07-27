@@ -8,9 +8,11 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
+import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Building2, Pencil, Trash2, Upload, X, LayoutGrid, List } from "lucide-react";
+import { Plus, Building2, Pencil, Trash2, Upload, X, LayoutGrid, List, Globe, Camera } from "lucide-react";
 import ImageCropper from "@/components/ImageCropper";
+import { CompanyDocuments } from "@/components/CompanyDocuments";
 
 interface Company {
   id: string;
@@ -18,11 +20,14 @@ interface Company {
   slug: string | null;
   description: string | null;
   logo_url: string | null;
+  website_url: string | null;
+  instagram_url: string | null;
+  planning_label: string | null;
   created_at: string;
 }
 
 export default function Companies() {
-  const { isAdmin } = useAuth();
+  const { isAdmin, isEditor } = useAuth();
   const { toast } = useToast();
   const [companies, setCompanies] = useState<Company[]>([]);
   const [open, setOpen] = useState(false);
@@ -30,7 +35,11 @@ export default function Companies() {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  const [websiteUrl, setWebsiteUrl] = useState("");
+  const [instagramUrl, setInstagramUrl] = useState("");
+  const [planningLabel, setPlanningLabel] = useState("");
   const [cropFile, setCropFile] = useState<File | null>(null);
+  const canManageDocs = isAdmin || isEditor;
   const [viewMode, setViewMode] = useState<"card" | "lista">(() =>
     (localStorage.getItem("view-mode-empresas") as "card" | "lista") || "card"
   );
@@ -47,8 +56,18 @@ export default function Companies() {
     localStorage.setItem("view-mode-empresas", mode);
   };
 
-  const openNew = () => { setEditing(null); setName(""); setDescription(""); setLogoUrl(null); setOpen(true); };
-  const openEdit = (c: Company) => { setEditing(c); setName(c.name); setDescription(c.description || ""); setLogoUrl(c.logo_url); setOpen(true); };
+  const openNew = () => {
+    setEditing(null);
+    setName(""); setDescription(""); setLogoUrl(null);
+    setWebsiteUrl(""); setInstagramUrl(""); setPlanningLabel("");
+    setOpen(true);
+  };
+  const openEdit = (c: Company) => {
+    setEditing(c);
+    setName(c.name); setDescription(c.description || ""); setLogoUrl(c.logo_url);
+    setWebsiteUrl(c.website_url || ""); setInstagramUrl(c.instagram_url || ""); setPlanningLabel(c.planning_label || "");
+    setOpen(true);
+  };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -58,11 +77,20 @@ export default function Companies() {
 
   const save = async () => {
     const slug = name.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
+    const fields = {
+      name,
+      description,
+      slug,
+      logo_url: logoUrl,
+      website_url: websiteUrl || null,
+      instagram_url: instagramUrl || null,
+      planning_label: planningLabel || null,
+    };
     if (editing) {
-      await supabase.from("companies").update({ name, description, slug, logo_url: logoUrl }).eq("id", editing.id);
+      await supabase.from("companies").update(fields).eq("id", editing.id);
       toast({ title: "Empresa atualizada" });
     } else {
-      await supabase.from("companies").insert({ name, description, slug, logo_url: logoUrl });
+      await supabase.from("companies").insert(fields);
       toast({ title: "Empresa criada" });
     }
     setOpen(false);
@@ -105,6 +133,7 @@ export default function Companies() {
                 <TableHead>Nome</TableHead>
                 <TableHead>Slug</TableHead>
                 <TableHead>Descrição</TableHead>
+                <TableHead>Links</TableHead>
                 {isAdmin && <TableHead className="text-right">Ações</TableHead>}
               </TableRow>
             </TableHeader>
@@ -123,6 +152,21 @@ export default function Companies() {
                   <TableCell className="font-medium">{c.name}</TableCell>
                   <TableCell className="text-muted-foreground text-sm">{c.slug}</TableCell>
                   <TableCell className="text-muted-foreground text-sm max-w-[200px] truncate">{c.description || "—"}</TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-2">
+                      {c.website_url && (
+                        <a href={c.website_url} target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-primary transition-colors" title="Site">
+                          <Globe className="h-4 w-4" />
+                        </a>
+                      )}
+                      {c.instagram_url && (
+                        <a href={c.instagram_url} target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-primary transition-colors" title="Instagram">
+                          <Camera className="h-4 w-4" />
+                        </a>
+                      )}
+                      {!c.website_url && !c.instagram_url && "—"}
+                    </div>
+                  </TableCell>
                   {isAdmin && (
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-1">
@@ -135,7 +179,7 @@ export default function Companies() {
               ))}
               {companies.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={isAdmin ? 5 : 4} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={isAdmin ? 6 : 5} className="text-center py-8 text-muted-foreground">
                     Nenhuma empresa cadastrada
                   </TableCell>
                 </TableRow>
@@ -169,9 +213,37 @@ export default function Companies() {
                     </div>
                   )}
                 </CardHeader>
-                {c.description && (
-                  <CardContent>
-                    <p className="text-sm text-muted-foreground">{c.description}</p>
+                {(c.description || c.website_url || c.instagram_url) && (
+                  <CardContent className="space-y-2">
+                    {c.description && <p className="text-sm text-muted-foreground">{c.description}</p>}
+                    {(c.website_url || c.instagram_url) && (
+                      <div className="flex items-center gap-2">
+                        {c.website_url && (
+                          <a
+                            href={c.website_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                            className="text-muted-foreground hover:text-primary transition-colors"
+                            title="Site"
+                          >
+                            <Globe className="h-4 w-4" />
+                          </a>
+                        )}
+                        {c.instagram_url && (
+                          <a
+                            href={c.instagram_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                            className="text-muted-foreground hover:text-primary transition-colors"
+                            title="Instagram"
+                          >
+                            <Camera className="h-4 w-4" />
+                          </a>
+                        )}
+                      </div>
+                    )}
                   </CardContent>
                 )}
               </Card>
@@ -188,7 +260,7 @@ export default function Companies() {
       )}
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent>
+        <DialogContent className="max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editing ? "Editar Empresa" : "Nova Empresa"}</DialogTitle>
           </DialogHeader>
@@ -199,7 +271,19 @@ export default function Companies() {
             </div>
             <div className="space-y-2">
               <Label>Descrição</Label>
-              <Textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Breve descrição" />
+              <Textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Breve descrição" rows={4} />
+            </div>
+            <div className="space-y-2">
+              <Label>Site</Label>
+              <Input type="url" value={websiteUrl} onChange={(e) => setWebsiteUrl(e.target.value)} placeholder="https://exemplo.com" />
+            </div>
+            <div className="space-y-2">
+              <Label>Instagram</Label>
+              <Input value={instagramUrl} onChange={(e) => setInstagramUrl(e.target.value)} placeholder="https://instagram.com/exemplo" />
+            </div>
+            <div className="space-y-2">
+              <Label>Nome do botão de planejamento</Label>
+              <Input value={planningLabel} onChange={(e) => setPlanningLabel(e.target.value)} placeholder="Planejamento" />
             </div>
             <div className="space-y-2">
               <Label>Logo</Label>
@@ -218,6 +302,13 @@ export default function Companies() {
                 </label>
               )}
             </div>
+
+            {editing && (
+              <>
+                <Separator />
+                <CompanyDocuments companyId={editing.id} canManage={canManageDocs} />
+              </>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
