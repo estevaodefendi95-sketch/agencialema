@@ -44,7 +44,7 @@ import { REMINDER_OPTIONS, formatDueTime } from "@/lib/taskReminders";
 import TaskDetail from "@/components/TaskDetail";
 import PrintProjectView from "@/components/PrintProjectView";
 import PresentationBuilder from "@/components/presentation/PresentationBuilder";
-import { PresentationVersionView } from "@/components/presentation/PresentationVersionView";
+import { PresentationsTab } from "@/components/presentation/PresentationsTab";
 import { useAppSettings } from "@/hooks/useAppSettings";
 import { AssigneeAvatar } from "@/components/AssigneeAvatar";
 
@@ -1015,7 +1015,12 @@ export default function KanbanBoard() {
       {viewMode === "planejamento" ? (
         <PresentationBuilder projectId={projectId!} projectName={projectName} />
       ) : viewMode === "apresentacao" ? (
-        <PresentationVersionView projectId={projectId!} />
+        <PresentationsTab
+          projectId={projectId!}
+          projectName={projectName}
+          canEdit={canEdit}
+          onEditPlanning={() => toggleViewMode("planejamento")}
+        />
       ) : viewMode === "lista" ? (
         <DragDropContext onDragEnd={onDragEnd}>
           <div className="space-y-4">
