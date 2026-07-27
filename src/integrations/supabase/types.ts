@@ -49,30 +49,74 @@ export type Database = {
           created_at: string
           description: string | null
           id: string
+          instagram_url: string | null
           logo_url: string | null
           name: string
+          planning_label: string | null
           slug: string | null
           updated_at: string
+          website_url: string | null
         }
         Insert: {
           created_at?: string
           description?: string | null
           id?: string
+          instagram_url?: string | null
           logo_url?: string | null
           name: string
+          planning_label?: string | null
           slug?: string | null
           updated_at?: string
+          website_url?: string | null
         }
         Update: {
           created_at?: string
           description?: string | null
           id?: string
+          instagram_url?: string | null
           logo_url?: string | null
           name?: string
+          planning_label?: string | null
           slug?: string | null
           updated_at?: string
+          website_url?: string | null
         }
         Relationships: []
+      }
+      company_documents: {
+        Row: {
+          company_id: string
+          created_at: string
+          file_name: string
+          file_url: string
+          id: string
+          uploaded_by: string | null
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          file_name: string
+          file_url: string
+          id?: string
+          uploaded_by?: string | null
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          file_name?: string
+          file_url?: string
+          id?: string
+          uploaded_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "company_documents_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       notifications: {
         Row: {
@@ -103,6 +147,41 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      presentation_versions: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          name: string
+          presentation_id: string
+          snapshot: Json
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          name: string
+          presentation_id: string
+          snapshot: Json
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          name?: string
+          presentation_id?: string
+          snapshot?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "presentation_versions_presentation_id_fkey"
+            columns: ["presentation_id"]
+            isOneToOne: false
+            referencedRelation: "project_presentations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       presentation_blocks: {
         Row: {
