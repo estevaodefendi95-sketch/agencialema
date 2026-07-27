@@ -11,6 +11,7 @@ export default function ClientLanding() {
   const [postMedia, setPostMedia] = useState<PostMediaRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
+  const [noVersion, setNoVersion] = useState(false);
 
   useEffect(() => {
     if (!slug) return;
@@ -28,20 +29,28 @@ export default function ClientLanding() {
         setLoading(false);
         return;
       }
-      setPres(data as any);
-      const [{ data: b }, { data: p }] = await Promise.all([
-        supabase.from("presentation_blocks").select("*").eq("presentation_id", data.id).order("position"),
-        supabase.from("presentation_posts").select("*").eq("presentation_id", data.id).order("position"),
-      ]);
-      setBlocks((b || []) as any);
-      setPosts((p || []) as any);
-      const postIds = (p || []).map((x) => x.id);
-      if (postIds.length > 0) {
-        const { data: pm } = await supabase.from("presentation_post_media").select("*").in("post_id", postIds).order("position");
-        setPostMedia((pm || []) as any);
-      } else {
-        setPostMedia([]);
+
+      // A página pública sempre mostra o conteúdo congelado do último
+      // lançamento — nunca os blocos/posts em edição no Planejamento.
+      const { data: version } = await supabase
+        .from("presentation_versions")
+        .select("snapshot")
+        .eq("presentation_id", data.id)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      const snapshot = version?.snapshot as any;
+      if (!snapshot) {
+        setNoVersion(true);
+        setLoading(false);
+        return;
       }
+
+      setPres(snapshot.pres);
+      setBlocks(snapshot.blocks || []);
+      setPosts(snapshot.posts || []);
+      setPostMedia(snapshot.postMedia || []);
       setLoading(false);
     })();
   }, [slug]);
@@ -54,12 +63,23 @@ export default function ClientLanding() {
     );
   }
 
-  if (notFound || !pres) {
+  if (notFound) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background p-6 text-center">
         <div>
           <h1 className="text-3xl font-bold mb-2">Apresentação indisponível</h1>
           <p className="text-muted-foreground">Este conteúdo ainda não foi liberado pela equipe.</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (noVersion || !pres) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background p-6 text-center">
+        <div>
+          <h1 className="text-3xl font-bold mb-2">Nenhuma versão lançada ainda</h1>
+          <p className="text-muted-foreground">Volte em breve — a equipe ainda está preparando esta apresentação.</p>
         </div>
       </div>
     );

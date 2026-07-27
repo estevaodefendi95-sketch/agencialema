@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useSearchParams } from "react-router-dom";
 import {
   format,
   isSameDay,
@@ -28,7 +28,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Command, CommandList, CommandEmpty, CommandGroup, CommandItem } from "@/components/ui/command";
 import { useToast } from "@/hooks/use-toast";
 import { DragDropContext, Droppable, Draggable, type DropResult } from "@hello-pangea/dnd";
-import { Plus, GripVertical, Calendar, CalendarDays, ThumbsUp, RotateCcw, ImageIcon, Play, LayoutGrid, List, ArrowUpDown, Pencil, Check, X, Trash2, Palette, History, Undo2, Users, UserPlus, FileText, CheckSquare, Upload, Printer, MessageSquare, Eye, EyeOff, Loader2, Clock, ChevronLeft, ChevronRight } from "lucide-react";
+import { Plus, GripVertical, Calendar, CalendarDays, ThumbsUp, RotateCcw, ImageIcon, Play, LayoutGrid, List, ArrowUpDown, Pencil, Check, X, Trash2, Palette, History, Undo2, Users, UserPlus, FileText, CheckSquare, Upload, Printer, MessageSquare, Eye, EyeOff, Loader2, Clock, ChevronLeft, ChevronRight, ClipboardList } from "lucide-react";
 import { CalendarColorToggle } from "@/components/CalendarColorToggle";
 import { useCalendarColorMode } from "@/hooks/useCalendarColorMode";
 import { getEntityColor, TEAM_COLOR_PALETTE } from "@/lib/colorPalette";
@@ -44,6 +44,7 @@ import { REMINDER_OPTIONS, formatDueTime } from "@/lib/taskReminders";
 import TaskDetail from "@/components/TaskDetail";
 import PrintProjectView from "@/components/PrintProjectView";
 import PresentationBuilder from "@/components/presentation/PresentationBuilder";
+import { PresentationVersionView } from "@/components/presentation/PresentationVersionView";
 import { useAppSettings } from "@/hooks/useAppSettings";
 import { AssigneeAvatar } from "@/components/AssigneeAvatar";
 
@@ -132,6 +133,7 @@ const PRIORITY_LABEL: Record<string, string> = {
 
 export default function KanbanBoard() {
   const { id: projectId } = useParams<{ id: string }>();
+  const [searchParams] = useSearchParams();
   const { isAdmin, user, canEdit, avatarUrl } = useAuth();
   const { toast } = useToast();
   const appSettings = useAppSettings();
@@ -179,9 +181,11 @@ export default function KanbanBoard() {
   const [editColumnLabel, setEditColumnLabel] = useState("");
   const [deleteColumnId, setDeleteColumnId] = useState<string | null>(null);
 
-  const [viewMode, setViewMode] = useState<"kanban" | "lista" | "calendario" | "apresentacao">(() => {
+  const [viewMode, setViewMode] = useState<"kanban" | "lista" | "calendario" | "planejamento" | "apresentacao">(() => {
+    const tabParam = searchParams.get("tab");
+    if (tabParam === "planejamento" || tabParam === "apresentacao") return tabParam;
     if (!projectId) return "kanban";
-    return (localStorage.getItem(`view-mode-${projectId}`) as "kanban" | "lista" | "calendario" | "apresentacao") || "kanban";
+    return (localStorage.getItem(`view-mode-${projectId}`) as any) || "kanban";
   });
   const [calCursor, setCalCursor] = useState(new Date());
   const { colorMode, setColorMode, getTaskColor: getTaskColorForMode } = useCalendarColorMode();
@@ -472,7 +476,7 @@ export default function KanbanBoard() {
     })();
   }, [printOpen, tasks]);
 
-  const toggleViewMode = (mode: "kanban" | "lista" | "calendario" | "apresentacao") => {
+  const toggleViewMode = (mode: "kanban" | "lista" | "calendario" | "planejamento" | "apresentacao") => {
     setViewMode(mode);
     if (projectId) localStorage.setItem(`view-mode-${projectId}`, mode);
   };
@@ -779,6 +783,14 @@ export default function KanbanBoard() {
               <CalendarDays className="h-4 w-4" /> Calendário
             </Button>
             <Button
+              variant={viewMode === "planejamento" ? "default" : "ghost"}
+              size="sm"
+              className="rounded-none gap-1.5"
+              onClick={() => toggleViewMode("planejamento")}
+            >
+              <ClipboardList className="h-4 w-4" /> Planejamento
+            </Button>
+            <Button
               variant={viewMode === "apresentacao" ? "default" : "ghost"}
               size="sm"
               className="rounded-none gap-1.5"
@@ -1000,8 +1012,10 @@ export default function KanbanBoard() {
         </div>
       </div>
 
-      {viewMode === "apresentacao" ? (
+      {viewMode === "planejamento" ? (
         <PresentationBuilder projectId={projectId!} projectName={projectName} />
+      ) : viewMode === "apresentacao" ? (
+        <PresentationVersionView projectId={projectId!} />
       ) : viewMode === "lista" ? (
         <DragDropContext onDragEnd={onDragEnd}>
           <div className="space-y-4">

@@ -9,13 +9,15 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { DragDropContext, Droppable, Draggable, type DropResult } from "@hello-pangea/dnd";
-import { Plus, GripVertical, Trash2, Image as ImageIcon, Type, Smartphone, ListOrdered, Eye, ExternalLink, Copy, Heading, Upload, Play, X } from "lucide-react";
+import { Plus, GripVertical, Trash2, Image as ImageIcon, Type, Smartphone, ListOrdered, Eye, ExternalLink, Copy, Heading, Upload, Play, X, Rocket, History as HistoryIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import ImageCropper from "@/components/ImageCropper";
 import { detectMediaType, getGalleryItems, getPostMediaItems, isLegacyPostMedia, type MediaItem, type PostMediaRow } from "./mediaUtils";
+import PresentationView from "./PresentationView";
 
 const MAX_MEDIA_MB = 50;
 
@@ -98,14 +100,27 @@ async function uploadImage(file: File, folder: string): Promise<string | null> {
   return data.publicUrl;
 }
 
+type PresentationVersion = {
+  id: string;
+  name: string;
+  created_at: string;
+  created_by: string | null;
+  profiles?: { full_name: string | null; nickname?: string | null } | null;
+};
+
 export default function PresentationBuilder({ projectId, projectName }: { projectId: string; projectName: string }) {
-  const { canEdit } = useAuth();
+  const { canEdit, user } = useAuth();
   const { toast } = useToast();
   const [pres, setPres] = useState<Presentation | null>(null);
   const [blocks, setBlocks] = useState<Block[]>([]);
   const [posts, setPosts] = useState<Post[]>([]);
   const [postMedia, setPostMedia] = useState<PostMediaRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [versions, setVersions] = useState<PresentationVersion[]>([]);
+  const [launchOpen, setLaunchOpen] = useState(false);
+  const [launchName, setLaunchName] = useState("");
+  const [launching, setLaunching] = useState(false);
+  const [previewSnapshot, setPreviewSnapshot] = useState<any | null>(null);
   // Contador local de posição por post — evita corrida quando várias mídias
   // são enviadas em sequência antes do estado `postMedia` (React) atualizar.
   const nextPostMediaPosition = useRef<Record<string, number>>({});
@@ -161,8 +176,58 @@ export default function PresentationBuilder({ projectId, projectName }: { projec
         setPostMedia([]);
       }
       nextPostMediaPosition.current = {};
+      loadVersions(p.id);
     }
     setLoading(false);
+  }
+
+  async function loadVersions(presentationId: string) {
+    const { data } = await supabase
+      .from("presentation_versions")
+      .select("id, name, created_at, created_by, profiles:created_by(full_name, nickname)")
+      .eq("presentation_id", presentationId)
+      .order("created_at", { ascending: false });
+    setVersions((data || []) as any);
+  }
+
+  async function launchVersion() {
+    if (!pres || !launchName.trim()) return;
+    setLaunching(true);
+    const snapshot = {
+      pres: {
+        id: pres.id,
+        slug: pres.slug,
+        status: pres.status,
+        released: pres.released,
+        client_logo_url: pres.client_logo_url,
+        agency_logo_url: pres.agency_logo_url,
+        hero_title: pres.hero_title,
+        hero_description: pres.hero_description,
+      },
+      blocks,
+      posts,
+      postMedia,
+    };
+    const { error } = await supabase.from("presentation_versions").insert({
+      presentation_id: pres.id,
+      name: launchName.trim(),
+      snapshot,
+      created_by: user?.id,
+    });
+    setLaunching(false);
+    if (error) {
+      toast({ title: "Erro ao lançar versão", description: error.message, variant: "destructive" });
+      return;
+    }
+    toast({ title: "Versão lançada" });
+    setLaunchOpen(false);
+    setLaunchName("");
+    loadVersions(pres.id);
+  }
+
+  async function openVersionPreview(versionId: string) {
+    const { data } = await supabase.from("presentation_versions").select("snapshot").eq("id", versionId).maybeSingle();
+    if (data?.snapshot) setPreviewSnapshot(data.snapshot);
   }
 
   // Persist presentation
@@ -327,9 +392,15 @@ export default function PresentationBuilder({ projectId, projectName }: { projec
             <Label className="text-xs">Liberar para o cliente</Label>
             <Switch checked={pres.released} onCheckedChange={(v) => patchPres({ released: v })} disabled={!canEdit} />
           </div>
+          {canEdit && (
+            <Button variant="outline" size="sm" onClick={() => setLaunchOpen(true)}>
+              <Rocket className="h-4 w-4 mr-1.5" /> Lançar e Salvar
+            </Button>
+          )}
           <p className="text-[11px] text-muted-foreground max-w-[280px] leading-snug">
             O Status controla se a página existe; o toggle controla se o cliente pode acessá-la.{" "}
             <strong className="font-medium">Os dois precisam estar em "Publicado" + ligado</strong> para o cliente ver a página.
+            {" "}A aba <strong className="font-medium">Apresentação</strong> só mostra o que foi lançado aqui.
           </p>
           <div className="flex-1" />
           <Button variant="outline" size="sm" onClick={() => window.open(internalPreviewUrl, "_blank")}>
@@ -426,6 +497,68 @@ export default function PresentationBuilder({ projectId, projectName }: { projec
           </CardContent>
         </Card>
       )}
+
+      {/* Histórico de lançamentos */}
+      <Card>
+        <CardContent className="p-4 space-y-3">
+          <div className="flex items-center gap-2">
+            <HistoryIcon className="h-4 w-4" />
+            <p className="text-sm font-medium">Histórico de lançamentos</p>
+          </div>
+          {versions.length === 0 ? (
+            <p className="text-xs text-muted-foreground">Nenhum lançamento ainda</p>
+          ) : (
+            <div className="space-y-1.5">
+              {versions.map((v) => (
+                <div key={v.id} className="flex items-center justify-between gap-3 text-sm border rounded-lg px-3 py-2">
+                  <div className="min-w-0">
+                    <p className="font-medium truncate">{v.name}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {format(new Date(v.created_at), "dd/MM/yyyy 'às' HH:mm")}
+                      {" · "}
+                      {v.profiles?.nickname?.trim() || v.profiles?.full_name || "Alguém"}
+                    </p>
+                  </div>
+                  <Button variant="ghost" size="sm" className="shrink-0" onClick={() => openVersionPreview(v.id)}>
+                    <Eye className="h-3.5 w-3.5 mr-1.5" /> Ver
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Dialog: nomear e lançar versão */}
+      <Dialog open={launchOpen} onOpenChange={setLaunchOpen}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Lançar nova versão</DialogTitle></DialogHeader>
+          <div className="space-y-2">
+            <Label className="text-xs">Nome deste lançamento</Label>
+            <Input value={launchName} onChange={(e) => setLaunchName(e.target.value)} placeholder="Ex: Julho 2026 v2" />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setLaunchOpen(false)}>Cancelar</Button>
+            <Button onClick={launchVersion} disabled={!launchName.trim() || launching}>
+              {launching ? "Lançando..." : "Lançar"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog: prévia read-only de uma versão lançada */}
+      <Dialog open={!!previewSnapshot} onOpenChange={(open) => !open && setPreviewSnapshot(null)}>
+        <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto p-0">
+          {previewSnapshot && (
+            <PresentationView
+              pres={previewSnapshot.pres}
+              blocks={previewSnapshot.blocks}
+              posts={previewSnapshot.posts}
+              postMedia={previewSnapshot.postMedia}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
