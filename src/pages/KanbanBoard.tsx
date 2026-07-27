@@ -3,15 +3,13 @@ import { useParams, useSearchParams } from "react-router-dom";
 import {
   format,
   isSameDay,
-  isSameMonth,
-  isToday,
-  startOfMonth,
-  endOfMonth,
   startOfWeek,
   endOfWeek,
-  eachDayOfInterval,
   addMonths,
   subMonths,
+  addWeeks,
+  subWeeks,
+  addDays,
   parseISO,
 } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -21,8 +19,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Textarea } from "@/components/ui/textarea";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandList, CommandEmpty, CommandGroup, CommandItem } from "@/components/ui/command";
@@ -47,6 +47,7 @@ import PresentationBuilder from "@/components/presentation/PresentationBuilder";
 import { PresentationsTab } from "@/components/presentation/PresentationsTab";
 import { useAppSettings } from "@/hooks/useAppSettings";
 import { AssigneeAvatar } from "@/components/AssigneeAvatar";
+import { CalendarMonthGrid, CalendarWeekGrid, CalendarDayList } from "@/components/CalendarMonthWeekDay";
 
 const COLOR_PALETTE = [
   "#94a3b8", "#3B82F6", "#22c55e", "#eab308",
@@ -188,6 +189,7 @@ export default function KanbanBoard() {
     return (localStorage.getItem(`view-mode-${projectId}`) as any) || "kanban";
   });
   const [calCursor, setCalCursor] = useState(new Date());
+  const [calViewMode, setCalViewMode] = useState<"mes" | "semana" | "dia">("mes");
   const { colorMode, setColorMode, getTaskColor: getTaskColorForMode } = useCalendarColorMode();
   const [sortPrazo, setSortPrazo] = useState<"asc" | "desc">(() =>
     (localStorage.getItem(`sort-prazo-${projectId}`) as "asc" | "desc") || "asc"
@@ -578,6 +580,59 @@ export default function KanbanBoard() {
       assigneeColor: assigneeProfile?.color,
       assigneeName: t.assignee_name,
     });
+  };
+
+  const getAssigneeInfo = (t: Task) => {
+    const profile = t.assigned_to ? members.find((m) => m.user_id === t.assigned_to)?.profiles : null;
+    return {
+      avatarUrl: profile?.avatar_url ?? null,
+      name: profile?.nickname?.trim() || profile?.full_name || t.assignee_name || null,
+    };
+  };
+
+  const CalTaskPill = ({ task }: { task: Task }) => {
+    const color = getTaskColor(task);
+    const assignee = getAssigneeInfo(task);
+    return (
+      <button
+        onClick={() => setSelectedTask(task.id)}
+        className="w-full text-left px-1.5 py-0.5 rounded text-xs flex items-center gap-1 border-l-4 truncate"
+        style={{ borderLeftColor: color, backgroundColor: `${color}15` }}
+        title={task.title}
+      >
+        {colorMode === "responsavel" && (task.assigned_to || task.assignee_name) && (
+          <AssigneeAvatar url={assignee.avatarUrl} name={assignee.name} className="h-4 w-4 shrink-0" />
+        )}
+        <span className="truncate">{task.title}</span>
+      </button>
+    );
+  };
+
+  const CalTaskDayCard = ({ task }: { task: Task }) => {
+    const color = getTaskColor(task);
+    const assignee = getAssigneeInfo(task);
+    return (
+      <button
+        onClick={() => setSelectedTask(task.id)}
+        className="w-full text-left p-3 rounded-lg border border-l-4 transition-colors hover:bg-accent/30"
+        style={{ borderLeftColor: color, backgroundColor: `${color}15` }}
+      >
+        <div className="flex items-start justify-between gap-2 mb-1">
+          <div className="flex items-center gap-2 min-w-0">
+            {colorMode === "responsavel" && (task.assigned_to || task.assignee_name) && (
+              <AssigneeAvatar url={assignee.avatarUrl} name={assignee.name} className="h-5 w-5 shrink-0" />
+            )}
+            <h3 className="font-medium text-sm truncate">{task.title}</h3>
+          </div>
+          <Badge className={`text-[10px] shrink-0 ${PRIORITY_COLORS[task.priority] || ""}`} variant="secondary">
+            {PRIORITY_LABEL[task.priority] || task.priority}
+          </Badge>
+        </div>
+        {task.due_time && (
+          <p className="text-xs text-muted-foreground ml-0">{formatDueTime(task.due_time)}</p>
+        )}
+      </button>
+    );
   };
 
   const getColumnTasks = (slug: string) =>
@@ -1230,69 +1285,83 @@ export default function KanbanBoard() {
         </DragDropContext>
       ) : viewMode === "calendario" ? (
         <div className="space-y-3">
-          <div className="flex items-center justify-center gap-2">
-            <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setCalCursor((c) => subMonths(c, 1))}>
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            <span className="text-sm font-medium min-w-[160px] text-center lowercase">
-              {format(calCursor, "MMMM 'de' yyyy", { locale: ptBR })}
-            </span>
-            <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setCalCursor((c) => addMonths(c, 1))}>
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-            <Button variant="outline" size="sm" className="h-8" onClick={() => setCalCursor(new Date())}>Hoje</Button>
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3 justify-between">
+            <ToggleGroup
+              type="single"
+              value={calViewMode}
+              onValueChange={(v) => v && setCalViewMode(v as typeof calViewMode)}
+              className="border rounded-md p-0.5 bg-muted/40"
+            >
+              <ToggleGroupItem value="mes" className="h-8 px-3 text-xs data-[state=on]:bg-background">Mês</ToggleGroupItem>
+              <ToggleGroupItem value="semana" className="h-8 px-3 text-xs data-[state=on]:bg-background">Semana</ToggleGroupItem>
+              <ToggleGroupItem value="dia" className="h-8 px-3 text-xs data-[state=on]:bg-background">Dia</ToggleGroupItem>
+            </ToggleGroup>
+
+            <div className="flex items-center justify-center gap-2">
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-8 w-8"
+                onClick={() => setCalCursor((c) =>
+                  calViewMode === "mes" ? subMonths(c, 1) : calViewMode === "semana" ? subWeeks(c, 1) : addDays(c, -1),
+                )}
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <span className="text-sm font-medium min-w-[160px] text-center lowercase">
+                {calViewMode === "mes"
+                  ? format(calCursor, "MMMM 'de' yyyy", { locale: ptBR })
+                  : calViewMode === "semana"
+                    ? `${format(startOfWeek(calCursor, { weekStartsOn: 0 }), "d 'de' MMM", { locale: ptBR })} – ${format(endOfWeek(calCursor, { weekStartsOn: 0 }), "d 'de' MMM", { locale: ptBR })}`
+                    : format(calCursor, "EEEE, d 'de' MMMM", { locale: ptBR })}
+              </span>
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-8 w-8"
+                onClick={() => setCalCursor((c) =>
+                  calViewMode === "mes" ? addMonths(c, 1) : calViewMode === "semana" ? addWeeks(c, 1) : addDays(c, 1),
+                )}
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+              <Button variant="outline" size="sm" className="h-8" onClick={() => setCalCursor(new Date())}>Hoje</Button>
+            </div>
           </div>
 
-          <div className="border rounded-lg overflow-hidden bg-card">
-            <div className="grid grid-cols-7 bg-muted/40 border-b">
-              {["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"].map((d) => (
-                <div key={d} className="px-2 py-1.5 text-xs font-medium text-muted-foreground text-center">{d}</div>
-              ))}
-            </div>
-            <div className="grid grid-cols-7 auto-rows-fr">
-              {eachDayOfInterval({
-                start: startOfWeek(startOfMonth(calCursor), { weekStartsOn: 0 }),
-                end: endOfWeek(endOfMonth(calCursor), { weekStartsOn: 0 }),
-              }).map((day) => {
-                const inMonth = isSameMonth(day, calCursor);
-                const dayTasks = getCalDayTasks(day);
-                const visible = dayTasks.slice(0, 3);
-                const overflow = dayTasks.length - visible.length;
-                return (
-                  <div
-                    key={day.toISOString()}
-                    className={cn(
-                      "min-h-[100px] border-r border-b last:border-r-0 p-1.5 flex flex-col gap-1",
-                      !inMonth && "bg-muted/20 text-muted-foreground",
-                    )}
-                  >
-                    <span className={cn("text-xs font-medium h-5 w-5 flex items-center justify-center rounded-full", isToday(day) && "bg-primary text-primary-foreground")}>
-                      {format(day, "d")}
-                    </span>
-                    <div className="flex flex-col gap-0.5">
-                      {visible.map((t) => {
-                        const color = getTaskColor(t);
-                        return (
-                          <button
-                            key={t.id}
-                            onClick={() => setSelectedTask(t.id)}
-                            className="w-full text-left px-1.5 py-0.5 rounded text-xs flex items-center gap-1 border-l-4 truncate"
-                            style={{ borderLeftColor: color, backgroundColor: `${color}15` }}
-                            title={t.title}
-                          >
-                            <span className="truncate">{t.title}</span>
-                          </button>
-                        );
-                      })}
-                      {overflow > 0 && (
-                        <span className="text-[10px] text-muted-foreground px-1.5">+{overflow} mais</span>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
+          {calViewMode === "mes" && (
+            <CalendarMonthGrid
+              cursor={calCursor}
+              getDayTasks={getCalDayTasks}
+              ItemComponent={CalTaskPill}
+              getTaskKey={(t) => t.id}
+              onDayClick={(d) => { setCalCursor(d); setCalViewMode("dia"); }}
+            />
+          )}
+          {calViewMode === "semana" && (
+            <CalendarWeekGrid
+              cursor={calCursor}
+              getDayTasks={getCalDayTasks}
+              ItemComponent={CalTaskPill}
+              getTaskKey={(t) => t.id}
+              onDayClick={(d) => { setCalCursor(d); setCalViewMode("dia"); }}
+            />
+          )}
+          {calViewMode === "dia" && (
+            <Card>
+              <CardContent className="p-4">
+                {getCalDayTasks(calCursor).length === 0 ? (
+                  <p className="text-center py-12 text-muted-foreground">Nenhuma tarefa neste dia</p>
+                ) : (
+                  <CalendarDayList
+                    tasks={getCalDayTasks(calCursor)}
+                    ItemComponent={CalTaskDayCard}
+                    getTaskKey={(t) => t.id}
+                  />
+                )}
+              </CardContent>
+            </Card>
+          )}
         </div>
       ) : (
         <DragDropContext onDragEnd={onDragEnd}>

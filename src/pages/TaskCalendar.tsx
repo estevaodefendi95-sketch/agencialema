@@ -3,14 +3,11 @@ import { useNavigate } from "react-router-dom";
 import {
   format,
   isSameDay,
-  isSameMonth,
-  isToday,
   isWithinInterval,
   startOfMonth,
   endOfMonth,
   startOfWeek,
   endOfWeek,
-  eachDayOfInterval,
   addMonths,
   addWeeks,
   addDays,
@@ -37,6 +34,7 @@ import { Switch } from "@/components/ui/switch";
 import { REMINDER_OPTIONS, formatDueTime } from "@/lib/taskReminders";
 import { AssigneeAvatar } from "@/components/AssigneeAvatar";
 import { CalendarColorToggle } from "@/components/CalendarColorToggle";
+import { CalendarMonthGrid, CalendarWeekGrid, CalendarDayList } from "@/components/CalendarMonthWeekDay";
 import { cn } from "@/lib/utils";
 import { getEntityColor, PROJECT_COLOR_PALETTE, TEAM_COLOR_PALETTE } from "@/lib/colorPalette";
 import { useCalendarColorMode } from "@/hooks/useCalendarColorMode";
@@ -521,156 +519,11 @@ export default function TaskCalendar() {
         title={task.title}
       >
         <span className={cn("h-1.5 w-1.5 rounded-full shrink-0", priorityColor[task.priority])} />
-        {(task.assigned_to || task.assignee_name) && (
+        {colorMode === "responsavel" && (task.assigned_to || task.assignee_name) && (
           <AssigneeAvatar url={task.assignee?.avatar_url} name={assigneeName} className="h-5 w-5 shrink-0" />
         )}
         <span className="truncate">{task.title}</span>
       </button>
-    );
-  };
-
-  // ========== Month View ==========
-  const MonthView = () => {
-    const monthStart = startOfMonth(cursor);
-    const monthEnd = endOfMonth(cursor);
-    const gridStart = startOfWeek(monthStart, { weekStartsOn: 0 });
-    const gridEnd = endOfWeek(monthEnd, { weekStartsOn: 0 });
-    const days = eachDayOfInterval({ start: gridStart, end: gridEnd });
-    const weekdays = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
-
-    return (
-      <div className="border rounded-lg overflow-hidden bg-card">
-        <div className="grid grid-cols-7 bg-muted/40 border-b">
-          {weekdays.map((d) => (
-            <div key={d} className="px-2 py-1.5 text-xs font-medium text-muted-foreground text-center">
-              {d}
-            </div>
-          ))}
-        </div>
-        <div className="grid grid-cols-7 auto-rows-fr">
-          {days.map((day) => {
-            const inMonth = isSameMonth(day, cursor);
-            const today = isToday(day);
-            const dayTasks = getTasksForDay(day);
-            const visible = dayTasks.slice(0, 3);
-            const overflow = dayTasks.length - visible.length;
-            return (
-              <div
-                key={day.toISOString()}
-                onClick={() => openDayInDayView(day)}
-                className={cn(
-                  "group min-h-[110px] border-r border-b last:border-r-0 p-1.5 flex flex-col gap-1 cursor-pointer hover:bg-accent/30 transition-colors",
-                  !inMonth && "bg-muted/20 text-muted-foreground",
-                )}
-              >
-                <div className="flex items-center justify-between">
-                  <span
-                    className={cn(
-                      "text-xs font-medium h-5 w-5 flex items-center justify-center rounded-full",
-                      today && "bg-primary text-primary-foreground",
-                    )}
-                  >
-                    {format(day, "d")}
-                  </span>
-                  {canEdit && (
-                    <button
-                      onClick={(e) => { e.stopPropagation(); openNewTaskDialog(day); }}
-                      className="opacity-0 group-hover:opacity-100 h-5 w-5 inline-flex items-center justify-center rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-opacity"
-                      title="Nova tarefa neste dia"
-                    >
-                      <Plus className="h-3.5 w-3.5" />
-                    </button>
-                  )}
-                </div>
-                <div className="flex flex-col gap-0.5">
-                  {visible.map((t) => (
-                    <TaskPill key={t.id} task={t} />
-                  ))}
-                  {overflow > 0 && (
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <button
-                          onClick={(e) => e.stopPropagation()}
-                          className="text-[10px] text-muted-foreground hover:text-foreground text-left px-1.5"
-                        >
-                          +{overflow} mais
-                        </button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-64 p-2" onClick={(e) => e.stopPropagation()}>
-                        <p className="text-xs font-medium mb-2">{format(day, "d 'de' MMM", { locale: ptBR })}</p>
-                        <div className="flex flex-col gap-1 max-h-72 overflow-y-auto">
-                          {dayTasks.map((t) => (
-                            <TaskPill key={t.id} task={t} />
-                          ))}
-                        </div>
-                      </PopoverContent>
-                    </Popover>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    );
-  };
-
-  // ========== Week View ==========
-  const WeekView = () => {
-    const ws = startOfWeek(cursor, { weekStartsOn: 0 });
-    const we = endOfWeek(cursor, { weekStartsOn: 0 });
-    const days = eachDayOfInterval({ start: ws, end: we });
-
-    return (
-      <div className="border rounded-lg overflow-hidden bg-card">
-        <div className="grid grid-cols-7">
-          {days.map((day) => {
-            const today = isToday(day);
-            const dayTasks = getTasksForDay(day);
-            return (
-              <div
-                key={day.toISOString()}
-                className="border-r last:border-r-0 flex flex-col min-h-[500px]"
-              >
-                <div className={cn("group flex items-center justify-between px-2 py-2 border-b", today && "bg-primary/5")}>
-                  <button
-                    onClick={() => openDayInDayView(day)}
-                    className="text-left hover:opacity-80 flex-1 transition-colors"
-                  >
-                    <div className="text-[10px] uppercase text-muted-foreground tracking-wide">
-                      {format(day, "EEE", { locale: ptBR })}
-                    </div>
-                    <div
-                      className={cn(
-                        "text-lg font-semibold inline-flex h-7 min-w-7 px-1 items-center justify-center rounded-full",
-                        today && "bg-primary text-primary-foreground",
-                      )}
-                    >
-                      {format(day, "d")}
-                    </div>
-                  </button>
-                  {canEdit && (
-                    <button
-                      onClick={(e) => { e.stopPropagation(); openNewTaskDialog(day); }}
-                      className="opacity-0 group-hover:opacity-100 h-6 w-6 inline-flex items-center justify-center rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-opacity"
-                      title="Nova tarefa neste dia"
-                    >
-                      <Plus className="h-3.5 w-3.5" />
-                    </button>
-                  )}
-                </div>
-                <div className="p-1.5 flex flex-col gap-1 flex-1 overflow-y-auto">
-                  {dayTasks.length === 0 ? (
-                    <span className="text-[10px] text-muted-foreground text-center mt-4">—</span>
-                  ) : (
-                    dayTasks.map((t) => <TaskPill key={t.id} task={t} />)
-                  )}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
     );
   };
 
@@ -766,7 +619,7 @@ export default function TaskCalendar() {
                             {task.projects.companies.name}
                           </span>
                         )}
-                        {(task.assignee || task.assignee_name) && (
+                        {colorMode === "responsavel" && (task.assignee || task.assignee_name) && (
                           <span className="flex items-center gap-1.5 ml-auto">
                             <Avatar className="h-5 w-5">
                               {task.assignee?.avatar_url && <AvatarImage src={task.assignee.avatar_url} />}
@@ -781,7 +634,7 @@ export default function TaskCalendar() {
                         )}
                         {(task.comment_count || 0) > 0 && (
                           <span
-                            className={cn("flex items-center gap-1", !(task.assignee || task.assignee_name) && "ml-auto")}
+                            className={cn("flex items-center gap-1", !(colorMode === "responsavel" && (task.assignee || task.assignee_name)) && "ml-auto")}
                             title="Comentários"
                           >
                             <MessageSquare className="h-3 w-3" />
@@ -939,8 +792,46 @@ export default function TaskCalendar() {
         </div>
       </div>
 
-      {viewMode === "mes" && <MonthView />}
-      {viewMode === "semana" && <WeekView />}
+      {viewMode === "mes" && (
+        <CalendarMonthGrid
+          cursor={cursor}
+          getDayTasks={getTasksForDay}
+          ItemComponent={TaskPill}
+          getTaskKey={(t) => t.id}
+          onDayClick={openDayInDayView}
+          onAddDay={canEdit ? openNewTaskDialog : undefined}
+          renderOverflow={(day, dayTasks, overflow) => (
+            <Popover>
+              <PopoverTrigger asChild>
+                <button
+                  onClick={(e) => e.stopPropagation()}
+                  className="text-[10px] text-muted-foreground hover:text-foreground text-left px-1.5"
+                >
+                  +{overflow} mais
+                </button>
+              </PopoverTrigger>
+              <PopoverContent className="w-64 p-2" onClick={(e) => e.stopPropagation()}>
+                <p className="text-xs font-medium mb-2">{format(day, "d 'de' MMM", { locale: ptBR })}</p>
+                <div className="flex flex-col gap-1 max-h-72 overflow-y-auto">
+                  {dayTasks.map((t) => (
+                    <TaskPill key={t.id} task={t} />
+                  ))}
+                </div>
+              </PopoverContent>
+            </Popover>
+          )}
+        />
+      )}
+      {viewMode === "semana" && (
+        <CalendarWeekGrid
+          cursor={cursor}
+          getDayTasks={getTasksForDay}
+          ItemComponent={TaskPill}
+          getTaskKey={(t) => t.id}
+          onDayClick={openDayInDayView}
+          onAddDay={canEdit ? openNewTaskDialog : undefined}
+        />
+      )}
       {viewMode === "dia" && <DayView />}
 
       {legendItems.length > 0 && (

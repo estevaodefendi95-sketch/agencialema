@@ -1,16 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   format,
-  isSameDay,
-  isSameMonth,
-  isToday,
   startOfMonth,
   endOfMonth,
   startOfWeek,
   endOfWeek,
-  eachDayOfInterval,
   addMonths,
+  addWeeks,
+  addDays,
   subMonths,
+  subWeeks,
 } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useAuth } from "@/contexts/AuthContext";
@@ -19,9 +18,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { CalendarDays, ChevronLeft, ChevronRight, FolderKanban } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getEntityColor, PROJECT_COLOR_PALETTE } from "@/lib/colorPalette";
+import { AssigneeAvatar } from "@/components/AssigneeAvatar";
+import { CalendarMonthGrid, CalendarWeekGrid } from "@/components/CalendarMonthWeekDay";
 
 type CalendarTask = {
   id: string;
@@ -31,6 +33,9 @@ type CalendarTask = {
   project_id: string;
   projectName: string;
   color: string;
+  assigned_to: string | null;
+  assigneeName: string | null;
+  assigneeAvatarUrl: string | null;
 };
 
 const DEFAULT_STATUS_COLUMNS = [
@@ -40,17 +45,25 @@ const DEFAULT_STATUS_COLUMNS = [
   { slug: "aprovado", label: "Aprovado" },
 ];
 
-const WEEKDAYS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
+type ViewMode = "mes" | "semana" | "dia";
 
 export default function ClientCalendar() {
-  const { user } = useAuth();
+  const { user, avatarUrl } = useAuth();
   const [projects, setProjects] = useState<{ id: string; name: string }[]>([]);
   const [tasks, setTasks] = useState<CalendarTask[]>([]);
   const [columnLabels, setColumnLabels] = useState<Map<string, string>>(new Map());
   const [loading, setLoading] = useState(true);
   const [projectFilter, setProjectFilter] = useState("all");
   const [cursor, setCursor] = useState(new Date());
-  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [viewMode, setViewMode] = useState<ViewMode>(() => {
+    return (localStorage.getItem("client-calendar-view-mode") as ViewMode) || "mes";
+  });
+
+  const changeViewMode = (m: ViewMode) => {
+    if (!m) return;
+    setViewMode(m);
+    localStorage.setItem("client-calendar-view-mode", m);
+  };
 
   useEffect(() => {
     if (user) load();
@@ -87,11 +100,21 @@ export default function ClientCalendar() {
     const [{ data: tasksData }, { data: columnsData }] = await Promise.all([
       supabase
         .from("tasks")
-        .select("id, title, due_date, status, project_id, color")
+        .select("id, title, due_date, status, project_id, color, assigned_to")
         .in("project_id", projectIds)
         .not("due_date", "is", null),
       supabase.from("project_columns").select("project_id, slug, label").in("project_id", projectIds),
     ]);
+
+    const assigneeIds = Array.from(new Set((tasksData || []).map((t: any) => t.assigned_to).filter(Boolean)));
+    let profileMap = new Map<string, { full_name: string | null; nickname: string | null; avatar_url: string | null }>();
+    if (assigneeIds.length > 0) {
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("id, full_name, nickname, avatar_url")
+        .in("id", assigneeIds);
+      profileMap = new Map((profiles || []).map((p: any) => [p.id, p]));
+    }
 
     const projectNameMap = new Map((projectsData || []).map((p: any) => [p.id, p.name as string]));
     const projectColorMap = new Map((projectsData || []).map((p: any) => [p.id, p.color as string | null]));
@@ -99,15 +122,22 @@ export default function ClientCalendar() {
     (columnsData || []).forEach((c: any) => labelMap.set(`${c.project_id}:${c.slug}`, c.label));
     setColumnLabels(labelMap);
 
-    const enriched: CalendarTask[] = (tasksData || []).map((t: any) => ({
-      id: t.id,
-      title: t.title,
-      due_date: t.due_date,
-      status: t.status,
-      project_id: t.project_id,
-      projectName: projectNameMap.get(t.project_id) || "Projeto",
-      color: t.color || getEntityColor(t.project_id, projectColorMap.get(t.project_id) ?? null, PROJECT_COLOR_PALETTE),
-    }));
+    const enriched: CalendarTask[] = (tasksData || []).map((t: any) => {
+      const isSelf = t.assigned_to && t.assigned_to === user.id;
+      const profile = t.assigned_to ? profileMap.get(t.assigned_to) : null;
+      return {
+        id: t.id,
+        title: t.title,
+        due_date: t.due_date,
+        status: t.status,
+        project_id: t.project_id,
+        projectName: projectNameMap.get(t.project_id) || "Projeto",
+        color: t.color || getEntityColor(t.project_id, projectColorMap.get(t.project_id) ?? null, PROJECT_COLOR_PALETTE),
+        assigned_to: t.assigned_to,
+        assigneeName: isSelf ? "Eu" : (profile?.nickname?.trim() || profile?.full_name || null),
+        assigneeAvatarUrl: isSelf ? avatarUrl : (profile?.avatar_url ?? null),
+      };
+    });
     setTasks(enriched);
     setLoading(false);
   }
@@ -136,21 +166,47 @@ export default function ClientCalendar() {
   }, [filteredTasks]);
 
   const getTasksForDay = (d: Date) => tasksByDay.get(format(d, "yyyy-MM-dd")) || [];
-  const selectedDayTasks = selectedDate ? getTasksForDay(selectedDate) : [];
+  const dayTasks = getTasksForDay(cursor);
 
-  const periodLabel = format(cursor, "MMMM 'de' yyyy", { locale: ptBR });
-  const navPrev = () => setCursor((c) => subMonths(c, 1));
-  const navNext = () => setCursor((c) => addMonths(c, 1));
-  const goToday = () => {
-    setCursor(new Date());
-    setSelectedDate(new Date());
+  const periodLabel = useMemo(() => {
+    if (viewMode === "mes") return format(cursor, "MMMM 'de' yyyy", { locale: ptBR });
+    if (viewMode === "semana") {
+      const ws = startOfWeek(cursor, { weekStartsOn: 0 });
+      const we = endOfWeek(cursor, { weekStartsOn: 0 });
+      return `${format(ws, "d 'de' MMM", { locale: ptBR })} – ${format(we, "d 'de' MMM 'de' yyyy", { locale: ptBR })}`;
+    }
+    return format(cursor, "EEEE, d 'de' MMMM 'de' yyyy", { locale: ptBR });
+  }, [cursor, viewMode]);
+
+  const navPrev = () => {
+    if (viewMode === "mes") setCursor((c) => subMonths(c, 1));
+    else if (viewMode === "semana") setCursor((c) => subWeeks(c, 1));
+    else setCursor((c) => addDays(c, -1));
+  };
+  const navNext = () => {
+    if (viewMode === "mes") setCursor((c) => addMonths(c, 1));
+    else if (viewMode === "semana") setCursor((c) => addWeeks(c, 1));
+    else setCursor((c) => addDays(c, 1));
+  };
+  const goToday = () => setCursor(new Date());
+
+  const openDayInDayView = (d: Date) => {
+    setCursor(d);
+    changeViewMode("dia");
   };
 
-  const monthStart = startOfMonth(cursor);
-  const monthEnd = endOfMonth(cursor);
-  const gridStart = startOfWeek(monthStart, { weekStartsOn: 0 });
-  const gridEnd = endOfWeek(monthEnd, { weekStartsOn: 0 });
-  const days = eachDayOfInterval({ start: gridStart, end: gridEnd });
+  const TaskPill = ({ task }: { task: CalendarTask }) => (
+    <div
+      className="w-full truncate rounded border-l-4 px-1.5 py-0.5 text-[11px] flex items-center gap-1"
+      style={{ borderLeftColor: task.color, backgroundColor: `${task.color}15` }}
+      title={task.title}
+    >
+      {(task.assigned_to || task.assigneeName) && (
+        <AssigneeAvatar url={task.assigneeAvatarUrl} name={task.assigneeName} className="h-4 w-4 shrink-0" />
+      )}
+      <span className="truncate">{task.title}</span>
+    </div>
+  );
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
@@ -175,6 +231,17 @@ export default function ClientCalendar() {
           </SelectContent>
         </Select>
 
+        <ToggleGroup
+          type="single"
+          value={viewMode}
+          onValueChange={(v) => changeViewMode(v as ViewMode)}
+          className="border rounded-md p-0.5 bg-muted/40"
+        >
+          <ToggleGroupItem value="mes" className="h-8 px-3 text-xs data-[state=on]:bg-background">Mês</ToggleGroupItem>
+          <ToggleGroupItem value="semana" className="h-8 px-3 text-xs data-[state=on]:bg-background">Semana</ToggleGroupItem>
+          <ToggleGroupItem value="dia" className="h-8 px-3 text-xs data-[state=on]:bg-background">Dia</ToggleGroupItem>
+        </ToggleGroup>
+
         <div className="flex items-center gap-2">
           <Button variant="outline" size="icon" className="h-8 w-8" onClick={navPrev}>
             <ChevronLeft className="h-4 w-4" />
@@ -192,87 +259,59 @@ export default function ClientCalendar() {
       {loading ? (
         <div className="text-center py-16 text-muted-foreground">Carregando...</div>
       ) : (
-        <div className="border rounded-lg overflow-hidden bg-card">
-          <div className="grid grid-cols-7 bg-muted/40 border-b">
-            {WEEKDAYS.map((d) => (
-              <div key={d} className="px-2 py-1.5 text-xs font-medium text-muted-foreground text-center">
-                {d}
-              </div>
-            ))}
-          </div>
-          <div className="grid grid-cols-7 auto-rows-fr">
-            {days.map((day) => {
-              const inMonth = isSameMonth(day, cursor);
-              const today = isToday(day);
-              const isSelected = selectedDate && isSameDay(day, selectedDate);
-              const dayTasks = getTasksForDay(day);
-              const visible = dayTasks.slice(0, 3);
-              const overflow = dayTasks.length - visible.length;
-              return (
-                <div
-                  key={day.toISOString()}
-                  onClick={() => setSelectedDate(day)}
-                  className={cn(
-                    "min-h-[100px] border-r border-b last:border-r-0 p-1.5 flex flex-col gap-1 cursor-pointer hover:bg-accent/30 transition-colors",
-                    !inMonth && "bg-muted/20 text-muted-foreground",
-                    isSelected && "ring-2 ring-inset ring-primary",
-                  )}
-                >
-                  <span
-                    className={cn(
-                      "text-xs font-medium h-5 w-5 flex items-center justify-center rounded-full",
-                      today && "bg-primary text-primary-foreground",
-                    )}
-                  >
-                    {format(day, "d")}
-                  </span>
-                  <div className="flex flex-col gap-0.5">
-                    {visible.map((t) => (
-                      <div
-                        key={t.id}
-                        className="w-full truncate rounded border-l-4 px-1.5 py-0.5 text-[11px]"
-                        style={{ borderLeftColor: t.color, backgroundColor: `${t.color}15` }}
-                        title={t.title}
-                      >
-                        {t.title}
+        <>
+          {viewMode === "mes" && (
+            <CalendarMonthGrid
+              cursor={cursor}
+              getDayTasks={getTasksForDay}
+              ItemComponent={TaskPill}
+              getTaskKey={(t) => t.id}
+              onDayClick={openDayInDayView}
+            />
+          )}
+          {viewMode === "semana" && (
+            <CalendarWeekGrid
+              cursor={cursor}
+              getDayTasks={getTasksForDay}
+              ItemComponent={TaskPill}
+              getTaskKey={(t) => t.id}
+              onDayClick={openDayInDayView}
+            />
+          )}
+          {viewMode === "dia" && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base capitalize">
+                  {format(cursor, "EEEE, d 'de' MMMM", { locale: ptBR })}
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {dayTasks.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">Nenhuma tarefa neste dia</p>
+                ) : (
+                  <div className="space-y-2">
+                    {dayTasks.map((t) => (
+                      <div key={t.id} className="flex items-center justify-between gap-3 rounded-lg border border-l-4 p-3" style={{ borderLeftColor: t.color, backgroundColor: `${t.color}15` }}>
+                        <div className="flex items-center gap-2 min-w-0">
+                          {(t.assigned_to || t.assigneeName) && (
+                            <AssigneeAvatar url={t.assigneeAvatarUrl} name={t.assigneeName} className="h-5 w-5 shrink-0" />
+                          )}
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium truncate">{t.title}</p>
+                            <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
+                              <FolderKanban className="h-3 w-3" /> {t.projectName}
+                            </p>
+                          </div>
+                        </div>
+                        <Badge variant="secondary" className="shrink-0">{statusLabelFor(t)}</Badge>
                       </div>
                     ))}
-                    {overflow > 0 && <span className="text-[10px] text-muted-foreground px-1.5">+{overflow} mais</span>}
                   </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {selectedDate && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base capitalize">
-              {format(selectedDate, "EEEE, d 'de' MMMM", { locale: ptBR })}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {selectedDayTasks.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Nenhuma tarefa neste dia</p>
-            ) : (
-              <div className="space-y-2">
-                {selectedDayTasks.map((t) => (
-                  <div key={t.id} className="flex items-center justify-between gap-3 rounded-lg border border-l-4 p-3" style={{ borderLeftColor: t.color, backgroundColor: `${t.color}15` }}>
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium truncate">{t.title}</p>
-                      <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
-                        <FolderKanban className="h-3 w-3" /> {t.projectName}
-                      </p>
-                    </div>
-                    <Badge variant="secondary" className="shrink-0">{statusLabelFor(t)}</Badge>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+                )}
+              </CardContent>
+            </Card>
+          )}
+        </>
       )}
     </div>
   );
