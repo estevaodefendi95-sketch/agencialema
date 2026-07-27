@@ -7,14 +7,18 @@ import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useAppSettings } from "@/hooks/useAppSettings";
+import { supabase } from "@/integrations/supabase/client";
 import {
   Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupContent,
-  SidebarGroupLabel, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem, useSidebar,
+  SidebarGroupLabel, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem,
+  SidebarMenuSub, SidebarMenuSubButton, SidebarMenuSubItem, useSidebar,
 } from "@/components/ui/sidebar";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Button } from "@/components/ui/button";
 import { AssigneeAvatar } from "@/components/AssigneeAvatar";
 import { cn } from "@/lib/utils";
+
+const COMPANIES_OPEN_KEY = "sidebar-empresas-open";
 
 type SectionItem = { title: string; url: string; icon: typeof LayoutDashboard };
 type Section = { label: string; items: SectionItem[]; defaultOpen: boolean };
@@ -28,6 +32,31 @@ export function AppSidebar() {
   const { app_name, logo_url } = useAppSettings();
   const collapsed = state === "collapsed";
   const location = useLocation();
+
+  const [companies, setCompanies] = useState<{ id: string; name: string }[]>([]);
+  const [companiesOpen, setCompaniesOpen] = useState(() => {
+    try {
+      return localStorage.getItem(COMPANIES_OPEN_KEY) === "1";
+    } catch {
+      return false;
+    }
+  });
+
+  useEffect(() => {
+    supabase.from("companies").select("id, name").order("name").then(({ data }) => {
+      setCompanies(data || []);
+    });
+  }, []);
+
+  const toggleCompaniesOpen = () => {
+    setCompaniesOpen((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem(COMPANIES_OPEN_KEY, next ? "1" : "0");
+      } catch {}
+      return next;
+    });
+  };
 
   const sections: Section[] = [
     {
@@ -115,6 +144,55 @@ export function AppSidebar() {
     <SidebarMenu>
       {items.map((item) => {
         const isProfile = item.url === "/perfil";
+        const isCompanies = item.url === "/empresas";
+
+        if (isCompanies) {
+          return (
+            <SidebarMenuItem key={item.title}>
+              <div className="flex items-center gap-0.5">
+                <SidebarMenuButton asChild className="flex-1">
+                  <NavLink
+                    to={item.url}
+                    end
+                    className="hover:bg-sidebar-accent/50"
+                    activeClassName="bg-sidebar-accent text-sidebar-primary font-medium"
+                  >
+                    <item.icon className="mr-2 h-4 w-4" />
+                    {!collapsed && <span>{item.title}</span>}
+                  </NavLink>
+                </SidebarMenuButton>
+                {!collapsed && companies.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={toggleCompaniesOpen}
+                    className="shrink-0 p-1.5 rounded-md hover:bg-sidebar-accent/50 text-muted-foreground hover:text-foreground transition-colors"
+                    title={companiesOpen ? "Recolher empresas" : "Expandir empresas"}
+                  >
+                    <ChevronRight className={cn("h-3.5 w-3.5 transition-transform", companiesOpen && "rotate-90")} />
+                  </button>
+                )}
+              </div>
+              {!collapsed && companiesOpen && companies.length > 0 && (
+                <SidebarMenuSub>
+                  {companies.map((c) => (
+                    <SidebarMenuSubItem key={c.id}>
+                      <SidebarMenuSubButton asChild>
+                        <NavLink
+                          to={`/empresas/${c.id}`}
+                          className="hover:bg-sidebar-accent/50"
+                          activeClassName="bg-sidebar-accent text-sidebar-primary font-medium"
+                        >
+                          <span className="truncate">{c.name}</span>
+                        </NavLink>
+                      </SidebarMenuSubButton>
+                    </SidebarMenuSubItem>
+                  ))}
+                </SidebarMenuSub>
+              )}
+            </SidebarMenuItem>
+          );
+        }
+
         return (
           <SidebarMenuItem key={item.title}>
             <SidebarMenuButton asChild>

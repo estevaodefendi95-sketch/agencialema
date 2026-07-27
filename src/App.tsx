@@ -11,6 +11,7 @@ import Login from "@/pages/Login";
 import PendingApproval from "@/pages/PendingApproval";
 import Dashboard from "@/pages/Dashboard";
 import Companies from "@/pages/Companies";
+import CompanyDetail from "@/pages/CompanyDetail";
 import Projects from "@/pages/Projects";
 import KanbanBoard from "@/pages/KanbanBoard";
 import TaskCalendar from "@/pages/TaskCalendar";
@@ -89,6 +90,7 @@ function AppRoutes() {
         <Route element={<AppLayout />}>
           <Route path="/" element={<Dashboard />} />
           <Route path="/empresas" element={<Companies />} />
+          <Route path="/empresas/:companyId" element={<CompanyDetail />} />
           <Route path="/projetos" element={<Projects />} />
           <Route path="/projetos/:id" element={<KanbanBoard />} />
           <Route path="/calendario" element={<TaskCalendar />} />
