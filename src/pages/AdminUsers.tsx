@@ -20,6 +20,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
+import { getEdgeFunctionErrorMessage } from "@/lib/edgeFunctionError";
 import { UserCheck, UserX, Shield, Building2, Plus, Clock, Copy, Trash2 } from "lucide-react";
 
 interface Profile {
@@ -148,7 +149,8 @@ export default function AdminUsers() {
       setProfiles((prev) => prev.filter((p) => p.id !== profileToDelete.id));
       closeDeleteDialog();
     } catch (err: any) {
-      toast({ title: "Erro ao excluir usuário", description: err.message, variant: "destructive" });
+      const message = await getEdgeFunctionErrorMessage(err);
+      toast({ title: "Erro ao excluir usuário", description: message, variant: "destructive" });
     } finally {
       setDeleting(false);
     }
@@ -173,7 +175,8 @@ export default function AdminUsers() {
       setAccessLink(data.access_link);
       load();
     } catch (err: any) {
-      toast({ title: "Erro ao enviar convite", description: err.message, variant: "destructive" });
+      const message = await getEdgeFunctionErrorMessage(err);
+      toast({ title: "Erro ao enviar convite", description: message, variant: "destructive" });
     } finally {
       setCreating(false);
     }

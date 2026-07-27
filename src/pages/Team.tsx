@@ -19,6 +19,7 @@ import {
   AlertDialogCancel,
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
+import { getEdgeFunctionErrorMessage } from "@/lib/edgeFunctionError";
 import { AssigneeAvatar } from "@/components/AssigneeAvatar";
 import { ColorSwatchPicker } from "@/components/ColorSwatchPicker";
 import { getEntityColor, TEAM_COLOR_PALETTE } from "@/lib/colorPalette";
@@ -215,7 +216,8 @@ export default function Team() {
       setMembers((prev) => prev.filter((m) => m.user_id !== memberToRemove.user_id));
       closeRemoveDialog();
     } catch (err: any) {
-      toast({ title: "Erro ao excluir membro", description: err.message, variant: "destructive" });
+      const message = await getEdgeFunctionErrorMessage(err);
+      toast({ title: "Erro ao excluir membro", description: message, variant: "destructive" });
     } finally {
       setDeleting(false);
     }
