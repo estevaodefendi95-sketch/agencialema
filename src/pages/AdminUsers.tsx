@@ -5,13 +5,22 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogCancel,
+} from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { UserCheck, UserX, Shield, Building2, Plus, Clock, Copy } from "lucide-react";
+import { UserCheck, UserX, Shield, Building2, Plus, Clock, Copy, Trash2 } from "lucide-react";
 
 interface Profile {
   id: string;
@@ -34,7 +43,7 @@ const ROLE_LABELS: Record<string, string> = {
 
 export default function AdminUsers() {
   const { toast } = useToast();
-  const { session } = useAuth();
+  const { session, user } = useAuth();
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
   const [companies, setCompanies] = useState<Company[]>([]);
@@ -42,6 +51,10 @@ export default function AdminUsers() {
   const [selected, setSelected] = useState<Profile | null>(null);
   const [editRole, setEditRole] = useState<string>("cliente");
   const [editCompanies, setEditCompanies] = useState<string[]>([]);
+
+  const [profileToDelete, setProfileToDelete] = useState<Profile | null>(null);
+  const [confirmName, setConfirmName] = useState("");
+  const [deleting, setDeleting] = useState(false);
 
   // Create user dialog
   const [createOpen, setCreateOpen] = useState(false);
@@ -114,6 +127,31 @@ export default function AdminUsers() {
     await supabase.from("profiles").update({ status: "bloqueado" as any }).eq("id", userId);
     toast({ title: "Usuário bloqueado" });
     load();
+  };
+
+  const closeDeleteDialog = () => {
+    setProfileToDelete(null);
+    setConfirmName("");
+  };
+
+  const handleDeletePermanently = async () => {
+    if (!profileToDelete) return;
+    setDeleting(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("delete-user", {
+        body: { user_id: profileToDelete.id },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+
+      toast({ title: "Usuário excluído permanentemente." });
+      setProfiles((prev) => prev.filter((p) => p.id !== profileToDelete.id));
+      closeDeleteDialog();
+    } catch (err: any) {
+      toast({ title: "Erro ao excluir usuário", description: err.message, variant: "destructive" });
+    } finally {
+      setDeleting(false);
+    }
   };
 
   const createUser = async () => {
@@ -212,6 +250,16 @@ export default function AdminUsers() {
                   {p.status !== "bloqueado" && (
                     <Button size="sm" variant="outline" onClick={() => block(p.id)} className="gap-1 text-destructive">
                       <UserX className="h-3 w-3" /> Bloquear
+                    </Button>
+                  )}
+                  {p.id !== user?.id && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setProfileToDelete(p)}
+                      className="gap-1 text-destructive"
+                    >
+                      <Trash2 className="h-3 w-3" /> Excluir
                     </Button>
                   )}
                 </div>
@@ -384,6 +432,46 @@ export default function AdminUsers() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Delete user permanently */}
+      <AlertDialog open={!!profileToDelete} onOpenChange={(open) => !open && closeDeleteDialog()}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {profileToDelete?.full_name || profileToDelete?.email || "Usuário"}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Bloquear impede o acesso mas mantém o histórico. Excluir remove a conta definitivamente —
+              tarefas atribuídas a essa pessoa ficarão sem responsável, mas não serão apagadas.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+
+          <div className="space-y-1">
+            <Label className="text-xs text-muted-foreground">
+              Digite "{profileToDelete?.full_name || profileToDelete?.email}" para habilitar a exclusão permanente
+            </Label>
+            <Input
+              value={confirmName}
+              onChange={(e) => setConfirmName(e.target.value)}
+              placeholder={profileToDelete?.full_name || profileToDelete?.email || ""}
+            />
+          </div>
+
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <Button
+              variant="destructive"
+              disabled={
+                deleting ||
+                confirmName.trim() !== (profileToDelete?.full_name || profileToDelete?.email || "")
+              }
+              onClick={handleDeletePermanently}
+            >
+              {deleting ? "Excluindo..." : "Excluir permanentemente"}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
