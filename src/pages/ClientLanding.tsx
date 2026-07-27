@@ -1,14 +1,27 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
+import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import PresentationView, { type PresentationData, type Block, type Post, type PostMediaRow } from "@/components/presentation/PresentationView";
 
+type Snapshot = {
+  pres: PresentationData;
+  blocks: Block[];
+  posts: Post[];
+  postMedia: PostMediaRow[];
+};
+
+type VersionEntry = {
+  id: string;
+  name: string;
+  created_at: string;
+  snapshot: Snapshot;
+};
+
 export default function ClientLanding() {
   const { slug } = useParams<{ slug: string }>();
-  const [pres, setPres] = useState<PresentationData | null>(null);
-  const [blocks, setBlocks] = useState<Block[]>([]);
-  const [posts, setPosts] = useState<Post[]>([]);
-  const [postMedia, setPostMedia] = useState<PostMediaRow[]>([]);
+  const [versions, setVersions] = useState<VersionEntry[]>([]);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [noVersion, setNoVersion] = useState(false);
@@ -19,7 +32,7 @@ export default function ClientLanding() {
       setLoading(true);
       const { data } = await supabase
         .from("project_presentations")
-        .select("*")
+        .select("id")
         .eq("slug", slug)
         .eq("status", "publicado")
         .eq("released", true)
@@ -30,30 +43,42 @@ export default function ClientLanding() {
         return;
       }
 
-      // A página pública sempre mostra o conteúdo congelado do último
-      // lançamento — nunca os blocos/posts em edição no Planejamento.
-      const { data: version } = await supabase
+      // A página pública mostra todos os lançamentos liberados pro cliente
+      // (visible_to_client) — a policy pública já garante esse filtro, mas
+      // deixamos explícito aqui também. O mais recente vem em destaque; os
+      // demais ficam listados abaixo como "Apresentações anteriores".
+      const { data: v } = await supabase
         .from("presentation_versions")
-        .select("snapshot")
+        .select("id, name, created_at, snapshot")
         .eq("presentation_id", data.id)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
+        .eq("visible_to_client", true)
+        .order("created_at", { ascending: false });
 
-      const snapshot = version?.snapshot as any;
-      if (!snapshot) {
+      if (!v || v.length === 0) {
         setNoVersion(true);
         setLoading(false);
         return;
       }
 
-      setPres(snapshot.pres);
-      setBlocks(snapshot.blocks || []);
-      setPosts(snapshot.posts || []);
-      setPostMedia(snapshot.postMedia || []);
+      setVersions(v as unknown as VersionEntry[]);
+      setSelectedId(v[0].id);
       setLoading(false);
     })();
   }, [slug]);
+
+  const selected = useMemo(
+    () => versions.find((v) => v.id === selectedId) || versions[0] || null,
+    [versions, selectedId],
+  );
+  const olderVersions = useMemo(
+    () => (selected ? versions.filter((v) => v.id !== selected.id) : []),
+    [versions, selected],
+  );
+
+  function openVersion(id: string) {
+    setSelectedId(id);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
 
   if (loading) {
     return (
@@ -74,7 +99,7 @@ export default function ClientLanding() {
     );
   }
 
-  if (noVersion || !pres) {
+  if (noVersion || !selected) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background p-6 text-center">
         <div>
@@ -85,5 +110,32 @@ export default function ClientLanding() {
     );
   }
 
-  return <PresentationView pres={pres} blocks={blocks} posts={posts} postMedia={postMedia} />;
+  return (
+    <div>
+      <PresentationView
+        pres={selected.snapshot.pres}
+        blocks={selected.snapshot.blocks}
+        posts={selected.snapshot.posts}
+        postMedia={selected.snapshot.postMedia}
+      />
+
+      {olderVersions.length > 0 && (
+        <section className="max-w-3xl mx-auto px-6 pb-24">
+          <h2 className="text-xl font-bold mb-4">Apresentações anteriores</h2>
+          <div className="space-y-2">
+            {olderVersions.map((v) => (
+              <button
+                key={v.id}
+                onClick={() => openVersion(v.id)}
+                className="w-full flex items-center justify-between gap-3 text-left border rounded-lg px-4 py-3 hover:bg-accent/50 transition-colors"
+              >
+                <span className="font-medium">{v.name}</span>
+                <span className="text-sm text-muted-foreground shrink-0">{format(new Date(v.created_at), "dd/MM/yyyy")}</span>
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
+    </div>
+  );
 }

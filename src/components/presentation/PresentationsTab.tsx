@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -13,18 +14,17 @@ type Snapshot = {
   postMedia: PostMediaRow[];
 };
 
-type PresentationRow = {
+type VersionRow = {
   id: string;
-  slug: string;
-  status: string;
-  released: boolean;
-  hero_title: string | null;
-  latestVersion: { id: string; name: string } | null;
+  name: string;
+  created_at: string;
+  visible_to_client: boolean;
 };
 
-// Aba "Apresentação" do Kanban: lista compacta das apresentações do projeto
-// (normalmente uma só, mas a estrutura suporta mais). Mostra sempre o que já
-// foi lançado — o conteúdo em edição vive na aba Planejamento.
+// Aba "Apresentação" do Kanban: uma linha por lançamento (presentation_versions)
+// da apresentação do projeto — cada "Lançar e Salvar" é um registro
+// independente que persiste aqui, nunca sobrescrevendo o anterior. O
+// conteúdo em edição (o estado "vivo") vive na aba Planejamento.
 export function PresentationsTab({
   projectId,
   projectName,
@@ -36,7 +36,8 @@ export function PresentationsTab({
   canEdit: boolean;
   onEditPlanning: () => void;
 }) {
-  const [presentations, setPresentations] = useState<PresentationRow[]>([]);
+  const [presentationId, setPresentationId] = useState<string | null>(null);
+  const [versions, setVersions] = useState<VersionRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewLoading, setPreviewLoading] = useState(false);
@@ -44,44 +45,43 @@ export function PresentationsTab({
 
   async function load() {
     setLoading(true);
-    const { data } = await supabase
+    const { data: pres } = await supabase
       .from("project_presentations")
-      .select("id, slug, status, released, hero_title")
-      .eq("project_id", projectId);
+      .select("id")
+      .eq("project_id", projectId)
+      .maybeSingle();
 
-    const list = data || [];
-    const withVersions = await Promise.all(
-      list.map(async (p) => {
-        const { data: v } = await supabase
-          .from("presentation_versions")
-          .select("id, name")
-          .eq("presentation_id", p.id)
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .maybeSingle();
-        return { ...p, latestVersion: v || null } as PresentationRow;
-      }),
-    );
-    setPresentations(withVersions);
+    setPresentationId(pres?.id ?? null);
+    if (!pres) {
+      setVersions([]);
+      setLoading(false);
+      return;
+    }
+
+    const { data: v } = await supabase
+      .from("presentation_versions")
+      .select("id, name, created_at, visible_to_client")
+      .eq("presentation_id", pres.id)
+      .order("created_at", { ascending: false });
+    setVersions((v || []) as VersionRow[]);
     setLoading(false);
   }
 
   useEffect(() => { load(); }, [projectId]);
 
-  async function toggleReleased(p: PresentationRow) {
-    const released = !p.released;
-    setPresentations((prev) => prev.map((x) => (x.id === p.id ? { ...x, released } : x)));
-    await supabase.from("project_presentations").update({ released }).eq("id", p.id);
+  async function toggleVisible(v: VersionRow) {
+    const visible_to_client = !v.visible_to_client;
+    setVersions((prev) => prev.map((x) => (x.id === v.id ? { ...x, visible_to_client } : x)));
+    await supabase.from("presentation_versions").update({ visible_to_client }).eq("id", v.id);
   }
 
-  async function openPreview(p: PresentationRow) {
-    if (!p.latestVersion) return;
+  async function openPreview(versionId: string) {
     setPreviewLoading(true);
     setPreviewOpen(true);
     const { data } = await supabase
       .from("presentation_versions")
       .select("snapshot")
-      .eq("id", p.latestVersion.id)
+      .eq("id", versionId)
       .maybeSingle();
     setPreviewSnapshot((data?.snapshot as unknown as Snapshot) ?? null);
     setPreviewLoading(false);
@@ -91,7 +91,7 @@ export function PresentationsTab({
     return <div className="text-center py-12 text-muted-foreground">Carregando...</div>;
   }
 
-  if (presentations.length === 0) {
+  if (!presentationId) {
     return (
       <div className="text-center py-12">
         <Presentation className="mx-auto h-10 w-10 mb-3 text-muted-foreground opacity-50" />
@@ -105,45 +105,54 @@ export function PresentationsTab({
     );
   }
 
+  if (versions.length === 0) {
+    return (
+      <div className="text-center py-12">
+        <Presentation className="mx-auto h-10 w-10 mb-3 text-muted-foreground opacity-50" />
+        <p className="text-sm text-muted-foreground mb-3">Nenhuma versão lançada ainda</p>
+        {canEdit && (
+          <Button variant="outline" onClick={onEditPlanning} className="gap-2">
+            <Pencil className="h-4 w-4" /> Editar no Planejamento
+          </Button>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-2">
-      {presentations.map((p) => {
-        const title = p.hero_title || p.latestVersion?.name || projectName;
-        const hasVersion = !!p.latestVersion;
-        return (
-          <div key={p.id} className="flex items-center gap-3 border rounded-lg px-4 py-3 bg-card">
-            <Presentation className="h-5 w-5 text-muted-foreground shrink-0" />
-            <button
-              type="button"
-              onClick={() => openPreview(p)}
-              disabled={!hasVersion}
-              title={hasVersion ? undefined : "Nenhuma versão lançada ainda"}
-              className="flex-1 min-w-0 text-left font-medium truncate enabled:hover:text-primary enabled:cursor-pointer disabled:cursor-default transition-colors"
+      {versions.map((v) => (
+        <div key={v.id} className="flex items-center gap-3 border rounded-lg px-4 py-3 bg-card">
+          <Presentation className="h-5 w-5 text-muted-foreground shrink-0" />
+          <button
+            type="button"
+            onClick={() => openPreview(v.id)}
+            className="flex-1 min-w-0 text-left"
+          >
+            <p className="font-medium truncate hover:text-primary transition-colors">{v.name || projectName}</p>
+            <p className="text-xs text-muted-foreground">Lançado em {format(new Date(v.created_at), "dd/MM/yyyy")}</p>
+          </button>
+          {v.visible_to_client && (
+            <Badge variant="secondary" className="shrink-0 text-xs">Visível para o cliente</Badge>
+          )}
+          {canEdit && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 shrink-0"
+              onClick={() => toggleVisible(v)}
+              title={v.visible_to_client ? "Cliente vê esta versão — clique pra ocultar" : "Cliente não vê esta versão — clique pra mostrar"}
             >
-              {title}
-            </button>
-            <Badge variant={p.status === "publicado" ? "default" : "secondary"} className="shrink-0">
-              {p.status === "publicado" ? "Publicado" : "Rascunho"}
-            </Badge>
-            {canEdit && (
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8 shrink-0"
-                onClick={() => toggleReleased(p)}
-                title={p.released ? "Cliente vê a página — clique pra ocultar" : "Cliente não vê a página — clique pra liberar"}
-              >
-                {p.released ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4 text-muted-foreground" />}
-              </Button>
-            )}
-            {canEdit && (
-              <Button variant="outline" size="sm" className="shrink-0 gap-1.5" onClick={onEditPlanning}>
-                <Pencil className="h-3.5 w-3.5" /> Editar
-              </Button>
-            )}
-          </div>
-        );
-      })}
+              {v.visible_to_client ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4 text-muted-foreground" />}
+            </Button>
+          )}
+          {canEdit && (
+            <Button variant="outline" size="sm" className="shrink-0 gap-1.5" onClick={onEditPlanning}>
+              <Pencil className="h-3.5 w-3.5" /> Editar
+            </Button>
+          )}
+        </div>
+      ))}
 
       <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
         <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto p-0">
@@ -157,7 +166,7 @@ export function PresentationsTab({
               postMedia={previewSnapshot.postMedia}
             />
           ) : (
-            <div className="text-center py-16 text-muted-foreground">Nenhuma versão lançada ainda</div>
+            <div className="text-center py-16 text-muted-foreground">Não foi possível carregar esta versão</div>
           )}
         </DialogContent>
       </Dialog>

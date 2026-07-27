@@ -156,6 +156,7 @@ export type Database = {
           name: string
           presentation_id: string
           snapshot: Json
+          visible_to_client: boolean
         }
         Insert: {
           created_at?: string
@@ -164,6 +165,7 @@ export type Database = {
           name: string
           presentation_id: string
           snapshot: Json
+          visible_to_client?: boolean
         }
         Update: {
           created_at?: string
@@ -172,6 +174,7 @@ export type Database = {
           name?: string
           presentation_id?: string
           snapshot?: Json
+          visible_to_client?: boolean
         }
         Relationships: [
           {
