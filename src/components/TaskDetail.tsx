@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -11,10 +11,12 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useToast } from "@/hooks/use-toast";
-import { Send, Plus, CheckSquare, History, Image, Upload, X, Trash2, Pencil, Save, FileText, Download, ChevronDown, ChevronUp, User, Check } from "lucide-react";
+import { Send, Plus, CheckSquare, History, Image, Upload, X, Trash2, Pencil, Save, FileText, Download, ChevronDown, ChevronUp, User, Check, Clock } from "lucide-react";
+import { REMINDER_OPTIONS } from "@/lib/taskReminders";
 
 interface ProjectMember {
   id: string;
@@ -57,6 +59,9 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted, projectMemb
   const [editDesc, setEditDesc] = useState("");
   const [editPriority, setEditPriority] = useState("");
   const [editDueDate, setEditDueDate] = useState("");
+  const [hasDueTime, setHasDueTime] = useState(false);
+  const [editDueTime, setEditDueTime] = useState("");
+  const [editReminderMinutes, setEditReminderMinutes] = useState("none");
   const [editAssignedTo, setEditAssignedTo] = useState("");
   const [editAssigneeName, setEditAssigneeName] = useState("");
   const [freeNameInput, setFreeNameInput] = useState("");
@@ -71,8 +76,9 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted, projectMemb
   const [editingCheckId, setEditingCheckId] = useState<string | null>(null);
   const [editCheckTitle, setEditCheckTitle] = useState("");
 
-  // Comments panel
-  const [commentsOpen, setCommentsOpen] = useState(false);
+  // Activity panel (comentários + histórico intercalados)
+  const [activityOpen, setActivityOpen] = useState(false);
+  const activityBottomRef = useRef<HTMLDivElement>(null);
 
   const load = async () => {
     const { data: t } = await supabase.from("tasks").select("*").eq("id", taskId).single();
@@ -82,6 +88,9 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted, projectMemb
       setEditDesc(t.description || "");
       setEditPriority(t.priority);
       setEditDueDate(t.due_date || "");
+      setHasDueTime(!!t.due_time);
+      setEditDueTime(t.due_time ? t.due_time.slice(0, 5) : "");
+      setEditReminderMinutes(t.reminder_minutes_before != null ? String(t.reminder_minutes_before) : "none");
       setEditAssignedTo(t.assigned_to || "");
       setEditAssigneeName((t as any).assignee_name || "");
       setFreeNameInput((t as any).assignee_name || "");
@@ -135,6 +144,10 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted, projectMemb
 
   useEffect(() => { load(); }, [taskId]);
 
+  useEffect(() => {
+    if (activityOpen) activityBottomRef.current?.scrollIntoView({ block: "end" });
+  }, [activityOpen, comments.length, history.length]);
+
   // Save task edits
   const saveTaskEdits = async () => {
     if (!task || !user) return;
@@ -144,6 +157,19 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted, projectMemb
     if (editDesc !== (task.description || "")) { updates.description = editDesc || null; changes.push("Descrição atualizada"); }
     if (editPriority !== task.priority) { updates.priority = editPriority; changes.push(`Prioridade: ${task.priority} → ${editPriority}`); }
     if (editDueDate !== (task.due_date || "")) { updates.due_date = editDueDate || null; changes.push("Prazo atualizado"); }
+
+    const newDueTime = hasDueTime && editDueTime ? editDueTime : null;
+    const currentDueTime = task.due_time ? task.due_time.slice(0, 5) : null;
+    if (newDueTime !== currentDueTime) { updates.due_time = newDueTime; changes.push("Horário atualizado"); }
+
+    const newReminder = newDueTime && editReminderMinutes !== "none" ? parseInt(editReminderMinutes, 10) : null;
+    if (newReminder !== (task.reminder_minutes_before ?? null)) { updates.reminder_minutes_before = newReminder; changes.push("Lembrete atualizado"); }
+
+    // Se prazo/horário/lembrete mudou e já existia um lembrete enviado, reseta pra disparar de novo.
+    if ((updates.due_date !== undefined || updates.due_time !== undefined || updates.reminder_minutes_before !== undefined) && task.reminder_sent_at) {
+      updates.reminder_sent_at = null;
+    }
+
     if (editAssignedTo !== (task.assigned_to || "")) { updates.assigned_to = editAssignedTo || null; changes.push("Responsável atualizado"); }
     if (editAssigneeName !== ((task as any).assignee_name || "")) { updates.assignee_name = editAssigneeName || null; changes.push("Responsável (nome) atualizado"); }
     // Mutual exclusion: if registered user picked, clear free name; if free name picked, clear user
@@ -186,7 +212,7 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted, projectMemb
 
   const addComment = async () => {
     if (!newComment.trim() || !user) return;
-    if (!commentsOpen) setCommentsOpen(true);
+    if (!activityOpen) setActivityOpen(true);
     const content = newComment;
     setNewComment("");
     const { data: inserted, error } = await supabase
@@ -300,6 +326,19 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted, projectMemb
 
   const completedCount = checklist.filter((c) => c.completed).length;
   const priorityLabels: Record<string, string> = { baixa: "Baixa", media: "Média", alta: "Alta", urgente: "Urgente" };
+
+  // Feed único de atividade: comentários reais + histórico (exceto "Comentou",
+  // que já é representado pelo próprio comentário — evita duplicar), em ordem
+  // cronológica crescente (mais recente embaixo, como uma timeline de conversa).
+  type ActivityItem =
+    | { kind: "comment"; id: string; created_at: string; comment: Comment }
+    | { kind: "history"; id: string; created_at: string; entry: HistoryItem };
+  const activity: ActivityItem[] = [
+    ...comments.map((c): ActivityItem => ({ kind: "comment", id: `c-${c.id}`, created_at: c.created_at, comment: c })),
+    ...history
+      .filter((h) => h.action !== "Comentou")
+      .map((h): ActivityItem => ({ kind: "history", id: `h-${h.id}`, created_at: h.created_at, entry: h })),
+  ].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
 
   const checkFieldChange = (field: string, value: string) => {
     if (field === "priority") setEditPriority(value);
@@ -497,6 +536,45 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted, projectMemb
                     className="h-9 text-sm"
                   />
                 </div>
+
+                <div className="col-span-2 flex items-center gap-2">
+                  <Switch
+                    checked={hasDueTime}
+                    onCheckedChange={(checked) => {
+                      setHasDueTime(checked);
+                      if (!checked) { setEditDueTime(""); setEditReminderMinutes("none"); }
+                      setHasChanges(true);
+                    }}
+                  />
+                  <Label className="text-xs text-muted-foreground flex items-center gap-1">
+                    <Clock className="h-3 w-3" /> Definir horário
+                  </Label>
+                </div>
+
+                {hasDueTime && (
+                  <div className="space-y-1.5">
+                    <Label className="text-xs text-muted-foreground">Horário</Label>
+                    <Input
+                      type="time"
+                      value={editDueTime}
+                      onChange={(e) => { setEditDueTime(e.target.value); setHasChanges(true); }}
+                      className="h-9 text-sm"
+                    />
+                  </div>
+                )}
+                {hasDueTime && editDueTime && (
+                  <div className="space-y-1.5">
+                    <Label className="text-xs text-muted-foreground">Notificar</Label>
+                    <Select value={editReminderMinutes} onValueChange={(v) => { setEditReminderMinutes(v); setHasChanges(true); }}>
+                      <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {REMINDER_OPTIONS.map((o) => (
+                          <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
               </div>
             )}
 
@@ -599,87 +677,58 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted, projectMemb
               </div>
             </div>
 
-            <Separator />
-
-            {/* History timeline only */}
-            <div>
-              <div className="flex items-center gap-2 mb-2">
-                <History className="h-4 w-4" />
-                <Label className="font-semibold">Histórico</Label>
-              </div>
-              <div className="space-y-2">
-                {history.filter((h) => h.action !== "Comentou").length === 0 ? (
-                  <p className="text-xs text-muted-foreground">Nenhuma atividade</p>
-                ) : (
-                  history
-                    .filter((h) => h.action !== "Comentou")
-                    .map((h) => (
-                      <div key={`h-${h.id}`} className="flex items-start gap-2 text-xs text-muted-foreground px-1">
-                        <span className="font-medium">{displayName(h.profiles as any) === "Usuário" ? "Sistema" : displayName(h.profiles as any)}</span>
-                        <span>— {h.action}</span>
-                        <span className="ml-auto shrink-0">{new Date(h.created_at).toLocaleString("pt-BR")}</span>
-                      </div>
-                    ))
-                )}
-              </div>
-            </div>
           </div>
         </ScrollArea>
 
-        {/* Comments Panel - collapsible */}
+        {/* Atividade: comentários e histórico intercalados em ordem cronológica */}
         <div className="border-t bg-muted/20 shrink-0">
           <button
             type="button"
-            onClick={() => setCommentsOpen((o) => !o)}
+            onClick={() => setActivityOpen((o) => !o)}
             className="w-full flex items-center gap-2 px-6 py-2.5 hover:bg-muted/40 transition-colors"
           >
-            <Send className="h-4 w-4" />
-            <Label className="font-semibold text-sm cursor-pointer">Comentários</Label>
-            <span className="text-xs text-muted-foreground">({comments.length})</span>
+            <History className="h-4 w-4" />
+            <Label className="font-semibold text-sm cursor-pointer">Atividade</Label>
+            <span className="text-xs text-muted-foreground">({activity.length})</span>
             <span className="ml-auto text-muted-foreground">
-              {commentsOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+              {activityOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
             </span>
           </button>
-          {commentsOpen && (
+          {activityOpen && (
             <div className="px-6 pb-3">
-              <div className="flex gap-2 mb-3">
-                <Textarea
-                  placeholder="Escreva um comentário..."
-                  value={newComment}
-                  onChange={(e) => setNewComment(e.target.value)}
-                  className="min-h-[50px] text-sm resize-none"
-                />
-                <Button size="sm" onClick={addComment} className="self-end"><Send className="h-4 w-4" /></Button>
-              </div>
-
-              <ScrollArea className="h-[200px] pr-3">
+              <ScrollArea className="h-[240px] pr-3 mb-3">
                 <div className="space-y-2">
-                  {comments.length === 0 ? (
-                    <p className="text-xs text-muted-foreground italic text-center py-4">Nenhum comentário ainda</p>
+                  {activity.length === 0 ? (
+                    <p className="text-xs text-muted-foreground italic text-center py-4">Nenhuma atividade ainda</p>
                   ) : (
-                    [...comments]
-                      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-                      .map((c) => (
-                        <div key={`c-${c.id}`} className="bg-background border rounded-lg p-2.5 group">
+                    activity.map((item) =>
+                      item.kind === "history" ? (
+                        <div key={item.id} className="flex items-start gap-2 text-xs text-muted-foreground px-1 py-1">
+                          <span className="font-medium">{displayName(item.entry.profiles as any) === "Usuário" ? "Sistema" : displayName(item.entry.profiles as any)}</span>
+                          <span>— {item.entry.action}</span>
+                          <span className="ml-auto shrink-0">{new Date(item.entry.created_at).toLocaleString("pt-BR")}</span>
+                        </div>
+                      ) : (
+                        <div key={item.id} className="bg-background border rounded-lg p-2.5 group">
                           <div className="flex items-center justify-between mb-1 gap-2">
-                            <span className="text-xs font-semibold">{displayName(c.profiles as any)}</span>
+                            <span className="text-xs font-semibold">{displayName(item.comment.profiles as any)}</span>
                             <div className="flex items-center gap-1.5">
-                              <span className="text-[11px] text-muted-foreground">{new Date(c.created_at).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })}</span>
-                              {(c.user_id === user?.id || isAdmin) && (
+                              <span className="text-[11px] text-muted-foreground">{new Date(item.comment.created_at).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })}</span>
+                              {(item.comment.user_id === user?.id || isAdmin) && (
                                 <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                                  {c.user_id === user?.id && (
-                                    <button onClick={() => { setEditingCommentId(c.id); setEditCommentContent(c.content); }} className="text-muted-foreground hover:text-foreground">
+                                  {item.comment.user_id === user?.id && (
+                                    <button onClick={() => { setEditingCommentId(item.comment.id); setEditCommentContent(item.comment.content); }} className="text-muted-foreground hover:text-foreground">
                                       <Pencil className="h-3 w-3" />
                                     </button>
                                   )}
-                                  <button onClick={() => deleteComment(c.id)} className="text-muted-foreground hover:text-destructive">
+                                  <button onClick={() => deleteComment(item.comment.id)} className="text-muted-foreground hover:text-destructive">
                                     <X className="h-3 w-3" />
                                   </button>
                                 </div>
                               )}
                             </div>
                           </div>
-                          {editingCommentId === c.id ? (
+                          {editingCommentId === item.comment.id ? (
                             <div className="flex gap-2">
                               <Textarea
                                 value={editCommentContent}
@@ -688,18 +737,30 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted, projectMemb
                                 autoFocus
                               />
                               <div className="flex flex-col gap-1">
-                                <Button size="sm" onClick={() => updateComment(c.id)}><Save className="h-3 w-3" /></Button>
+                                <Button size="sm" onClick={() => updateComment(item.comment.id)}><Save className="h-3 w-3" /></Button>
                                 <Button size="sm" variant="outline" onClick={() => setEditingCommentId(null)}><X className="h-3 w-3" /></Button>
                               </div>
                             </div>
                           ) : (
-                            <p className="text-sm whitespace-pre-wrap">{c.content}</p>
+                            <p className="text-sm whitespace-pre-wrap">{item.comment.content}</p>
                           )}
                         </div>
-                      ))
+                      ),
+                    )
                   )}
+                  <div ref={activityBottomRef} />
                 </div>
               </ScrollArea>
+
+              <div className="flex gap-2">
+                <Textarea
+                  placeholder="Escreva um comentário..."
+                  value={newComment}
+                  onChange={(e) => setNewComment(e.target.value)}
+                  className="min-h-[50px] text-sm resize-none"
+                />
+                <Button size="sm" onClick={addComment} className="self-end"><Send className="h-4 w-4" /></Button>
+              </div>
             </div>
           )}
         </div>
