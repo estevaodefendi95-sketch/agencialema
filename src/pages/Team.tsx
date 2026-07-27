@@ -9,11 +9,20 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogCancel,
+} from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { AssigneeAvatar } from "@/components/AssigneeAvatar";
 import { ColorSwatchPicker } from "@/components/ColorSwatchPicker";
 import { getEntityColor, TEAM_COLOR_PALETTE } from "@/lib/colorPalette";
-import { Users, AlertTriangle, Zap, Pencil, Building2, FolderKanban } from "lucide-react";
+import { Users, AlertTriangle, Zap, Pencil, Trash2, Building2, FolderKanban } from "lucide-react";
 
 type Member = {
   user_id: string;
@@ -31,7 +40,7 @@ type Company = { id: string; name: string };
 type Project = { id: string; name: string; company_id: string };
 
 export default function Team() {
-  const { canEdit, isAdmin } = useAuth();
+  const { user, canEdit, isAdmin } = useAuth();
   const { toast } = useToast();
   const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(true);
@@ -47,6 +56,11 @@ export default function Team() {
   const [initialProjects, setInitialProjects] = useState<string[]>([]);
   const [dialogLoading, setDialogLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+
+  const [memberToRemove, setMemberToRemove] = useState<Member | null>(null);
+  const [confirmName, setConfirmName] = useState("");
+  const [blocking, setBlocking] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     if (!canEdit) return;
@@ -163,6 +177,50 @@ export default function Team() {
     load();
   }
 
+  function closeRemoveDialog() {
+    setMemberToRemove(null);
+    setConfirmName("");
+  }
+
+  async function handleBlock() {
+    if (!memberToRemove) return;
+    setBlocking(true);
+    const { error } = await supabase
+      .from("profiles")
+      .update({ status: "bloqueado" } as any)
+      .eq("id", memberToRemove.user_id);
+    setBlocking(false);
+
+    if (error) {
+      toast({ title: "Erro ao bloquear acesso", description: error.message, variant: "destructive" });
+      return;
+    }
+
+    toast({ title: "Acesso bloqueado" });
+    setMembers((prev) => prev.filter((m) => m.user_id !== memberToRemove.user_id));
+    closeRemoveDialog();
+  }
+
+  async function handleDeletePermanently() {
+    if (!memberToRemove) return;
+    setDeleting(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("delete-user", {
+        body: { user_id: memberToRemove.user_id },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+
+      toast({ title: "Membro excluído permanentemente." });
+      setMembers((prev) => prev.filter((m) => m.user_id !== memberToRemove.user_id));
+      closeRemoveDialog();
+    } catch (err: any) {
+      toast({ title: "Erro ao excluir membro", description: err.message, variant: "destructive" });
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   if (!canEdit) return <Navigate to="/" replace />;
 
   return (
@@ -201,6 +259,16 @@ export default function Team() {
                     onClick={() => openEdit(m)}
                   >
                     <Pencil className="h-4 w-4" />
+                  </Button>
+                )}
+                {isAdmin && m.user_id !== user?.id && (
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-8 w-8 shrink-0 text-destructive hover:text-destructive"
+                    onClick={() => setMemberToRemove(m)}
+                  >
+                    <Trash2 className="h-4 w-4" />
                   </Button>
                 )}
               </CardHeader>
@@ -318,6 +386,52 @@ export default function Team() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={!!memberToRemove} onOpenChange={(open) => !open && closeRemoveDialog()}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {memberToRemove?.full_name || memberToRemove?.email || "Membro"}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Bloquear impede o acesso mas mantém o histórico. Excluir remove a conta definitivamente —
+              tarefas atribuídas a essa pessoa ficarão sem responsável, mas não serão apagadas.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+
+          <div className="grid grid-cols-2 gap-3">
+            <Button variant="outline" onClick={handleBlock} disabled={blocking || deleting}>
+              {blocking ? "Bloqueando..." : "Bloquear acesso"}
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={
+                deleting ||
+                blocking ||
+                confirmName.trim() !== (memberToRemove?.full_name || memberToRemove?.email || "")
+              }
+              onClick={handleDeletePermanently}
+            >
+              {deleting ? "Excluindo..." : "Excluir permanentemente"}
+            </Button>
+          </div>
+
+          <div className="space-y-1">
+            <Label className="text-xs text-muted-foreground">
+              Digite "{memberToRemove?.full_name || memberToRemove?.email}" para habilitar a exclusão permanente
+            </Label>
+            <Input
+              value={confirmName}
+              onChange={(e) => setConfirmName(e.target.value)}
+              placeholder={memberToRemove?.full_name || memberToRemove?.email || ""}
+            />
+          </div>
+
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
