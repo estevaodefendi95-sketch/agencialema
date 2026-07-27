@@ -448,6 +448,10 @@ export default function MyTasks() {
 
   const TaskMini = ({ task }: { task: Task }) => {
     const color = getTaskColor(task);
+    const assigneeProfile: { avatar_url: string | null; nickname?: string | null; full_name?: string | null; name?: string } | undefined =
+      task.assigned_to === user?.id
+        ? { avatar_url: avatarUrl, name: "Eu" }
+        : members.find((m) => m.id === task.assigned_to);
     return (
       <button
         onClick={(e) => { e.stopPropagation(); if (task.project_id) navigate(`/projetos/${task.project_id}`); }}
@@ -456,7 +460,14 @@ export default function MyTasks() {
         title={task.title}
       >
         <span className={cn("h-1.5 w-1.5 rounded-full shrink-0", PRIORITY_COLOR[task.priority])} />
-        <span className="truncate">{task.title}</span>
+        {colorMode === "responsavel" && assigneeProfile && (
+          <AssigneeAvatar
+            url={assigneeProfile.avatar_url}
+            name={assigneeProfile.nickname || assigneeProfile.full_name || assigneeProfile.name}
+            className="h-4 w-4 shrink-0"
+          />
+        )}
+        <span className="truncate min-w-0 flex-1">{task.title}</span>
       </button>
     );
   };
