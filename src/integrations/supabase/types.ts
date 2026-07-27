@@ -656,10 +656,13 @@ export type Database = {
           created_by: string | null
           description: string | null
           due_date: string | null
+          due_time: string | null
           id: string
           position: number
           priority: Database["public"]["Enums"]["task_priority"]
-          project_id: string
+          project_id: string | null
+          reminder_minutes_before: number | null
+          reminder_sent_at: string | null
           status: string
           title: string
           updated_at: string
@@ -672,10 +675,13 @@ export type Database = {
           created_by?: string | null
           description?: string | null
           due_date?: string | null
+          due_time?: string | null
           id?: string
           position?: number
           priority?: Database["public"]["Enums"]["task_priority"]
-          project_id: string
+          project_id?: string | null
+          reminder_minutes_before?: number | null
+          reminder_sent_at?: string | null
           status?: string
           title: string
           updated_at?: string
@@ -688,10 +694,13 @@ export type Database = {
           created_by?: string | null
           description?: string | null
           due_date?: string | null
+          due_time?: string | null
           id?: string
           position?: number
           priority?: Database["public"]["Enums"]["task_priority"]
-          project_id?: string
+          project_id?: string | null
+          reminder_minutes_before?: number | null
+          reminder_sent_at?: string | null
           status?: string
           title?: string
           updated_at?: string
@@ -734,6 +743,51 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      user_notes: {
+        Row: {
+          content: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          content?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          content?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      user_reminders: {
+        Row: {
+          created_at: string
+          done: boolean
+          id: string
+          position: number
+          text: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          done?: boolean
+          id?: string
+          position?: number
+          text: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          done?: boolean
+          id?: string
+          position?: number
+          text?: string
+          user_id?: string
+        }
+        Relationships: []
       }
       user_roles: {
         Row: {
@@ -789,6 +843,7 @@ export type Database = {
         Args: { _comment?: string; _post_id: string; _status: string }
         Returns: undefined
       }
+      send_due_task_reminders: { Args: never; Returns: undefined }
     }
     Enums: {
       app_role: "admin" | "cliente" | "editor" | "visualizador" | "agency_admin"
