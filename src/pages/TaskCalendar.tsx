@@ -32,7 +32,9 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { CalendarDays, Building2, FolderKanban, X, MessageSquare, ChevronLeft, ChevronRight, Plus } from "lucide-react";
+import { CalendarDays, Building2, FolderKanban, X, MessageSquare, ChevronLeft, ChevronRight, Plus, Clock } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { REMINDER_OPTIONS, formatDueTime } from "@/lib/taskReminders";
 import { AssigneeAvatar } from "@/components/AssigneeAvatar";
 import { CalendarColorToggle } from "@/components/CalendarColorToggle";
 import { cn } from "@/lib/utils";
@@ -44,6 +46,7 @@ type TaskWithRelations = {
   id: string;
   title: string;
   due_date: string;
+  due_time: string | null;
   priority: "baixa" | "media" | "alta" | "urgente";
   assigned_to: string | null;
   assignee_name: string | null;
@@ -114,6 +117,9 @@ export default function TaskCalendar() {
   const [ntTitle, setNtTitle] = useState("");
   const [ntPriority, setNtPriority] = useState<"baixa" | "media" | "alta" | "urgente">("media");
   const [ntDue, setNtDue] = useState("");
+  const [ntHasDueTime, setNtHasDueTime] = useState(false);
+  const [ntDueTime, setNtDueTime] = useState("");
+  const [ntReminderMinutes, setNtReminderMinutes] = useState("none");
   const [ntAssignee, setNtAssignee] = useState("");
   const [projectMembers, setProjectMembers] = useState<Profile[]>([]);
   const [creating, setCreating] = useState(false);
@@ -180,6 +186,9 @@ export default function TaskCalendar() {
     setNtTitle("");
     setNtPriority("media");
     setNtDue(format(date, "yyyy-MM-dd"));
+    setNtHasDueTime(false);
+    setNtDueTime("");
+    setNtReminderMinutes("none");
     setNtAssignee("");
     setNewTaskOpen(true);
   }
@@ -200,6 +209,8 @@ export default function TaskCalendar() {
       title: ntTitle.trim(),
       priority: ntPriority,
       due_date: ntDue || null,
+      due_time: ntHasDueTime && ntDueTime ? ntDueTime : null,
+      reminder_minutes_before: ntHasDueTime && ntDueTime && ntReminderMinutes !== "none" ? parseInt(ntReminderMinutes, 10) : null,
       assigned_to: ntAssignee || user.id,
       status: initialStatus,
       created_by: user.id,
@@ -277,7 +288,7 @@ export default function TaskCalendar() {
     setLoading(true);
     const { data, error } = await supabase
       .from("tasks")
-      .select("id, title, due_date, priority, assigned_to, assignee_name, project_id, status, color, projects(name, company_id, color, companies(name, logo_url))")
+      .select("id, title, due_date, due_time, priority, assigned_to, assignee_name, project_id, status, color, projects(name, company_id, color, companies(name, logo_url))")
       .not("due_date", "is", null)
       .order("due_date", { ascending: true });
 
@@ -501,6 +512,7 @@ export default function TaskCalendar() {
   // Pill
   const TaskPill = ({ task }: { task: TaskWithRelations }) => {
     const color = getTaskColor(task);
+    const assigneeName = (task.assignee as any)?.nickname?.trim() || task.assignee?.full_name || task.assignee_name || null;
     return (
       <button
         onClick={(e) => { e.stopPropagation(); navigate(`/projetos/${task.project_id}`); }}
@@ -509,6 +521,9 @@ export default function TaskCalendar() {
         title={task.title}
       >
         <span className={cn("h-1.5 w-1.5 rounded-full shrink-0", priorityColor[task.priority])} />
+        {(task.assigned_to || task.assignee_name) && (
+          <AssigneeAvatar url={task.assignee?.avatar_url} name={assigneeName} className="h-5 w-5 shrink-0" />
+        )}
         <span className="truncate">{task.title}</span>
       </button>
     );
@@ -1004,6 +1019,34 @@ export default function TaskCalendar() {
               <Label className="text-sm">Prazo</Label>
               <Input type="date" value={ntDue} onChange={(e) => setNtDue(e.target.value)} />
             </div>
+            <div className="space-y-1.5">
+              <Label className="text-sm flex items-center gap-1"><Clock className="h-3.5 w-3.5" /> Definir horário</Label>
+              <div className="flex items-center gap-2">
+                <Switch
+                  checked={ntHasDueTime}
+                  onCheckedChange={(checked) => {
+                    setNtHasDueTime(checked);
+                    if (!checked) { setNtDueTime(""); setNtReminderMinutes("none"); }
+                  }}
+                />
+                {ntHasDueTime && (
+                  <Input type="time" value={ntDueTime} onChange={(e) => setNtDueTime(e.target.value)} className="h-9 w-32" />
+                )}
+              </div>
+            </div>
+            {ntHasDueTime && ntDueTime && (
+              <div className="space-y-1.5">
+                <Label className="text-sm">Notificar</Label>
+                <Select value={ntReminderMinutes} onValueChange={setNtReminderMinutes}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {REMINDER_OPTIONS.map((o) => (
+                      <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setNewTaskOpen(false)}>Cancelar</Button>

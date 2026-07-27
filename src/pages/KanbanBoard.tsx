@@ -1,5 +1,20 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams } from "react-router-dom";
+import {
+  format,
+  isSameDay,
+  isSameMonth,
+  isToday,
+  startOfMonth,
+  endOfMonth,
+  startOfWeek,
+  endOfWeek,
+  eachDayOfInterval,
+  addMonths,
+  subMonths,
+  parseISO,
+} from "date-fns";
+import { ptBR } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -13,13 +28,18 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Command, CommandList, CommandEmpty, CommandGroup, CommandItem } from "@/components/ui/command";
 import { useToast } from "@/hooks/use-toast";
 import { DragDropContext, Droppable, Draggable, type DropResult } from "@hello-pangea/dnd";
-import { Plus, GripVertical, Calendar, ThumbsUp, RotateCcw, ImageIcon, Play, LayoutGrid, List, ArrowUpDown, Pencil, Check, X, Trash2, Palette, History, Undo2, Users, UserPlus, FileText, CheckSquare, Upload, Printer, MessageSquare, Eye, EyeOff, Loader2 } from "lucide-react";
+import { Plus, GripVertical, Calendar, CalendarDays, ThumbsUp, RotateCcw, ImageIcon, Play, LayoutGrid, List, ArrowUpDown, Pencil, Check, X, Trash2, Palette, History, Undo2, Users, UserPlus, FileText, CheckSquare, Upload, Printer, MessageSquare, Eye, EyeOff, Loader2, Clock, ChevronLeft, ChevronRight } from "lucide-react";
+import { CalendarColorToggle } from "@/components/CalendarColorToggle";
+import { useCalendarColorMode } from "@/hooks/useCalendarColorMode";
+import { getEntityColor, TEAM_COLOR_PALETTE } from "@/lib/colorPalette";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
+import { REMINDER_OPTIONS, formatDueTime } from "@/lib/taskReminders";
 import TaskDetail from "@/components/TaskDetail";
 import PrintProjectView from "@/components/PrintProjectView";
 import PresentationBuilder from "@/components/presentation/PresentationBuilder";
@@ -38,6 +58,7 @@ interface Task {
   status: string;
   priority: string;
   due_date: string | null;
+  due_time: string | null;
   position: number;
   assigned_to: string | null;
   assignee_name: string | null;
@@ -70,7 +91,7 @@ interface ProjectMember {
   role: string;
   status?: string;
   invited_email?: string | null;
-  profiles?: { full_name: string | null; nickname?: string | null; email: string | null; avatar_url: string | null } | null;
+  profiles?: { full_name: string | null; nickname?: string | null; email: string | null; avatar_url: string | null; color?: string | null } | null;
 }
 
 const ACTION_LABELS: Record<string, string> = {
@@ -131,6 +152,9 @@ export default function KanbanBoard() {
   const [newDesc, setNewDesc] = useState("");
   const [newPriority, setNewPriority] = useState<string>("media");
   const [newDueDate, setNewDueDate] = useState("");
+  const [newHasDueTime, setNewHasDueTime] = useState(false);
+  const [newDueTime, setNewDueTime] = useState("");
+  const [newReminderMinutes, setNewReminderMinutes] = useState("none");
   const [newStatus, setNewStatus] = useState<string>("a_fazer");
   const [newAssignedTo, setNewAssignedTo] = useState("");
   const [newColor, setNewColor] = useState<string | null>(null);
@@ -154,10 +178,12 @@ export default function KanbanBoard() {
   const [editColumnLabel, setEditColumnLabel] = useState("");
   const [deleteColumnId, setDeleteColumnId] = useState<string | null>(null);
 
-  const [viewMode, setViewMode] = useState<"kanban" | "lista" | "apresentacao">(() => {
+  const [viewMode, setViewMode] = useState<"kanban" | "lista" | "calendario" | "apresentacao">(() => {
     if (!projectId) return "kanban";
-    return (localStorage.getItem(`view-mode-${projectId}`) as "kanban" | "lista" | "apresentacao") || "kanban";
+    return (localStorage.getItem(`view-mode-${projectId}`) as "kanban" | "lista" | "calendario" | "apresentacao") || "kanban";
   });
+  const [calCursor, setCalCursor] = useState(new Date());
+  const { colorMode, setColorMode, getTaskColor: getTaskColorForMode } = useCalendarColorMode();
   const [sortPrazo, setSortPrazo] = useState<"asc" | "desc">(() =>
     (localStorage.getItem(`sort-prazo-${projectId}`) as "asc" | "desc") || "asc"
   );
@@ -261,7 +287,7 @@ export default function KanbanBoard() {
     if (userIds.length > 0) {
       const { data: profs } = await supabase
         .from("profiles")
-        .select("id, full_name, nickname, email, avatar_url")
+        .select("id, full_name, nickname, email, avatar_url, color")
         .in("id", userIds);
       (profs || []).forEach((p: any) => { profilesById[p.id] = p; });
     }
@@ -445,7 +471,7 @@ export default function KanbanBoard() {
     })();
   }, [printOpen, tasks]);
 
-  const toggleViewMode = (mode: "kanban" | "lista" | "apresentacao") => {
+  const toggleViewMode = (mode: "kanban" | "lista" | "calendario" | "apresentacao") => {
     setViewMode(mode);
     if (projectId) localStorage.setItem(`view-mode-${projectId}`, mode);
   };
@@ -479,10 +505,12 @@ export default function KanbanBoard() {
       description: newDesc || null,
       priority: newPriority,
       due_date: newDueDate || null,
+      due_time: newHasDueTime && newDueTime ? newDueTime : null,
+      reminder_minutes_before: newHasDueTime && newDueTime && newReminderMinutes !== "none" ? parseInt(newReminderMinutes, 10) : null,
       status: newStatus,
       position: maxPos + 1,
       created_by: user?.id,
-      assigned_to: newAssignedTo && newAssignedTo !== "none" ? newAssignedTo : null,
+      assigned_to: newAssignedTo && newAssignedTo !== "none" ? newAssignedTo : user?.id,
       color: newColor,
     }).select().single();
 
@@ -509,6 +537,7 @@ export default function KanbanBoard() {
 
     setNewTaskOpen(false);
     setNewTitle(""); setNewDesc(""); setNewPriority("media"); setNewDueDate(""); setNewStatus("a_fazer");
+    setNewHasDueTime(false); setNewDueTime(""); setNewReminderMinutes("none");
     setNewAssignedTo(""); setNewColor(null); setNewCheckItems([]); setNewCheckInput(""); setNewFiles([]);
     toast({ title: "Tarefa criada" });
     load();
@@ -530,6 +559,20 @@ export default function KanbanBoard() {
     if (assigneeFilter === "all") return true;
     if (assigneeFilter === "none") return !t.assigned_to && !t.assignee_name;
     return t.assigned_to === assigneeFilter;
+  };
+
+  const getCalDayTasks = (day: Date) =>
+    tasks.filter((t) => t.due_date && matchesAssignee(t) && isSameDay(parseISO(t.due_date), day));
+
+  const getTaskColor = (t: Task) => {
+    const assigneeProfile = t.assigned_to ? members.find((m) => m.user_id === t.assigned_to)?.profiles : null;
+    return getTaskColorForMode({
+      manualColor: t.color,
+      projectId: t.project_id,
+      assignedTo: t.assigned_to,
+      assigneeColor: assigneeProfile?.color,
+      assigneeName: t.assignee_name,
+    });
   };
 
   const getColumnTasks = (slug: string) =>
@@ -727,6 +770,14 @@ export default function KanbanBoard() {
               <List className="h-4 w-4" /> Lista
             </Button>
             <Button
+              variant={viewMode === "calendario" ? "default" : "ghost"}
+              size="sm"
+              className="rounded-none gap-1.5"
+              onClick={() => toggleViewMode("calendario")}
+            >
+              <CalendarDays className="h-4 w-4" /> Calendário
+            </Button>
+            <Button
               variant={viewMode === "apresentacao" ? "default" : "ghost"}
               size="sm"
               className="rounded-none gap-1.5"
@@ -740,6 +791,9 @@ export default function KanbanBoard() {
               <ArrowUpDown className="h-3.5 w-3.5" />
               Prazo {sortPrazo === "asc" ? "↑" : "↓"}
             </Button>
+          )}
+          {viewMode === "calendario" && (
+            <CalendarColorToggle colorMode={colorMode} onChange={setColorMode} />
           )}
           <Select value={assigneeFilter} onValueChange={setAssigneeFilter}>
             <SelectTrigger className="h-8 w-[150px] text-xs gap-1.5">
@@ -1088,6 +1142,7 @@ export default function KanbanBoard() {
                                     <span className="flex items-center gap-1 text-xs text-muted-foreground shrink-0" onClick={() => setSelectedTask(task.id)}>
                                       <Calendar className="h-3 w-3" />
                                       {new Date(task.due_date).toLocaleDateString("pt-BR")}
+                                      {task.due_time && ` ${formatDueTime(task.due_time)}`}
                                     </span>
                                   )}
                                   {(() => {
@@ -1153,6 +1208,72 @@ export default function KanbanBoard() {
             )}
           </div>
         </DragDropContext>
+      ) : viewMode === "calendario" ? (
+        <div className="space-y-3">
+          <div className="flex items-center justify-center gap-2">
+            <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setCalCursor((c) => subMonths(c, 1))}>
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <span className="text-sm font-medium min-w-[160px] text-center lowercase">
+              {format(calCursor, "MMMM 'de' yyyy", { locale: ptBR })}
+            </span>
+            <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setCalCursor((c) => addMonths(c, 1))}>
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+            <Button variant="outline" size="sm" className="h-8" onClick={() => setCalCursor(new Date())}>Hoje</Button>
+          </div>
+
+          <div className="border rounded-lg overflow-hidden bg-card">
+            <div className="grid grid-cols-7 bg-muted/40 border-b">
+              {["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"].map((d) => (
+                <div key={d} className="px-2 py-1.5 text-xs font-medium text-muted-foreground text-center">{d}</div>
+              ))}
+            </div>
+            <div className="grid grid-cols-7 auto-rows-fr">
+              {eachDayOfInterval({
+                start: startOfWeek(startOfMonth(calCursor), { weekStartsOn: 0 }),
+                end: endOfWeek(endOfMonth(calCursor), { weekStartsOn: 0 }),
+              }).map((day) => {
+                const inMonth = isSameMonth(day, calCursor);
+                const dayTasks = getCalDayTasks(day);
+                const visible = dayTasks.slice(0, 3);
+                const overflow = dayTasks.length - visible.length;
+                return (
+                  <div
+                    key={day.toISOString()}
+                    className={cn(
+                      "min-h-[100px] border-r border-b last:border-r-0 p-1.5 flex flex-col gap-1",
+                      !inMonth && "bg-muted/20 text-muted-foreground",
+                    )}
+                  >
+                    <span className={cn("text-xs font-medium h-5 w-5 flex items-center justify-center rounded-full", isToday(day) && "bg-primary text-primary-foreground")}>
+                      {format(day, "d")}
+                    </span>
+                    <div className="flex flex-col gap-0.5">
+                      {visible.map((t) => {
+                        const color = getTaskColor(t);
+                        return (
+                          <button
+                            key={t.id}
+                            onClick={() => setSelectedTask(t.id)}
+                            className="w-full text-left px-1.5 py-0.5 rounded text-xs flex items-center gap-1 border-l-4 truncate"
+                            style={{ borderLeftColor: color, backgroundColor: `${color}15` }}
+                            title={t.title}
+                          >
+                            <span className="truncate">{t.title}</span>
+                          </button>
+                        );
+                      })}
+                      {overflow > 0 && (
+                        <span className="text-[10px] text-muted-foreground px-1.5">+{overflow} mais</span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
       ) : (
         <DragDropContext onDragEnd={onDragEnd}>
           <div className="flex gap-4 overflow-x-auto pb-4 snap-x snap-proximity scrollbar-hide px-1" style={{ WebkitOverflowScrolling: 'touch' }}>
@@ -1279,6 +1400,7 @@ export default function KanbanBoard() {
                                           <span className="flex items-center gap-1 text-xs text-muted-foreground">
                                             <Calendar className="h-3 w-3" />
                                             {new Date(task.due_date).toLocaleDateString("pt-BR")}
+                                            {task.due_time && ` ${formatDueTime(task.due_time)}`}
                                           </span>
                                         )}
                                         {commentCounts[task.id] > 0 && (
@@ -1414,24 +1536,52 @@ export default function KanbanBoard() {
                   <Input type="date" value={newDueDate} onChange={(e) => setNewDueDate(e.target.value)} />
                 </div>
                 <div className="space-y-2">
-                  <Label>Responsável</Label>
-                  <Select value={newAssignedTo} onValueChange={setNewAssignedTo}>
-                    <SelectTrigger><SelectValue placeholder="Selecione um responsável..." /></SelectTrigger>
+                  <Label className="flex items-center gap-1"><Clock className="h-3.5 w-3.5" /> Definir horário</Label>
+                  <div className="flex items-center gap-2 h-9">
+                    <Switch
+                      checked={newHasDueTime}
+                      onCheckedChange={(checked) => {
+                        setNewHasDueTime(checked);
+                        if (!checked) { setNewDueTime(""); setNewReminderMinutes("none"); }
+                      }}
+                    />
+                    {newHasDueTime && (
+                      <Input type="time" value={newDueTime} onChange={(e) => setNewDueTime(e.target.value)} className="h-9" />
+                    )}
+                  </div>
+                </div>
+              </div>
+              {newHasDueTime && newDueTime && (
+                <div className="space-y-2">
+                  <Label>Notificar</Label>
+                  <Select value={newReminderMinutes} onValueChange={setNewReminderMinutes}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="none">Nenhum</SelectItem>
-                      {members.filter((m) => m.user_id && m.status !== "pendente").map((m) => (
-                        <SelectItem key={m.user_id} value={m.user_id!}>
-                          {((m.profiles as any)?.nickname?.trim()) || (m.profiles as any)?.full_name || (m.profiles as any)?.email || "Sem nome"}
-                        </SelectItem>
+                      {REMINDER_OPTIONS.map((o) => (
+                        <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
-                  {members.filter((m) => m.user_id && m.status !== "pendente").length === 0 && (
-                    <p className="text-xs text-muted-foreground">
-                      Nenhum membro ativo. Adicione membros à equipe do projeto.
-                    </p>
-                  )}
                 </div>
+              )}
+              <div className="space-y-2">
+                <Label>Responsável</Label>
+                <Select value={newAssignedTo} onValueChange={setNewAssignedTo}>
+                  <SelectTrigger><SelectValue placeholder="Selecione um responsável..." /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Nenhum</SelectItem>
+                    {members.filter((m) => m.user_id && m.status !== "pendente").map((m) => (
+                      <SelectItem key={m.user_id} value={m.user_id!}>
+                        {((m.profiles as any)?.nickname?.trim()) || (m.profiles as any)?.full_name || (m.profiles as any)?.email || "Sem nome"}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {members.filter((m) => m.user_id && m.status !== "pendente").length === 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    Nenhum membro ativo. Adicione membros à equipe do projeto.
+                  </p>
+                )}
               </div>
 
               {/* Color */}

@@ -14,7 +14,9 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
 import { DragDropContext, Droppable, Draggable, type DropResult } from "@hello-pangea/dnd";
-import { LayoutGrid, List, CalendarDays, FolderKanban, ChevronLeft, ChevronRight, Filter, CheckSquare, User, Plus, GripVertical } from "lucide-react";
+import { LayoutGrid, List, CalendarDays, FolderKanban, ChevronLeft, ChevronRight, Filter, CheckSquare, User, Plus, GripVertical, Clock } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { REMINDER_OPTIONS, formatDueTime } from "@/lib/taskReminders";
 import { AssigneeAvatar } from "@/components/AssigneeAvatar";
 import { ColorSwatchPicker } from "@/components/ColorSwatchPicker";
 import { CalendarColorToggle } from "@/components/CalendarColorToggle";
@@ -38,8 +40,10 @@ type Task = {
   status: string;
   priority: "baixa" | "media" | "alta" | "urgente";
   due_date: string | null;
+  due_time: string | null;
   assigned_to: string | null;
-  project_id: string;
+  project_id: string | null;
+  created_by: string | null;
   position: number;
   color: string | null;
   projects: { name: string; company_id: string; color: string | null; companies: { name: string } | null } | null;
@@ -55,6 +59,15 @@ const DEFAULT_STATUS_COLUMNS: StatusColumn[] = [
   { slug: "em_andamento", label: "Em Andamento", color: "#3B82F6", position: 1 },
   { slug: "em_revisao", label: "Em Revisão", color: "#a855f7", position: 2 },
   { slug: "concluido", label: "Concluído", color: "#22c55e", position: 3 },
+];
+
+// Tarefas pessoais não têm project_columns (não pertencem a nenhum projeto),
+// então usam sempre este conjunto fixo de 4 colunas.
+const PERSONAL_STATUS_COLUMNS: StatusColumn[] = [
+  { slug: "a_fazer", label: "A Fazer", color: "#94a3b8", position: 0 },
+  { slug: "em_andamento", label: "Em Andamento", color: "#3B82F6", position: 1 },
+  { slug: "concluido", label: "Concluído", color: "#22c55e", position: 2 },
+  { slug: "aprovado", label: "Aprovado", color: "#a855f7", position: 3 },
 ];
 
 const PRIORITY_COLOR: Record<string, string> = {
@@ -79,7 +92,7 @@ type ViewMode = "cards" | "lista" | "calendario";
 type CalMode = "mes" | "semana" | "dia";
 
 export default function MyTasks() {
-  const { user, isAdmin, canEdit } = useAuth();
+  const { user, isAdmin, canEdit, avatarUrl } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -110,8 +123,12 @@ export default function MyTasks() {
   const [ntDesc, setNtDesc] = useState("");
   const [ntPriority, setNtPriority] = useState<"baixa" | "media" | "alta" | "urgente">("media");
   const [ntDue, setNtDue] = useState("");
+  const [ntHasDueTime, setNtHasDueTime] = useState(false);
+  const [ntDueTime, setNtDueTime] = useState("");
+  const [ntReminderMinutes, setNtReminderMinutes] = useState("none");
   const [ntAssignee, setNtAssignee] = useState<string>("");
   const [ntStatus, setNtStatus] = useState<string | null>(null);
+  const [isPersonal, setIsPersonal] = useState(false);
 
   const changeView = (v: ViewMode) => {
     if (!v) return;
@@ -183,28 +200,35 @@ export default function MyTasks() {
   }
 
   async function createTask() {
-    if (!ntProject || !ntTitle.trim() || !user) return;
+    if (!ntTitle.trim() || !user) return;
+    if (!isPersonal && !ntProject) return;
     setCreating(true);
     // Status inicial: usa a coluna pré-selecionada (ex: "+" de uma coluna específica
-    // no board), senão cai na primeira coluna do projeto.
+    // no board), senão cai na primeira coluna do projeto (ou "a_fazer" pra pessoal).
     let initialStatus = ntStatus;
     if (!initialStatus) {
-      const { data: cols } = await supabase
-        .from("project_columns")
-        .select("slug")
-        .eq("project_id", ntProject)
-        .order("position", { ascending: true })
-        .limit(1);
-      initialStatus = cols?.[0]?.slug || "a_fazer";
+      if (isPersonal) {
+        initialStatus = "a_fazer";
+      } else {
+        const { data: cols } = await supabase
+          .from("project_columns")
+          .select("slug")
+          .eq("project_id", ntProject)
+          .order("position", { ascending: true })
+          .limit(1);
+        initialStatus = cols?.[0]?.slug || "a_fazer";
+      }
     }
 
     const { error } = await supabase.from("tasks").insert({
-      project_id: ntProject,
+      project_id: isPersonal ? null : ntProject,
       title: ntTitle.trim(),
       description: ntDesc.trim() || null,
       priority: ntPriority,
       due_date: ntDue || null,
-      assigned_to: ntAssignee || user.id,
+      due_time: ntHasDueTime && ntDueTime ? ntDueTime : null,
+      reminder_minutes_before: ntHasDueTime && ntDueTime && ntReminderMinutes !== "none" ? parseInt(ntReminderMinutes, 10) : null,
+      assigned_to: isPersonal ? user.id : (ntAssignee || user.id),
       status: initialStatus,
       created_by: user.id,
       position: 0,
@@ -215,17 +239,20 @@ export default function MyTasks() {
       toast({ title: "Erro ao criar tarefa", description: error.message, variant: "destructive" });
       return;
     }
-    toast({ title: "Tarefa criada" });
+    toast({ title: isPersonal ? "Tarefa pessoal criada" : "Tarefa criada" });
     setOpenNewTask(false);
     setNtCompany(""); setNtProject(""); setNtTitle(""); setNtDesc(""); setNtPriority("media");
-    setNtDue(""); setNtAssignee(""); setNtStatus(null);
+    setNtDue(""); setNtHasDueTime(false); setNtDueTime(""); setNtReminderMinutes("none");
+    setNtAssignee(""); setNtStatus(null); setIsPersonal(false);
     if (selectedUser) loadTasks(selectedUser);
   }
 
-  function openNewTaskDialog(prefillDate?: Date, statusSlug?: string) {
+  function openNewTaskDialog(prefillDate?: Date, statusSlug?: string, personal?: boolean) {
     if (prefillDate) setNtDue(format(prefillDate, "yyyy-MM-dd"));
     else setNtDue("");
     setNtStatus(statusSlug ?? null);
+    setIsPersonal(!!personal);
+    if (personal) { setNtCompany(""); setNtProject(""); setNtAssignee(""); }
     setOpenNewTask(true);
   }
 
@@ -247,14 +274,35 @@ export default function MyTasks() {
     setLoading(true);
     const { data, error } = await supabase
       .from("tasks")
-      .select("id, title, description, status, priority, due_date, assigned_to, project_id, position, color, projects(name, company_id, color, companies(name))")
+      .select("id, title, description, status, priority, due_date, due_time, assigned_to, created_by, project_id, position, color, projects(name, company_id, color, companies(name))")
       .eq("assigned_to", uid)
+      .not("project_id", "is", null)
       .order("due_date", { ascending: true, nullsFirst: false });
     if (error) {
       console.error(error);
       toast({ title: "Erro ao carregar tarefas", variant: "destructive" });
     }
-    const taskList = (data || []) as any as Task[];
+
+    // Tarefas pessoais (sem projeto) só existem e são visíveis para quem criou,
+    // então só entram na lista quando o próprio usuário logado está sendo exibido.
+    let personalTasks: Task[] = [];
+    if (user && uid === user.id) {
+      const { data: personalData, error: personalError } = await supabase
+        .from("tasks")
+        .select("id, title, description, status, priority, due_date, due_time, assigned_to, created_by, project_id, position, color")
+        .is("project_id", null)
+        .eq("created_by", user.id)
+        .order("due_date", { ascending: true, nullsFirst: false });
+      if (personalError) console.error(personalError);
+      personalTasks = ((personalData || []) as any[]).map((t) => ({ ...t, projects: null })) as Task[];
+    }
+
+    const taskList = [...((data || []) as any as Task[]), ...personalTasks].sort((a, b) => {
+      if (!a.due_date && !b.due_date) return 0;
+      if (!a.due_date) return 1;
+      if (!b.due_date) return -1;
+      return a.due_date.localeCompare(b.due_date);
+    });
     setTasks(taskList);
     await loadStatusColumns(taskList);
     setLoading(false);
@@ -263,31 +311,42 @@ export default function MyTasks() {
   // Colunas reais dos projetos das tarefas carregadas (cada projeto tem as suas em project_columns,
   // que podem divergir do conjunto padrão do Kanban — inclusive colunas personalizadas).
   async function loadStatusColumns(taskList: Task[]) {
-    const projectIds = Array.from(new Set(taskList.map((t) => t.project_id)));
-    if (projectIds.length === 0) {
-      setStatusColumns(DEFAULT_STATUS_COLUMNS);
-      return;
-    }
+    const hasPersonalTasks = taskList.some((t) => !t.project_id);
+    const projectIds = Array.from(new Set(taskList.map((t) => t.project_id).filter((id): id is string => !!id)));
 
-    const { data } = await supabase
-      .from("project_columns")
-      .select("project_id, slug, label, color, position")
-      .in("project_id", projectIds);
-
-    if (!data || data.length === 0) {
-      setStatusColumns(DEFAULT_STATUS_COLUMNS);
-      return;
-    }
-
-    // Combina por slug: se dois projetos compartilham o mesmo slug (ex: "a_fazer"), mantém
-    // só o registro de menor position; slugs exclusivos (colunas personalizadas) entram à parte.
     const bySlug = new Map<string, StatusColumn>();
-    (data as any[]).forEach((c) => {
-      const existing = bySlug.get(c.slug);
-      if (!existing || c.position < existing.position) {
-        bySlug.set(c.slug, { slug: c.slug, label: c.label, color: c.color, position: c.position });
-      }
-    });
+
+    if (projectIds.length > 0) {
+      const { data } = await supabase
+        .from("project_columns")
+        .select("project_id, slug, label, color, position")
+        .in("project_id", projectIds);
+
+      // Combina por slug: se dois projetos compartilham o mesmo slug (ex: "a_fazer"), mantém
+      // só o registro de menor position; slugs exclusivos (colunas personalizadas) entram à parte.
+      (data as any[] || []).forEach((c) => {
+        const existing = bySlug.get(c.slug);
+        if (!existing || c.position < existing.position) {
+          bySlug.set(c.slug, { slug: c.slug, label: c.label, color: c.color, position: c.position });
+        }
+      });
+    }
+
+    if (bySlug.size === 0) {
+      DEFAULT_STATUS_COLUMNS.forEach((c) => bySlug.set(c.slug, c));
+    }
+
+    if (hasPersonalTasks) {
+      // Tarefas pessoais não têm project_columns — garante que as 4 colunas
+      // padrão delas sempre existam, sem sobrescrever colunas reais.
+      let nextPos = Math.max(-1, ...Array.from(bySlug.values()).map((c) => c.position)) + 1;
+      PERSONAL_STATUS_COLUMNS.forEach((c) => {
+        if (!bySlug.has(c.slug)) {
+          bySlug.set(c.slug, { ...c, position: nextPos++ });
+        }
+      });
+    }
+
     setStatusColumns(Array.from(bySlug.values()).sort((a, b) => a.position - b.position));
   }
 
@@ -382,7 +441,7 @@ export default function MyTasks() {
   const getTaskColor = (task: Task) =>
     getTaskColorForMode({
       manualColor: task.color,
-      projectId: task.project_id,
+      projectId: task.project_id || "pessoal",
       projectColor: task.projects?.color,
       assignedTo: task.assigned_to,
     });
@@ -391,7 +450,7 @@ export default function MyTasks() {
     const color = getTaskColor(task);
     return (
       <button
-        onClick={(e) => { e.stopPropagation(); navigate(`/projetos/${task.project_id}`); }}
+        onClick={(e) => { e.stopPropagation(); if (task.project_id) navigate(`/projetos/${task.project_id}`); }}
         className="w-full text-left px-1.5 py-0.5 rounded text-xs flex items-center gap-1 border-l-4 truncate"
         style={{ borderLeftColor: color, backgroundColor: `${color}15` }}
         title={task.title}
@@ -406,6 +465,10 @@ export default function MyTasks() {
   const selectedLabel = selectedUser === user?.id
     ? "Minhas tarefas"
     : `Tarefas de ${selectedMember?.nickname || selectedMember?.full_name || "usuário"}`;
+  // Todo card da lista é do mesmo responsável (selectedUser), então o avatar
+  // ao lado da cor é sempre o dele — vindo do próprio perfil quando é "Eu".
+  const viewedAvatarUrl = selectedUser === user?.id ? avatarUrl : selectedMember?.avatar_url || null;
+  const viewedName = selectedUser === user?.id ? "Eu" : (selectedMember?.nickname || selectedMember?.full_name || null);
 
   return (
     <div className="space-y-4">
@@ -425,6 +488,11 @@ export default function MyTasks() {
           {canEdit && (
             <Button onClick={() => openNewTaskDialog()} className="gap-2" size="sm">
               <Plus className="h-4 w-4" /> Nova Tarefa
+            </Button>
+          )}
+          {canEdit && (
+            <Button onClick={() => openNewTaskDialog(undefined, undefined, true)} variant="outline" className="gap-2" size="sm">
+              <Plus className="h-4 w-4" /> Tarefa pessoal
             </Button>
           )}
           {isAdmin && (
@@ -531,7 +599,7 @@ export default function MyTasks() {
                                     )}
                                     style={{
                                       ...p.draggableProps.style,
-                                      borderLeft: `4px solid ${t.color || getEntityColor(t.project_id, t.projects?.color ?? null, PROJECT_COLOR_PALETTE)}`,
+                                      borderLeft: `4px solid ${t.color || getEntityColor(t.project_id || "pessoal", t.projects?.color ?? null, PROJECT_COLOR_PALETTE)}`,
                                     }}
                                   >
                                     <div className="p-3">
@@ -540,24 +608,32 @@ export default function MyTasks() {
                                           <GripVertical className="h-4 w-4 text-muted-foreground" />
                                         </div>
                                         <div className="flex-1 min-w-0">
-                                          <p
-                                            className={cn(
-                                              "font-medium text-sm cursor-pointer hover:text-primary truncate",
-                                              t.status === "concluido" && "line-through text-muted-foreground",
-                                            )}
-                                            onClick={() => navigate(`/projetos/${t.project_id}`)}
-                                          >
-                                            {t.title}
-                                          </p>
+                                          <div className="flex items-center gap-1.5 min-w-0">
+                                            <AssigneeAvatar url={viewedAvatarUrl} name={viewedName} className="h-5 w-5 shrink-0" />
+                                            <p
+                                              className={cn(
+                                                "font-medium text-sm truncate",
+                                                t.status === "concluido" && "line-through text-muted-foreground",
+                                                t.project_id && "cursor-pointer hover:text-primary",
+                                              )}
+                                              onClick={() => { if (t.project_id) navigate(`/projetos/${t.project_id}`); }}
+                                            >
+                                              {t.title}
+                                            </p>
+                                          </div>
                                           {t.description && (
                                             <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{t.description}</p>
                                           )}
                                           <div className="flex items-center gap-2 mt-2 flex-wrap">
-                                            {t.projects?.name && (
-                                              <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                                                <FolderKanban className="h-3 w-3" />
-                                                {t.projects.name}
-                                              </span>
+                                            {t.project_id ? (
+                                              t.projects?.name && (
+                                                <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                                                  <FolderKanban className="h-3 w-3" />
+                                                  {t.projects.name}
+                                                </span>
+                                              )
+                                            ) : (
+                                              <Badge variant="outline" className="text-[10px]">Pessoal</Badge>
                                             )}
                                             <Badge className={`text-xs ${PRIORITY_BADGE_BG[t.priority] || ""}`} variant="secondary">
                                               {PRIORITY_LABEL[t.priority]}
@@ -566,6 +642,7 @@ export default function MyTasks() {
                                               <span className="flex items-center gap-1 text-xs text-muted-foreground">
                                                 <CalendarDays className="h-3 w-3" />
                                                 {format(parseISO(t.due_date), "dd MMM", { locale: ptBR })}
+                                                {t.due_time && ` ${formatDueTime(t.due_time)}`}
                                               </span>
                                             )}
                                             {canEdit && (
@@ -626,8 +703,8 @@ export default function MyTasks() {
                   ) : filteredTasks.map((t) => (
                     <div
                       key={t.id}
-                      onClick={() => navigate(`/projetos/${t.project_id}`)}
-                      className="grid grid-cols-[auto_2fr_1fr_110px_130px_150px] gap-3 px-4 py-2.5 items-center hover:bg-accent/40 cursor-pointer text-sm"
+                      onClick={() => { if (t.project_id) navigate(`/projetos/${t.project_id}`); }}
+                      className={cn("grid grid-cols-[auto_2fr_1fr_110px_130px_150px] gap-3 px-4 py-2.5 items-center hover:bg-accent/40 text-sm", t.project_id && "cursor-pointer")}
                     >
                       <Checkbox
                         checked={t.status === "concluido"}
@@ -635,8 +712,14 @@ export default function MyTasks() {
                         onCheckedChange={(v) => toggleComplete(t, !!v)}
                       />
                       <span className={cn("truncate", t.status === "concluido" && "line-through text-muted-foreground")}>{t.title}</span>
-                      <span className="text-xs text-muted-foreground truncate">{t.projects?.name || "—"}</span>
-                      <span className="text-xs">{t.due_date ? format(parseISO(t.due_date), "dd/MM/yy") : "—"}</span>
+                      {t.project_id ? (
+                        <span className="text-xs text-muted-foreground truncate">{t.projects?.name || "—"}</span>
+                      ) : (
+                        <Badge variant="outline" className="text-[10px] w-fit">Pessoal</Badge>
+                      )}
+                      <span className="text-xs">
+                        {t.due_date ? `${format(parseISO(t.due_date), "dd/MM/yy")}${t.due_time ? ` ${formatDueTime(t.due_time)}` : ""}` : "—"}
+                      </span>
                       <Badge variant="outline" className="text-[11px] max-w-full truncate" title={PRIORITY_LABEL[t.priority]}>
                         <span className={cn("h-1.5 w-1.5 rounded-full mr-1 shrink-0", PRIORITY_COLOR[t.priority])} />
                         {PRIORITY_LABEL[t.priority]}
@@ -702,15 +785,19 @@ export default function MyTasks() {
                         {getDayTasks(cursor).map((t) => {
                           const color = getTaskColor(t);
                           return (
-                          <div key={t.id} onClick={() => navigate(`/projetos/${t.project_id}`)}
-                            className="p-3 border rounded-lg hover:bg-accent/50 cursor-pointer border-l-4"
+                          <div key={t.id} onClick={() => { if (t.project_id) navigate(`/projetos/${t.project_id}`); }}
+                            className={cn("p-3 border rounded-lg hover:bg-accent/50 border-l-4", t.project_id && "cursor-pointer")}
                             style={{ borderLeftColor: color, backgroundColor: `${color}15` }}>
                             <div className="flex items-center gap-2">
                               <Checkbox checked={t.status === "concluido"} onClick={(e) => e.stopPropagation()} onCheckedChange={(v) => toggleComplete(t, !!v)} />
                               <span className={cn("font-medium text-sm flex-1", t.status === "concluido" && "line-through text-muted-foreground")}>{t.title}</span>
                               <Badge variant="outline">{PRIORITY_LABEL[t.priority]}</Badge>
                             </div>
-                            {t.projects?.name && <p className="text-xs text-muted-foreground mt-1 ml-6">{t.projects.name}</p>}
+                            {t.project_id ? (
+                              t.projects?.name && <p className="text-xs text-muted-foreground mt-1 ml-6">{t.projects.name}</p>
+                            ) : (
+                              <Badge variant="outline" className="text-[10px] ml-6 mt-1">Pessoal</Badge>
+                            )}
                           </div>
                           );
                         })}
@@ -728,31 +815,35 @@ export default function MyTasks() {
       <Dialog open={openNewTask} onOpenChange={setOpenNewTask}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>Nova Tarefa</DialogTitle>
+            <DialogTitle>{isPersonal ? "Nova Tarefa Pessoal" : "Nova Tarefa"}</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
-            <div className="space-y-1.5">
-              <Label className="text-sm">Empresa *</Label>
-              <Select value={ntCompany} onValueChange={(v) => { setNtCompany(v); setNtProject(""); setNtAssignee(""); }}>
-                <SelectTrigger><SelectValue placeholder="Selecione uma empresa..." /></SelectTrigger>
-                <SelectContent>
-                  {allCompanies.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-sm">Projeto *</Label>
-              <Select value={ntProject} onValueChange={(v) => { setNtProject(v); setNtAssignee(""); }} disabled={!ntCompany}>
-                <SelectTrigger><SelectValue placeholder={ntCompany ? "Selecione um projeto..." : "Escolha uma empresa primeiro"} /></SelectTrigger>
-                <SelectContent>
-                  {allProjects.filter((p) => p.company_id === ntCompany).map((p) => (
-                    <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            {!isPersonal && (
+              <>
+                <div className="space-y-1.5">
+                  <Label className="text-sm">Empresa *</Label>
+                  <Select value={ntCompany} onValueChange={(v) => { setNtCompany(v); setNtProject(""); setNtAssignee(""); }}>
+                    <SelectTrigger><SelectValue placeholder="Selecione uma empresa..." /></SelectTrigger>
+                    <SelectContent>
+                      {allCompanies.map((c) => (
+                        <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-sm">Projeto *</Label>
+                  <Select value={ntProject} onValueChange={(v) => { setNtProject(v); setNtAssignee(""); }} disabled={!ntCompany}>
+                    <SelectTrigger><SelectValue placeholder={ntCompany ? "Selecione um projeto..." : "Escolha uma empresa primeiro"} /></SelectTrigger>
+                    <SelectContent>
+                      {allProjects.filter((p) => p.company_id === ntCompany).map((p) => (
+                        <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </>
+            )}
             <div className="space-y-1.5">
               <Label className="text-sm">Título *</Label>
               <Input value={ntTitle} onChange={(e) => setNtTitle(e.target.value)} placeholder="O que precisa ser feito?" />
@@ -780,35 +871,68 @@ export default function MyTasks() {
               </div>
             </div>
             <div className="space-y-1.5">
-              <Label className="text-sm">Responsável</Label>
-              <Select value={ntAssignee || (user?.id ?? "")} onValueChange={setNtAssignee} disabled={!ntProject}>
-                <SelectTrigger>
-                  <SelectValue placeholder={ntProject ? "Selecione" : "Escolha um projeto primeiro"} />
-                </SelectTrigger>
-                <SelectContent>
-                  {user && (
-                    <SelectItem value={user.id}>
-                      <span className="flex items-center gap-2">
-                        <AssigneeAvatar name="Eu" />
-                        Eu mesmo
-                      </span>
-                    </SelectItem>
-                  )}
-                  {projectMembers.filter((m) => m.id !== user?.id).map((m) => (
-                    <SelectItem key={m.id} value={m.id}>
-                      <span className="flex items-center gap-2">
-                        <AssigneeAvatar url={m.avatar_url} name={m.nickname || m.full_name} />
-                        {m.nickname || m.full_name || m.id.slice(0, 8)}
-                      </span>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label className="text-sm flex items-center gap-1"><Clock className="h-3.5 w-3.5" /> Definir horário</Label>
+              <div className="flex items-center gap-2">
+                <Switch
+                  checked={ntHasDueTime}
+                  onCheckedChange={(checked) => {
+                    setNtHasDueTime(checked);
+                    if (!checked) { setNtDueTime(""); setNtReminderMinutes("none"); }
+                  }}
+                />
+                {ntHasDueTime && (
+                  <Input type="time" value={ntDueTime} onChange={(e) => setNtDueTime(e.target.value)} className="h-9 w-32" />
+                )}
+              </div>
             </div>
+            {ntHasDueTime && ntDueTime && (
+              <div className="space-y-1.5">
+                <Label className="text-sm">Notificar</Label>
+                <Select value={ntReminderMinutes} onValueChange={setNtReminderMinutes}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {REMINDER_OPTIONS.map((o) => (
+                      <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+            {!isPersonal && (
+              <div className="space-y-1.5">
+                <Label className="text-sm">Responsável</Label>
+                <Select value={ntAssignee || (user?.id ?? "")} onValueChange={setNtAssignee} disabled={!ntProject}>
+                  <SelectTrigger>
+                    <SelectValue placeholder={ntProject ? "Selecione" : "Escolha um projeto primeiro"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {user && (
+                      <SelectItem value={user.id}>
+                        <span className="flex items-center gap-2">
+                          <AssigneeAvatar name="Eu" />
+                          Eu mesmo
+                        </span>
+                      </SelectItem>
+                    )}
+                    {projectMembers.filter((m) => m.id !== user?.id).map((m) => (
+                      <SelectItem key={m.id} value={m.id}>
+                        <span className="flex items-center gap-2">
+                          <AssigneeAvatar url={m.avatar_url} name={m.nickname || m.full_name} />
+                          {m.nickname || m.full_name || m.id.slice(0, 8)}
+                        </span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpenNewTask(false)}>Cancelar</Button>
-            <Button onClick={createTask} disabled={!ntCompany || !ntProject || !ntTitle.trim() || creating}>
+            <Button
+              onClick={createTask}
+              disabled={(!isPersonal && (!ntCompany || !ntProject)) || !ntTitle.trim() || creating}
+            >
               {creating ? "Criando..." : "Criar"}
             </Button>
           </DialogFooter>
