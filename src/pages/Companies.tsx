@@ -9,8 +9,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
+import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Building2, Pencil, Trash2, Upload, X, LayoutGrid, List, Globe, Camera } from "lucide-react";
+import { Plus, Building2, Pencil, Trash2, Upload, X, LayoutGrid, List, Globe, Camera, Crown } from "lucide-react";
 import ImageCropper from "@/components/ImageCropper";
 import { CompanyDocuments } from "@/components/CompanyDocuments";
 
@@ -23,6 +24,7 @@ interface Company {
   website_url: string | null;
   instagram_url: string | null;
   planning_label: string | null;
+  is_master: boolean;
   created_at: string;
 }
 
@@ -149,7 +151,16 @@ export default function Companies() {
                       </div>
                     )}
                   </TableCell>
-                  <TableCell className="font-medium">{c.name}</TableCell>
+                  <TableCell className="font-medium">
+                    <span className="flex items-center gap-1.5">
+                      {c.name}
+                      {c.is_master && (
+                        <Badge variant="outline" className="gap-1 text-[10px] font-normal">
+                          <Crown className="h-3 w-3" /> Master
+                        </Badge>
+                      )}
+                    </span>
+                  </TableCell>
                   <TableCell className="text-muted-foreground text-sm">{c.slug}</TableCell>
                   <TableCell className="text-muted-foreground text-sm max-w-[200px] truncate">{c.description || "—"}</TableCell>
                   <TableCell>
@@ -202,7 +213,14 @@ export default function Companies() {
                       </div>
                     )}
                     <div>
-                      <CardTitle className="text-base">{c.name}</CardTitle>
+                      <CardTitle className="text-base flex items-center gap-1.5">
+                        {c.name}
+                        {c.is_master && (
+                          <Badge variant="outline" className="gap-1 text-[10px] font-normal">
+                            <Crown className="h-3 w-3" /> Master
+                          </Badge>
+                        )}
+                      </CardTitle>
                       <CardDescription className="text-xs">{c.slug}</CardDescription>
                     </div>
                   </div>
@@ -262,7 +280,14 @@ export default function Companies() {
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-h-[85vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>{editing ? "Editar Empresa" : "Nova Empresa"}</DialogTitle>
+            <DialogTitle className="flex items-center gap-2">
+              {editing ? "Editar Empresa" : "Nova Empresa"}
+              {editing?.is_master && (
+                <Badge variant="outline" className="gap-1 text-[10px] font-normal">
+                  <Crown className="h-3 w-3" /> Master
+                </Badge>
+              )}
+            </DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">

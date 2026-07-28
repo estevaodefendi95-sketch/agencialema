@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
@@ -28,10 +29,45 @@ interface Project {
   companies?: { name: string; logo_url: string | null } | null;
 }
 
-interface Company { id: string; name: string; }
+interface Company { id: string; name: string; logo_url: string | null; }
+type AdditionalCompany = { id: string; name: string; logo_url: string | null };
 
 type SortField = "empresa" | "prazo";
 type SortDir = "asc" | "desc";
+
+function CompanyStack({ companies }: { companies: AdditionalCompany[] }) {
+  if (companies.length === 0) return null;
+  const visible = companies.slice(0, 3);
+  const overflow = companies.length - visible.length;
+  return (
+    <div className="flex items-center -space-x-2 shrink-0">
+      {visible.map((c) => (
+        c.logo_url ? (
+          <img
+            key={c.id}
+            src={c.logo_url}
+            alt={c.name}
+            title={c.name}
+            className="h-6 w-6 rounded-full object-cover border-2 border-background"
+          />
+        ) : (
+          <div
+            key={c.id}
+            title={c.name}
+            className="h-6 w-6 rounded-full border-2 border-background bg-primary/10 flex items-center justify-center"
+          >
+            <Building2 className="h-3 w-3 text-primary" />
+          </div>
+        )
+      ))}
+      {overflow > 0 && (
+        <div className="h-6 w-6 rounded-full border-2 border-background bg-muted flex items-center justify-center text-[10px] font-medium">
+          +{overflow}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function Projects() {
   const { isAdmin, canEdit, user } = useAuth();
@@ -45,6 +81,7 @@ export default function Projects() {
   const [companyId, setCompanyId] = useState("");
   const [dueDate, setDueDate] = useState("");
   const [color, setColor] = useState<string | null>(null);
+  const [additionalCompanyIds, setAdditionalCompanyIds] = useState<string[]>([]);
   const [showArchived, setShowArchived] = useState(false);
 
   // Edit project dialog
@@ -54,6 +91,9 @@ export default function Projects() {
   const [editDescription, setEditDescription] = useState("");
   const [editDueDate, setEditDueDate] = useState("");
   const [editColor, setEditColor] = useState<string | null>(null);
+  const [editAdditionalCompanyIds, setEditAdditionalCompanyIds] = useState<string[]>([]);
+
+  const [additionalCompaniesByProject, setAdditionalCompaniesByProject] = useState<Record<string, AdditionalCompany[]>>({});
 
   // Delete confirm
   const [deleteProjectId, setDeleteProjectId] = useState<string | null>(null);
@@ -74,25 +114,43 @@ export default function Projects() {
     const { data } = await supabase.from("projects").select("*, companies(name, logo_url)").order("created_at", { ascending: false });
     const list = (data as any[])?.map(d => ({ ...d, archived: d.archived ?? false })) || [];
     setProjects(list);
-    if (isAdmin) {
-      const { data: c } = await supabase.from("companies").select("id, name").order("name");
-      setCompanies(c || []);
+    if (canEdit) {
+      const { data: c } = await supabase.from("companies").select("id, name, logo_url").order("name");
+      setCompanies((c || []) as Company[]);
     }
     const ids = list.map((p) => p.id);
     if (ids.length) {
-      const { data: tasks } = await supabase
-        .from("tasks")
-        .select("id, title, status, priority, due_date, project_id, position")
-        .in("project_id", ids)
-        .order("position", { ascending: true });
+      const [{ data: tasks }, { data: pc }] = await Promise.all([
+        supabase
+          .from("tasks")
+          .select("id, title, status, priority, due_date, project_id, position")
+          .in("project_id", ids)
+          .order("position", { ascending: true }),
+        supabase
+          .from("project_companies")
+          .select("project_id, company_id, companies(name, logo_url)")
+          .in("project_id", ids),
+      ]);
       const grouped: Record<string, any[]> = {};
       (tasks || []).forEach((t: any) => {
         if (!grouped[t.project_id]) grouped[t.project_id] = [];
         grouped[t.project_id].push(t);
       });
       setTasksByProject(grouped);
+
+      const pcGrouped: Record<string, AdditionalCompany[]> = {};
+      (pc || []).forEach((row: any) => {
+        if (!pcGrouped[row.project_id]) pcGrouped[row.project_id] = [];
+        pcGrouped[row.project_id].push({
+          id: row.company_id,
+          name: row.companies?.name || "Empresa",
+          logo_url: row.companies?.logo_url ?? null,
+        });
+      });
+      setAdditionalCompaniesByProject(pcGrouped);
     } else {
       setTasksByProject({});
+      setAdditionalCompaniesByProject({});
     }
   };
 
@@ -163,23 +221,49 @@ export default function Projects() {
     });
   };
 
+  // Sincroniza project_companies com a lista desejada de empresas adicionais,
+  // sem nunca mexer no vínculo da empresa principal (esse vem de projects.company_id).
+  const syncProjectCompanies = async (projectId: string, principalId: string, desiredIds: string[]) => {
+    const finalIds = Array.from(new Set(desiredIds.filter((id) => id && id !== principalId)));
+    const { data: existing } = await supabase
+      .from("project_companies")
+      .select("id, company_id")
+      .eq("project_id", projectId);
+    const existingRows = (existing || []) as { id: string; company_id: string }[];
+    const existingIds = existingRows.map((r) => r.company_id);
+
+    const toAdd = finalIds.filter((id) => !existingIds.includes(id));
+    const toRemove = existingRows.filter((r) => !finalIds.includes(r.company_id));
+
+    if (toAdd.length > 0) {
+      await supabase.from("project_companies").insert(toAdd.map((company_id) => ({ project_id: projectId, company_id })));
+    }
+    if (toRemove.length > 0) {
+      await supabase.from("project_companies").delete().in("id", toRemove.map((r) => r.id));
+    }
+  };
+
   const save = async () => {
     const { data } = await supabase.from("projects").insert({ name, description, company_id: companyId, due_date: dueDate || null, color } as any).select().single();
     if (data) {
       await logHistory(data.id, "create", null, { name, description, due_date: dueDate || null });
+      if (additionalCompanyIds.length > 0) {
+        await syncProjectCompanies(data.id, companyId, additionalCompanyIds);
+      }
     }
     toast({ title: "Projeto criado" });
     setOpen(false);
-    setName(""); setDescription(""); setCompanyId(""); setDueDate(""); setColor(null);
+    setName(""); setDescription(""); setCompanyId(""); setDueDate(""); setColor(null); setAdditionalCompanyIds([]);
     load();
   };
 
-  const openEdit = (p: Project) => {
+  const openEdit = async (p: Project) => {
     setEditProject(p);
     setEditName(p.name);
     setEditDescription(p.description || "");
     setEditDueDate(p.due_date || "");
     setEditColor(p.color || null);
+    setEditAdditionalCompanyIds((additionalCompaniesByProject[p.id] || []).map((c) => c.id));
     setEditOpen(true);
   };
 
@@ -209,13 +293,12 @@ export default function Projects() {
       updates.color = editColor;
     }
 
-    if (Object.keys(updates).length === 0) {
-      setEditOpen(false);
-      return;
-    }
+    await syncProjectCompanies(editProject.id, editProject.company_id, editAdditionalCompanyIds);
 
-    await supabase.from("projects").update(updates).eq("id", editProject.id);
-    await logHistory(editProject.id, "update", prev, next);
+    if (Object.keys(updates).length > 0) {
+      await supabase.from("projects").update(updates).eq("id", editProject.id);
+      await logHistory(editProject.id, "update", prev, next);
+    }
     toast({ title: "Projeto atualizado" });
     setEditOpen(false);
     setEditProject(null);
@@ -414,6 +497,7 @@ export default function Projects() {
                             <FolderKanban className="h-5 w-5 text-primary" />
                           </div>
                         )}
+                        <CompanyStack companies={additionalCompaniesByProject[p.id] || []} />
                         <div className="flex-1 min-w-0">
                           <CardTitle className="text-base">{p.name}</CardTitle>
                           <CardDescription>{(p.companies as any)?.name}</CardDescription>
@@ -482,7 +566,7 @@ export default function Projects() {
           <div className="space-y-4">
             <div className="space-y-2">
               <Label>Empresa</Label>
-              <Select value={companyId} onValueChange={setCompanyId}>
+              <Select value={companyId} onValueChange={(v) => { setCompanyId(v); setAdditionalCompanyIds((prev) => prev.filter((id) => id !== v)); }}>
                 <SelectTrigger><SelectValue placeholder="Selecione a empresa" /></SelectTrigger>
                 <SelectContent>
                   {companies.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
@@ -505,6 +589,22 @@ export default function Projects() {
               <Label>Cor</Label>
               <ColorSwatchPicker value={color} onChange={setColor} allowNone />
             </div>
+            {companies.filter((c) => c.id !== companyId).length > 0 && (
+              <div className="space-y-2">
+                <Label>Empresas adicionais vinculadas</Label>
+                <div className="space-y-2 max-h-40 overflow-y-auto border rounded-lg p-3">
+                  {companies.filter((c) => c.id !== companyId).map((c) => (
+                    <div key={c.id} className="flex items-center gap-2">
+                      <Checkbox
+                        checked={additionalCompanyIds.includes(c.id)}
+                        onCheckedChange={() => setAdditionalCompanyIds((prev) => prev.includes(c.id) ? prev.filter((id) => id !== c.id) : [...prev, c.id])}
+                      />
+                      <span className="text-sm">{c.name}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
@@ -539,6 +639,22 @@ export default function Projects() {
                 fallbackColor={editProject ? getEntityColor(editProject.id, null) : undefined}
               />
             </div>
+            {editProject && companies.filter((c) => c.id !== editProject.company_id).length > 0 && (
+              <div className="space-y-2">
+                <Label>Empresas adicionais vinculadas</Label>
+                <div className="space-y-2 max-h-40 overflow-y-auto border rounded-lg p-3">
+                  {companies.filter((c) => c.id !== editProject.company_id).map((c) => (
+                    <div key={c.id} className="flex items-center gap-2">
+                      <Checkbox
+                        checked={editAdditionalCompanyIds.includes(c.id)}
+                        onCheckedChange={() => setEditAdditionalCompanyIds((prev) => prev.includes(c.id) ? prev.filter((id) => id !== c.id) : [...prev, c.id])}
+                      />
+                      <span className="text-sm">{c.name}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditOpen(false)}>Cancelar</Button>
