@@ -272,6 +272,71 @@ export default function Dashboard() {
       <h2 className="text-2xl font-bold">
         {isAdmin ? "Painel do Administrador" : "Meus Projetos"}
       </h2>
+      <div className="grid gap-4 grid-cols-1 md:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center justify-between text-base">
+              <span className="flex items-center gap-2">
+                <StickyNote className="h-5 w-5 text-primary" /> Anotações
+              </span>
+              {noteSaved && (
+                <span className="text-xs font-normal text-muted-foreground flex items-center gap-1">
+                  <Check className="h-3 w-3" /> Salvo
+                </span>
+              )}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Textarea
+              value={noteContent}
+              onChange={(e) => handleNoteChange(e.target.value)}
+              placeholder="Escreva suas anotações..."
+              className="min-h-[160px] resize-y text-sm"
+            />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <ListChecks className="h-5 w-5 text-primary" /> Lembretes
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {reminders.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Nenhum lembrete</p>
+            ) : (
+              <div className="space-y-1.5">
+                {reminders.map((r) => (
+                  <div key={r.id} className="flex items-center gap-2 group">
+                    <Checkbox checked={r.done} onCheckedChange={() => toggleReminder(r)} />
+                    <span className={cn("text-sm flex-1", r.done && "line-through opacity-50")}>{r.text}</span>
+                    <button
+                      onClick={() => deleteReminder(r.id)}
+                      className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="flex gap-2 pt-1">
+              <Input
+                value={newReminderText}
+                onChange={(e) => setNewReminderText(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && addReminder()}
+                placeholder="Novo lembrete..."
+                className="h-9 text-sm"
+              />
+              <Button size="icon" variant="outline" className="h-9 w-9 shrink-0" onClick={addReminder}>
+                <Plus className="h-4 w-4" />
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
       <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
         {cards.map((card) => (
           <Card key={card.title} className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate(card.link)}>
@@ -354,71 +419,6 @@ export default function Dashboard() {
                 })}
               </div>
             )}
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="grid gap-4 grid-cols-1 md:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center justify-between text-base">
-              <span className="flex items-center gap-2">
-                <StickyNote className="h-5 w-5 text-primary" /> Anotações
-              </span>
-              {noteSaved && (
-                <span className="text-xs font-normal text-muted-foreground flex items-center gap-1">
-                  <Check className="h-3 w-3" /> Salvo
-                </span>
-              )}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Textarea
-              value={noteContent}
-              onChange={(e) => handleNoteChange(e.target.value)}
-              placeholder="Escreva suas anotações..."
-              className="min-h-[160px] resize-y text-sm"
-            />
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <ListChecks className="h-5 w-5 text-primary" /> Lembretes
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {reminders.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Nenhum lembrete</p>
-            ) : (
-              <div className="space-y-1.5">
-                {reminders.map((r) => (
-                  <div key={r.id} className="flex items-center gap-2 group">
-                    <Checkbox checked={r.done} onCheckedChange={() => toggleReminder(r)} />
-                    <span className={cn("text-sm flex-1", r.done && "line-through opacity-50")}>{r.text}</span>
-                    <button
-                      onClick={() => deleteReminder(r.id)}
-                      className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-            <div className="flex gap-2 pt-1">
-              <Input
-                value={newReminderText}
-                onChange={(e) => setNewReminderText(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && addReminder()}
-                placeholder="Novo lembrete..."
-                className="h-9 text-sm"
-              />
-              <Button size="icon" variant="outline" className="h-9 w-9 shrink-0" onClick={addReminder}>
-                <Plus className="h-4 w-4" />
-              </Button>
-            </div>
           </CardContent>
         </Card>
       </div>
