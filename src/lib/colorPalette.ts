@@ -36,14 +36,15 @@ export const TEAM_COLOR_PALETTE = [
 // Deterministic color for an entity: an explicit color always wins, otherwise
 // the same id always hashes to the same palette entry.
 export function getEntityColor(
-  id: string,
+  id: string | null | undefined,
   explicitColor: string | null | undefined,
   palette: string[] = PROJECT_COLOR_PALETTE,
 ): string {
   if (explicitColor) return explicitColor;
+  const key = id ?? "";
   let hash = 0;
-  for (let i = 0; i < id.length; i++) {
-    hash += id.charCodeAt(i);
+  for (let i = 0; i < key.length; i++) {
+    hash += key.charCodeAt(i);
   }
-  return palette[hash % palette.length];
+  return palette[hash % palette.length] ?? palette[0];
 }
