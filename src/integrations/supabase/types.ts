@@ -784,6 +784,7 @@ export type Database = {
           priority: Database["public"]["Enums"]["task_priority"]
           project_id: string | null
           recurrence_days: number[] | null
+          recurrence_template_id: string | null
           recurrence_type: string
           reminder_minutes_before: number | null
           reminder_sent_at: string | null
@@ -806,6 +807,7 @@ export type Database = {
           priority?: Database["public"]["Enums"]["task_priority"]
           project_id?: string | null
           recurrence_days?: number[] | null
+          recurrence_template_id?: string | null
           recurrence_type?: string
           reminder_minutes_before?: number | null
           reminder_sent_at?: string | null
@@ -828,6 +830,7 @@ export type Database = {
           priority?: Database["public"]["Enums"]["task_priority"]
           project_id?: string | null
           recurrence_days?: number[] | null
+          recurrence_template_id?: string | null
           recurrence_type?: string
           reminder_minutes_before?: number | null
           reminder_sent_at?: string | null
@@ -848,6 +851,13 @@ export type Database = {
             columns: ["project_id"]
             isOneToOne: false
             referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tasks_recurrence_template_id_fkey"
+            columns: ["recurrence_template_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
             referencedColumns: ["id"]
           },
         ]
@@ -964,6 +974,7 @@ export type Database = {
       }
     }
     Functions: {
+      generate_recurring_task_instances: { Args: never; Returns: undefined }
       has_company_access: {
         Args: { _company_id: string; _user_id: string }
         Returns: boolean
