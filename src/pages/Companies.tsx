@@ -233,7 +233,7 @@ export default function Companies() {
                 </CardHeader>
                 {(c.description || c.website_url || c.instagram_url) && (
                   <CardContent className="space-y-2">
-                    {c.description && <p className="text-sm text-muted-foreground">{c.description}</p>}
+                    {c.description && <p className="text-sm text-muted-foreground line-clamp-2 break-words">{c.description}</p>}
                     {(c.website_url || c.instagram_url) && (
                       <div className="flex items-center gap-2">
                         {c.website_url && (
@@ -299,7 +299,7 @@ export default function Companies() {
               <Textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Breve descrição" rows={4} />
             </div>
             <div className="space-y-2">
-              <Label>Site</Label>
+              <Label>Link</Label>
               <Input type="url" value={websiteUrl} onChange={(e) => setWebsiteUrl(e.target.value)} placeholder="https://exemplo.com" />
             </div>
             <div className="space-y-2">

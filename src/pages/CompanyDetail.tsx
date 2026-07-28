@@ -240,7 +240,7 @@ export default function CompanyDetail() {
             )}
             <div>
               <CardTitle className="text-xl">{company.name}</CardTitle>
-              {company.description && <CardDescription className="mt-1 max-w-xl">{company.description}</CardDescription>}
+              {company.description && <CardDescription className="mt-1 max-w-xl break-words">{company.description}</CardDescription>}
               {(company.website_url || company.instagram_url) && (
                 <div className="flex items-center gap-3 mt-2">
                   {company.website_url && (
@@ -334,7 +334,7 @@ export default function CompanyDetail() {
                   </div>
                 </CardHeader>
                 <CardContent>
-                  {p.description && <p className="text-sm text-muted-foreground mb-2 line-clamp-2">{p.description}</p>}
+                  {p.description && <p className="text-sm text-muted-foreground mb-2 line-clamp-2 break-words">{p.description}</p>}
                   {p.due_date && (
                     <div className="flex items-center gap-1 text-xs text-muted-foreground mb-2">
                       <Calendar className="h-3 w-3" /> Prazo: {new Date(p.due_date).toLocaleDateString("pt-BR")}
