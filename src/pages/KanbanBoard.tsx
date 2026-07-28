@@ -151,6 +151,10 @@ export default function KanbanBoard() {
   const [projectName, setProjectName] = useState("");
   const [companyName, setCompanyName] = useState("");
   const [companyLogo, setCompanyLogo] = useState<string | null>(null);
+  const [companyId, setCompanyId] = useState<string | null>(null);
+  // user_ids com acesso liberado à empresa deste projeto (user_company_access) —
+  // usado pra restringir quem pode ser sugerido/selecionado como responsável.
+  const [companyAccessUserIds, setCompanyAccessUserIds] = useState<Set<string>>(new Set());
   const [newTaskOpen, setNewTaskOpen] = useState(false);
   const [selectedTask, setSelectedTask] = useState<string | null>(null);
   const [newTitle, setNewTitle] = useState("");
@@ -245,6 +249,7 @@ export default function KanbanBoard() {
     setProjectName(proj?.name || "");
     setCompanyName((proj?.companies as any)?.name || "");
     setCompanyLogo((proj?.companies as any)?.logo_url || null);
+    setCompanyId(proj?.company_id || null);
     const { data } = await supabase.from("tasks").select("*").eq("project_id", projectId).order("position");
     const taskList = ((data as any[]) || []).map((t) => ({ ...t, status: t.status || "a_fazer", color: t.color || null })) as Task[];
     setTasks(taskList);
@@ -307,10 +312,11 @@ export default function KanbanBoard() {
   }, [projectId]);
 
   // Busca por nome/e-mail/apelido conforme o usuário digita, pro autocomplete
-  // do convite. Mesmo alcance de RLS que o lookup por e-mail exato de antes.
+  // do convite. Só sugere gente que já tem acesso liberado à empresa deste
+  // projeto (companyAccessUserIds) — quem não tem acesso ainda não aparece aqui.
   useEffect(() => {
     const term = inviteEmail.trim();
-    if (term.length < 2) {
+    if (term.length < 2 || companyAccessUserIds.size === 0) {
       setProfileResults([]);
       setSearchingProfiles(false);
       return;
@@ -323,6 +329,7 @@ export default function KanbanBoard() {
       const { data } = await supabase
         .from("profiles")
         .select("id, full_name, nickname, email, avatar_url")
+        .in("id", Array.from(companyAccessUserIds))
         .or(`full_name.ilike.${pattern},email.ilike.${pattern},nickname.ilike.${pattern}`)
         .limit(8);
       if (cancelled) return;
@@ -333,7 +340,7 @@ export default function KanbanBoard() {
       cancelled = true;
       clearTimeout(handle);
     };
-  }, [inviteEmail]);
+  }, [inviteEmail, companyAccessUserIds]);
 
   // Selecionar um perfil já cadastrado no autocomplete: libera acesso à
   // empresa do projeto se ainda não tiver, e já entra como "ativo" (nunca
@@ -456,6 +463,22 @@ export default function KanbanBoard() {
   useEffect(() => { load(); }, [load]);
   useEffect(() => { loadColumns(); }, [loadColumns]);
   useEffect(() => { loadMembers(); }, [loadMembers]);
+
+  // Quem já tem acesso liberado à empresa deste projeto — usado pra restringir
+  // o autocomplete de convite e o select de Responsável (mesma regra de acesso
+  // usada pra aprovar usuário numa empresa).
+  useEffect(() => {
+    if (!companyId) {
+      setCompanyAccessUserIds(new Set());
+      return;
+    }
+    (async () => {
+      const { data } = await (supabase.from as any)("user_company_access")
+        .select("user_id")
+        .eq("company_id", companyId);
+      setCompanyAccessUserIds(new Set((data || []).map((r: any) => r.user_id)));
+    })();
+  }, [companyId]);
 
   useEffect(() => {
     if (!printOpen) return;
@@ -655,7 +678,10 @@ export default function KanbanBoard() {
       const m = members.find((x) => x.user_id === task.assigned_to);
       const p: any = m?.profiles;
       const full = (p?.nickname?.trim()) || p?.full_name || p?.email || "";
-      const first = full.split(" ")[0] || "?";
+      const first = full.split(" ")[0];
+      // Sem membro/perfil resolvido (ex: criador atribuído automaticamente
+      // mas sem ser membro formal do projeto) — oculta em vez de mostrar "?".
+      if (!first) return null;
       return { name: first, avatarUrl: p?.avatar_url, initial: first.charAt(0).toUpperCase() };
     }
     if (task.assignee_name) {
@@ -685,6 +711,24 @@ export default function KanbanBoard() {
       position: maxPos + 1,
     });
     loadColumns();
+  };
+
+  // Reordenar colunas arrastando (visão Card) — Droppable/Draggable de type
+  // "COLUMN", separado do drag de tarefas (que não tem type, então nunca se
+  // misturam). Atualiza a posição de todas as colunas afetadas de uma vez.
+  const onColumnDragEnd = async (result: DropResult) => {
+    if (result.type !== "COLUMN") {
+      onDragEnd(result);
+      return;
+    }
+    if (!result.destination || result.destination.index === result.source.index) return;
+    const reordered = Array.from(columns);
+    const [moved] = reordered.splice(result.source.index, 1);
+    reordered.splice(result.destination.index, 0, moved);
+    setColumns(reordered);
+    await Promise.all(
+      reordered.map((c, idx) => (supabase.from as any)("project_columns").update({ position: idx }).eq("id", c.id)),
+    );
   };
 
   const deleteColumn = async (colId: string) => {
@@ -780,6 +824,7 @@ export default function KanbanBoard() {
 
   return (
     <div className="space-y-4">
+      <div className="sticky top-0 z-10 bg-background pb-3 border-b space-y-3">
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div className="flex items-center gap-3">
           {companyLogo ? (
@@ -823,7 +868,14 @@ export default function KanbanBoard() {
             </TooltipProvider>
           )}
         </div>
-        <div className="flex items-center gap-2">
+        {canEdit && (
+          <Button onClick={() => setNewTaskOpen(true)} className="gap-2">
+            <Plus className="h-4 w-4" /> Nova Tarefa
+          </Button>
+        )}
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2">
           <div className="flex items-center border rounded-lg overflow-hidden">
             <Button
               variant={viewMode === "kanban" ? "default" : "ghost"}
@@ -893,7 +945,7 @@ export default function KanbanBoard() {
                 </span>
               </SelectItem>
               {members
-                .filter((m) => m.user_id && m.status === "ativo")
+                .filter((m) => m.user_id && m.status === "ativo" && tasks.some((t) => t.assigned_to === m.user_id))
                 .map((m) => {
                   const p: any = m.profiles;
                   const name =
@@ -1071,12 +1123,7 @@ export default function KanbanBoard() {
           >
             <Printer className="h-3.5 w-3.5" /> Imprimir
           </Button>
-          {canEdit && (
-            <Button onClick={() => setNewTaskOpen(true)} className="gap-2">
-              <Plus className="h-4 w-4" /> Nova Tarefa
-            </Button>
-          )}
-        </div>
+      </div>
       </div>
 
       {viewMode === "planejamento" ? (
@@ -1399,10 +1446,22 @@ export default function KanbanBoard() {
           )}
         </div>
       ) : (
-        <DragDropContext onDragEnd={onDragEnd}>
-          <div className="flex gap-4 overflow-x-auto pb-4 snap-x snap-proximity scrollbar-hide px-1" style={{ WebkitOverflowScrolling: 'touch' }}>
-            {columns.map((col) => (
-              <div key={col.slug} className="group rounded-lg p-3 min-h-[200px] min-w-[280px] w-[280px] shrink-0 snap-start flex flex-col" style={{ backgroundColor: `${col.color}10` }}>
+        <DragDropContext onDragEnd={onColumnDragEnd}>
+          <Droppable droppableId="board-columns" direction="horizontal" type="COLUMN">
+            {(colProvided) => (
+          <div
+            ref={colProvided.innerRef}
+            {...colProvided.droppableProps}
+            className="flex gap-4 overflow-x-auto pb-4 snap-x snap-proximity scrollbar-hide px-1"
+            style={{ WebkitOverflowScrolling: 'touch' }}
+          >
+            {columns.map((col, colIdx) => (
+              <Draggable key={col.slug} draggableId={col.slug} index={colIdx} isDragDisabled={!canEdit}>
+                {(colDragProvided) => (
+              <div
+                ref={colDragProvided.innerRef}
+                {...colDragProvided.draggableProps}
+                className="group rounded-lg p-3 min-h-[200px] min-w-[280px] w-[280px] shrink-0 snap-start flex flex-col" style={{ backgroundColor: `${col.color}10` }}>
                 <div className="flex items-center justify-between mb-3">
                   {editingColumnId === col.id ? (
                     <div className="flex items-center gap-1">
@@ -1419,6 +1478,11 @@ export default function KanbanBoard() {
                     </div>
                   ) : (
                     <div className="flex items-center gap-2">
+                      {canEdit && (
+                        <div {...colDragProvided.dragHandleProps} className="cursor-grab text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" title="Arrastar para reordenar">
+                          <GripVertical className="h-4 w-4" />
+                        </div>
+                      )}
                       <Popover>
                         <PopoverTrigger asChild>
                           <button className="h-4 w-4 rounded-full shrink-0 border border-border" style={{ backgroundColor: col.color }} />
@@ -1617,7 +1681,10 @@ export default function KanbanBoard() {
                   </div>
                 )}
               </div>
+                )}
+              </Draggable>
             ))}
+            {colProvided.placeholder}
             {canEdit && (
               <div className="flex items-center justify-center shrink-0 min-h-[200px]">
                 <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full border-2 border-dashed border-muted text-muted-foreground hover:text-foreground hover:border-foreground" onClick={addColumn}>
@@ -1626,6 +1693,8 @@ export default function KanbanBoard() {
               </div>
             )}
           </div>
+            )}
+          </Droppable>
         </DragDropContext>
       )}
 
@@ -1711,14 +1780,14 @@ export default function KanbanBoard() {
                   <SelectTrigger><SelectValue placeholder="Selecione um responsável..." /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="none">Nenhum</SelectItem>
-                    {members.filter((m) => m.user_id && m.status !== "pendente").map((m) => (
+                    {members.filter((m) => m.user_id && m.status !== "pendente" && companyAccessUserIds.has(m.user_id)).map((m) => (
                       <SelectItem key={m.user_id} value={m.user_id!}>
                         {((m.profiles as any)?.nickname?.trim()) || (m.profiles as any)?.full_name || (m.profiles as any)?.email || "Sem nome"}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
-                {members.filter((m) => m.user_id && m.status !== "pendente").length === 0 && (
+                {members.filter((m) => m.user_id && m.status !== "pendente" && companyAccessUserIds.has(m.user_id)).length === 0 && (
                   <p className="text-xs text-muted-foreground">
                     Nenhum membro ativo. Adicione membros à equipe do projeto.
                   </p>
@@ -1819,7 +1888,13 @@ export default function KanbanBoard() {
       </Dialog>
 
       {selectedTask && (
-        <TaskDetail taskId={selectedTask} onClose={() => { setSelectedTask(null); load(); }} onTaskDeleted={load} projectMembers={members} />
+        <TaskDetail
+          taskId={selectedTask}
+          onClose={() => { setSelectedTask(null); load(); }}
+          onTaskDeleted={load}
+          projectMembers={members}
+          companyAccessUserIds={companyAccessUserIds}
+        />
       )}
 
       <AlertDialog open={!!deleteColumnId} onOpenChange={(open) => { if (!open) setDeleteColumnId(null); }}>
