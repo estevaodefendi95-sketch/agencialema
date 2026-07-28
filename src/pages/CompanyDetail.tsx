@@ -244,7 +244,7 @@ export default function CompanyDetail() {
               {(company.website_url || company.instagram_url) && (
                 <div className="flex items-center gap-3 mt-2">
                   {company.website_url && (
-                    <a href={company.website_url} target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-primary transition-colors" title="Site">
+                    <a href={company.website_url} target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-primary transition-colors" title="Link">
                       <Globe className="h-4 w-4" />
                     </a>
                   )}

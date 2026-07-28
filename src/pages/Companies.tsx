@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -10,8 +11,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Building2, Pencil, Trash2, Upload, X, LayoutGrid, List, Globe, Camera, Crown } from "lucide-react";
+import { Plus, Building2, Pencil, Trash2, Upload, X, LayoutGrid, List, Globe, Camera, Crown, ClipboardList } from "lucide-react";
 import ImageCropper from "@/components/ImageCropper";
 import { CompanyDocuments } from "@/components/CompanyDocuments";
 
@@ -31,7 +33,10 @@ interface Company {
 export default function Companies() {
   const { isAdmin, isEditor } = useAuth();
   const { toast } = useToast();
+  const navigate = useNavigate();
   const [companies, setCompanies] = useState<Company[]>([]);
+  const [projectsByCompany, setProjectsByCompany] = useState<Record<string, { id: string; name: string }[]>>({});
+  const [planningPopoverFor, setPlanningPopoverFor] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Company | null>(null);
   const [name, setName] = useState("");
@@ -49,6 +54,17 @@ export default function Companies() {
   const load = async () => {
     const { data } = await supabase.from("companies").select("*").order("name");
     setCompanies(data || []);
+
+    const { data: projectsData } = await supabase
+      .from("projects")
+      .select("id, name, company_id, archived")
+      .order("name");
+    const grouped: Record<string, { id: string; name: string }[]> = {};
+    (projectsData || []).forEach((p: any) => {
+      if (!p.company_id || p.archived) return;
+      (grouped[p.company_id] ||= []).push({ id: p.id, name: p.name });
+    });
+    setProjectsByCompany(grouped);
   };
 
   useEffect(() => { load(); }, []);
@@ -103,6 +119,11 @@ export default function Companies() {
     await supabase.from("companies").delete().eq("id", id);
     toast({ title: "Empresa removida" });
     load();
+  };
+
+  const openPlanning = (projectId: string) => {
+    setPlanningPopoverFor(null);
+    navigate(`/projetos/${projectId}?tab=planejamento`);
   };
 
   return (
@@ -166,7 +187,7 @@ export default function Companies() {
                   <TableCell>
                     <div className="flex items-center gap-2">
                       {c.website_url && (
-                        <a href={c.website_url} target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-primary transition-colors" title="Site">
+                        <a href={c.website_url} target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-primary transition-colors" title="Link">
                           <Globe className="h-4 w-4" />
                         </a>
                       )}
@@ -201,38 +222,44 @@ export default function Companies() {
       ) : (
         <>
           <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
-            {companies.map((c) => (
+            {companies.map((c) => {
+              const companyProjects = projectsByCompany[c.id] || [];
+              const planningLabel = c.planning_label || "Planejamento";
+              return (
               <Card key={c.id}>
                 <CardHeader className="flex flex-row items-start justify-between">
-                  <div className="flex items-center gap-3">
+                  <div
+                    className="flex items-center gap-3 cursor-pointer group/name min-w-0"
+                    onClick={() => navigate(`/empresas/${c.id}`)}
+                  >
                     {c.logo_url ? (
-                      <img src={c.logo_url} alt={c.name} className="h-10 w-10 object-cover rounded-full border" />
+                      <img src={c.logo_url} alt={c.name} className="h-10 w-10 object-cover rounded-full border shrink-0" />
                     ) : (
-                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 shrink-0">
                         <Building2 className="h-5 w-5 text-primary" />
                       </div>
                     )}
-                    <div>
-                      <CardTitle className="text-base flex items-center gap-1.5">
+                    <div className="min-w-0">
+                      <CardTitle className="text-base flex items-center gap-1.5 group-hover/name:text-primary transition-colors truncate">
                         {c.name}
                         {c.is_master && (
-                          <Badge variant="outline" className="gap-1 text-[10px] font-normal">
+                          <Badge variant="outline" className="gap-1 text-[10px] font-normal shrink-0">
                             <Crown className="h-3 w-3" /> Master
                           </Badge>
                         )}
                       </CardTitle>
-                      <CardDescription className="text-xs">{c.slug}</CardDescription>
+                      <CardDescription className="text-xs truncate">{c.slug}</CardDescription>
                     </div>
                   </div>
                   {isAdmin && (
-                    <div className="flex gap-1">
+                    <div className="flex gap-1 shrink-0">
                       <Button variant="ghost" size="icon" onClick={() => openEdit(c)}><Pencil className="h-4 w-4" /></Button>
                       <Button variant="ghost" size="icon" onClick={() => remove(c.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
                     </div>
                   )}
                 </CardHeader>
-                {(c.description || c.website_url || c.instagram_url) && (
-                  <CardContent className="space-y-2">
+                {(c.description || c.website_url || c.instagram_url || companyProjects.length > 0) && (
+                  <CardContent className="space-y-3">
                     {c.description && <p className="text-sm text-muted-foreground line-clamp-2 break-words">{c.description}</p>}
                     {(c.website_url || c.instagram_url) && (
                       <div className="flex items-center gap-2">
@@ -243,7 +270,7 @@ export default function Companies() {
                             rel="noopener noreferrer"
                             onClick={(e) => e.stopPropagation()}
                             className="text-muted-foreground hover:text-primary transition-colors"
-                            title="Site"
+                            title="Link"
                           >
                             <Globe className="h-4 w-4" />
                           </a>
@@ -262,10 +289,38 @@ export default function Companies() {
                         )}
                       </div>
                     )}
+                    {companyProjects.length === 1 ? (
+                      <Button size="sm" className="gap-2 w-full" onClick={() => openPlanning(companyProjects[0].id)}>
+                        <ClipboardList className="h-4 w-4" /> {planningLabel}
+                      </Button>
+                    ) : companyProjects.length > 1 ? (
+                      <Popover open={planningPopoverFor === c.id} onOpenChange={(o) => setPlanningPopoverFor(o ? c.id : null)}>
+                        <PopoverTrigger asChild>
+                          <Button size="sm" className="gap-2 w-full">
+                            <ClipboardList className="h-4 w-4" /> {planningLabel}
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent align="end" className="w-64 p-2">
+                          <p className="text-xs font-medium text-muted-foreground px-2 py-1">Escolha o projeto</p>
+                          <div className="space-y-0.5">
+                            {companyProjects.map((p) => (
+                              <button
+                                key={p.id}
+                                onClick={() => openPlanning(p.id)}
+                                className="w-full text-left px-2 py-1.5 rounded text-sm hover:bg-accent transition-colors"
+                              >
+                                {p.name}
+                              </button>
+                            ))}
+                          </div>
+                        </PopoverContent>
+                      </Popover>
+                    ) : null}
                   </CardContent>
                 )}
               </Card>
-            ))}
+              );
+            })}
           </div>
 
           {companies.length === 0 && (
