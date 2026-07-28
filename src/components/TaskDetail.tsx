@@ -216,6 +216,17 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted, projectMemb
   };
 
   const deleteTask = async () => {
+    // task_history tem ON DELETE CASCADE em task_id, então some junto com a
+    // tarefa — registra a exclusão em project_history (que sobrevive) pra
+    // aparecer no Histórico do Projeto mesmo depois que a tarefa não existe mais.
+    if (task.project_id) {
+      await (supabase.from as any)("project_history").insert({
+        project_id: task.project_id,
+        action: "delete_task",
+        previous_data: { title: task.title },
+        user_id: user?.id,
+      });
+    }
     await supabase.from("task_checklists").delete().eq("task_id", taskId);
     await supabase.from("task_comments").delete().eq("task_id", taskId);
     await supabase.from("task_history").delete().eq("task_id", taskId);
@@ -320,12 +331,12 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted, projectMemb
     load();
   };
 
-  const uploadMedia = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
+  const uploadFiles = async (files: FileList | File[]) => {
+    const list = Array.from(files);
+    if (list.length === 0) return;
     setUploading(true);
 
-    for (const file of Array.from(files)) {
+    for (const file of list) {
       const ext = file.name.split(".").pop()?.toLowerCase() || "";
       const videoExts = ["mp4", "webm", "mov"];
       const docExts = ["pdf", "doc", "docx", "ppt", "pptx", "xls", "xlsx", "txt", "csv"];
@@ -350,7 +361,31 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted, projectMemb
     setUploading(false);
     toast({ title: "Mídias enviadas" });
     load();
+  };
+
+  const uploadMedia = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (files) uploadFiles(files);
     e.target.value = "";
+  };
+
+  // Cola uma imagem do clipboard (Ctrl+V) direto como anexo, sem precisar
+  // abrir o seletor de arquivos.
+  const handleMediaPaste = (e: React.ClipboardEvent<HTMLDivElement>) => {
+    if (!canEdit) return;
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    const images: File[] = [];
+    Array.from(items).forEach((item) => {
+      if (item.type.startsWith("image/")) {
+        const file = item.getAsFile();
+        if (file) images.push(file);
+      }
+    });
+    if (images.length > 0) {
+      e.preventDefault();
+      uploadFiles(images);
+    }
   };
 
   const addSubtask = async () => {
@@ -757,7 +792,7 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted, projectMemb
             <Separator />
 
             {/* Media & Documents */}
-            <div>
+            <div tabIndex={0} onPaste={handleMediaPaste} className="outline-none">
               <div className="flex items-center gap-2 mb-2">
                 <Image className="h-4 w-4" />
                 <Label className="font-semibold">Mídias e Documentos</Label>
@@ -780,14 +815,26 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted, projectMemb
                           <img src={m.file_url} alt={m.file_name} className="w-full h-24 object-cover hover:opacity-90 transition-opacity" />
                         </a>
                       )}
-                      {canEdit && (
-                        <button
-                          onClick={() => deleteMedia(m)}
-                          className="absolute top-1 right-1 bg-destructive text-destructive-foreground rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                      <div className="absolute top-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <a
+                          href={m.file_url}
+                          download={m.file_name}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="bg-background/80 backdrop-blur-sm border border-border rounded-full p-0.5 hover:bg-background"
+                          title="Baixar"
                         >
-                          <X className="h-3 w-3" />
-                        </button>
-                      )}
+                          <Download className="h-3 w-3" />
+                        </a>
+                        {canEdit && (
+                          <button
+                            onClick={() => deleteMedia(m)}
+                            className="bg-destructive text-destructive-foreground rounded-full p-0.5"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        )}
+                      </div>
                       <p className="text-[10px] text-muted-foreground truncate px-1 py-0.5">{m.file_name}</p>
                     </div>
                   ))}
@@ -796,7 +843,7 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted, projectMemb
 
               <label className="flex items-center gap-2 cursor-pointer text-sm text-muted-foreground hover:text-foreground transition-colors">
                 <Upload className="h-4 w-4" />
-                {uploading ? "Enviando..." : "Adicionar mídias ou documentos"}
+                {uploading ? "Enviando..." : "Adicionar mídias ou documentos (ou cole uma imagem com Ctrl+V)"}
                 <input type="file" accept="image/*,video/mp4,video/webm,.pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt,.csv" multiple className="hidden" onChange={uploadMedia} disabled={uploading} />
               </label>
             </div>

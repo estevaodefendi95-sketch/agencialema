@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
 import {
   format,
@@ -25,10 +25,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Textarea } from "@/components/ui/textarea";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Command, CommandList, CommandEmpty, CommandGroup, CommandItem } from "@/components/ui/command";
 import { useToast } from "@/hooks/use-toast";
 import { DragDropContext, Droppable, Draggable, type DropResult } from "@hello-pangea/dnd";
-import { Plus, GripVertical, Calendar, CalendarDays, ThumbsUp, RotateCcw, ImageIcon, Play, LayoutGrid, List, ArrowUpDown, Pencil, Check, X, Trash2, Palette, History, Undo2, Users, UserPlus, FileText, CheckSquare, Upload, Printer, MessageSquare, Eye, EyeOff, Loader2, Clock, ChevronLeft, ChevronRight, ClipboardList, CornerDownRight } from "lucide-react";
+import { Plus, GripVertical, Calendar, CalendarDays, ThumbsUp, RotateCcw, ImageIcon, Play, LayoutGrid, List, ArrowUpDown, Pencil, Check, X, Trash2, Palette, History, Undo2, Users, User, FileText, CheckSquare, Upload, Printer, MessageSquare, Eye, EyeOff, Clock, ChevronLeft, ChevronRight, ClipboardList, CornerDownRight } from "lucide-react";
 import { CalendarColorToggle } from "@/components/CalendarColorToggle";
 import { useCalendarColorMode } from "@/hooks/useCalendarColorMode";
 import { getEntityColor, TEAM_COLOR_PALETTE } from "@/lib/colorPalette";
@@ -80,13 +79,17 @@ interface Column {
 
 interface HistoryEntry {
   id: string;
-  project_id: string;
   action: string;
-  previous_data: any;
-  new_data: any;
+  previous_data?: any;
+  new_data?: any;
   user_id: string | null;
   created_at: string;
   profiles?: { full_name: string | null; nickname?: string | null } | null;
+  // "project": vem de project_history. "task": vem de task_history de uma
+  // tarefa deste projeto (taskTitle resolvido a partir de tasks carregadas).
+  source: "project" | "task";
+  taskTitle?: string | null;
+  details?: any;
 }
 
 interface ProjectMember {
@@ -105,6 +108,7 @@ const ACTION_LABELS: Record<string, string> = {
   unarchive: "Projeto desarquivado",
   delete: "Projeto excluído",
   undo: "Alteração desfeita",
+  delete_task: "Excluiu tarefa",
 };
 interface MediaInfo {
   file_url: string;
@@ -155,6 +159,16 @@ export default function KanbanBoard() {
   // user_ids com acesso liberado à empresa deste projeto (user_company_access) —
   // usado pra restringir quem pode ser sugerido/selecionado como responsável.
   const [companyAccessUserIds, setCompanyAccessUserIds] = useState<Set<string>>(new Set());
+  // Perfis de quem já tem acesso liberado à empresa deste projeto — a aba
+  // "Equipe do Projeto" lista a partir daqui (não mais busca/convite por e-mail).
+  const [companyAccessProfiles, setCompanyAccessProfiles] = useState<
+    { id: string; full_name: string | null; nickname: string | null; email: string | null; avatar_url: string | null }[]
+  >([]);
+  // Perfis de todo mundo com tarefa atribuída neste projeto (tasks.assigned_to),
+  // independente de constar em project_members — usado no filtro de responsável.
+  const [assigneeProfiles, setAssigneeProfiles] = useState<
+    Record<string, { full_name: string | null; nickname: string | null; email: string | null; avatar_url: string | null }>
+  >({});
   const [newTaskOpen, setNewTaskOpen] = useState(false);
   const [selectedTask, setSelectedTask] = useState<string | null>(null);
   const [newTitle, setNewTitle] = useState("");
@@ -174,13 +188,6 @@ export default function KanbanBoard() {
   // Team management
   const [members, setMembers] = useState<ProjectMember[]>([]);
   const [teamOpen, setTeamOpen] = useState(false);
-  const [inviteEmail, setInviteEmail] = useState("");
-  const [inviting, setInviting] = useState(false);
-  const [inviteOpen, setInviteOpen] = useState(false);
-  const [profileResults, setProfileResults] = useState<
-    { id: string; full_name: string | null; nickname: string | null; email: string | null; avatar_url: string | null }[]
-  >([]);
-  const [searchingProfiles, setSearchingProfiles] = useState(false);
 
   // Inline column editing
   const [editingColumnId, setEditingColumnId] = useState<string | null>(null);
@@ -311,152 +318,34 @@ export default function KanbanBoard() {
     setMembers(enriched);
   }, [projectId]);
 
-  // Busca por nome/e-mail/apelido conforme o usuário digita, pro autocomplete
-  // do convite. Só sugere gente que já tem acesso liberado à empresa deste
-  // projeto (companyAccessUserIds) — quem não tem acesso ainda não aparece aqui.
-  useEffect(() => {
-    const term = inviteEmail.trim();
-    if (term.length < 2 || companyAccessUserIds.size === 0) {
-      setProfileResults([]);
-      setSearchingProfiles(false);
-      return;
-    }
-    let cancelled = false;
-    setSearchingProfiles(true);
-    const handle = setTimeout(async () => {
-      const safeTerm = term.replace(/[,()%]/g, "");
-      const pattern = `%${safeTerm}%`;
-      const { data } = await supabase
-        .from("profiles")
-        .select("id, full_name, nickname, email, avatar_url")
-        .in("id", Array.from(companyAccessUserIds))
-        .or(`full_name.ilike.${pattern},email.ilike.${pattern},nickname.ilike.${pattern}`)
-        .limit(8);
-      if (cancelled) return;
-      setProfileResults((data || []) as any);
-      setSearchingProfiles(false);
-    }, 300);
-    return () => {
-      cancelled = true;
-      clearTimeout(handle);
-    };
-  }, [inviteEmail, companyAccessUserIds]);
+  const removeMember = async (memberId: string) => {
+    await (supabase.from as any)("project_members").delete().eq("id", memberId);
+    toast({ title: "Membro removido" });
+    loadMembers();
+  };
 
-  // Selecionar um perfil já cadastrado no autocomplete: libera acesso à
-  // empresa do projeto se ainda não tiver, e já entra como "ativo" (nunca
-  // "pendente" pra alguém que já existe e foi escolhido da lista).
-  const selectProfile = async (profile: { id: string; full_name: string | null; nickname: string | null; email: string | null }) => {
-    if (!projectId) return;
-    setInviteOpen(false);
-    setInviting(true);
-
-    const dup = members.some((m) => m.user_id === profile.id);
-    if (dup) {
-      toast({ title: "Já é membro deste projeto", variant: "destructive" });
-      setInviting(false);
-      setInviteEmail("");
-      return;
-    }
-
-    const { data: proj } = await supabase.from("projects").select("company_id").eq("id", projectId).single();
-    const companyId = proj?.company_id;
-
-    if (companyId) {
-      const { data: access } = await (supabase.from as any)("user_company_access")
-        .select("id")
-        .eq("user_id", profile.id)
-        .eq("company_id", companyId)
-        .maybeSingle();
-      if (!access) {
-        await (supabase.from as any)("user_company_access").insert({ user_id: profile.id, company_id: companyId });
+  // Liga/desliga a participação de alguém (que já tem acesso à empresa) neste
+  // projeto específico — sem passo de convite, insere/remove direto em
+  // project_members conforme o Switch é alternado.
+  const toggleProjectMembership = async (userId: string, active: boolean) => {
+    if (active) {
+      const existing = members.find((m) => m.user_id === userId);
+      if (existing) {
+        await removeMember(existing.id);
       }
+      return;
     }
-
+    if (!projectId) return;
     const { error } = await (supabase.from as any)("project_members").insert({
       project_id: projectId,
-      user_id: profile.id,
+      user_id: userId,
       invited_email: null,
       status: "ativo",
     });
-
-    setInviting(false);
     if (error) {
       toast({ title: "Erro ao adicionar", description: error.message, variant: "destructive" });
       return;
     }
-
-    setInviteEmail("");
-    setProfileResults([]);
-    toast({ title: `${profile.nickname?.trim() || profile.full_name || profile.email} adicionado à equipe` });
-    loadMembers();
-  };
-
-  const inviteMember = async () => {
-    const email = inviteEmail.trim().toLowerCase();
-    if (!email || !projectId) return;
-    setInviting(true);
-
-    // Look up project's company id
-    const { data: proj } = await supabase.from("projects").select("company_id").eq("id", projectId).single();
-    const companyId = proj?.company_id;
-
-    // Check if profile exists
-    const { data: profile } = await supabase.from("profiles").select("id, full_name").eq("email", email).maybeSingle();
-
-    let userId: string | null = null;
-    let isActive = false;
-
-    if (profile && companyId) {
-      // Check company access
-      const { data: access } = await (supabase.from as any)("user_company_access")
-        .select("id")
-        .eq("user_id", profile.id)
-        .eq("company_id", companyId)
-        .maybeSingle();
-      if (access) {
-        userId = profile.id;
-        isActive = true;
-      }
-    }
-
-    // Prevent duplicates
-    const dup = members.some((m) =>
-      (userId && m.user_id === userId) ||
-      (!userId && (m.invited_email || "").toLowerCase() === email)
-    );
-    if (dup) {
-      toast({ title: "Já é membro ou convidado", variant: "destructive" });
-      setInviting(false);
-      return;
-    }
-
-    const { error } = await (supabase.from as any)("project_members").insert({
-      project_id: projectId,
-      user_id: userId,
-      invited_email: isActive ? null : email,
-      status: isActive ? "ativo" : "pendente",
-    });
-
-    if (error) {
-      toast({ title: "Erro ao convidar", description: error.message, variant: "destructive" });
-      setInviting(false);
-      return;
-    }
-
-    setInviteEmail("");
-    toast({
-      title: isActive
-        ? `${profile?.full_name || email} adicionado à equipe`
-        : `Convite enviado para ${email}`,
-      description: isActive ? undefined : "Aguardando o usuário ganhar acesso à empresa.",
-    });
-    setInviting(false);
-    loadMembers();
-  };
-
-  const removeMember = async (memberId: string) => {
-    await (supabase.from as any)("project_members").delete().eq("id", memberId);
-    toast({ title: "Membro removido" });
     loadMembers();
   };
 
@@ -470,15 +359,40 @@ export default function KanbanBoard() {
   useEffect(() => {
     if (!companyId) {
       setCompanyAccessUserIds(new Set());
+      setCompanyAccessProfiles([]);
       return;
     }
     (async () => {
       const { data } = await (supabase.from as any)("user_company_access")
-        .select("user_id")
+        .select("user_id, profiles(id, full_name, nickname, email, avatar_url)")
         .eq("company_id", companyId);
-      setCompanyAccessUserIds(new Set((data || []).map((r: any) => r.user_id)));
+      const profiles = (data || [])
+        .map((r: any) => r.profiles)
+        .filter(Boolean);
+      setCompanyAccessProfiles(profiles);
+      setCompanyAccessUserIds(new Set(profiles.map((p: any) => p.id)));
     })();
   }, [companyId]);
+
+  // Perfis de quem tem tarefa atribuída neste projeto — o filtro de responsável
+  // lista a partir de tasks.assigned_to direto, não de project_members (senão
+  // alguém atribuído sem ser membro formal do projeto não apareceria).
+  useEffect(() => {
+    const ids = Array.from(new Set(tasks.map((t) => t.assigned_to).filter(Boolean))) as string[];
+    if (ids.length === 0) {
+      setAssigneeProfiles({});
+      return;
+    }
+    (async () => {
+      const { data } = await supabase
+        .from("profiles")
+        .select("id, full_name, nickname, email, avatar_url")
+        .in("id", ids);
+      const map: Record<string, any> = {};
+      (data || []).forEach((p: any) => { map[p.id] = p; });
+      setAssigneeProfiles(map);
+    })();
+  }, [tasks]);
 
   useEffect(() => {
     if (!printOpen) return;
@@ -518,12 +432,22 @@ export default function KanbanBoard() {
     const taskId = result.draggableId;
     const newStatus = result.destination.droppableId;
     const newPos = result.destination.index;
+    const movedToOtherColumn = newStatus !== result.source.droppableId;
 
     setTasks((prev) =>
       prev.map((t) => (t.id === taskId ? { ...t, status: newStatus, position: newPos } : t))
     );
 
     await (supabase.from("tasks").update as any)({ status: newStatus, position: newPos }).eq("id", taskId);
+
+    if (movedToOtherColumn) {
+      const colLabel = columns.find((c) => c.slug === newStatus)?.label || newStatus;
+      await (supabase.from as any)("task_history").insert({
+        task_id: taskId,
+        user_id: user?.id,
+        action: `Moveu para ${colLabel}`,
+      });
+    }
   };
 
   const createTask = async () => {
@@ -546,6 +470,11 @@ export default function KanbanBoard() {
     }).select().single();
 
     if (created) {
+      await (supabase.from as any)("task_history").insert({
+        task_id: created.id,
+        user_id: user?.id,
+        action: "Criou tarefa",
+      });
       // Create checklist items
       if (newCheckItems.length > 0) {
         const items = newCheckItems.map((title, i) => ({ task_id: created.id, title, position: i }));
@@ -576,12 +505,14 @@ export default function KanbanBoard() {
 
   const approveTask = async (taskId: string) => {
     await (supabase.from("tasks").update as any)({ status: "aprovado" }).eq("id", taskId);
+    await (supabase.from as any)("task_history").insert({ task_id: taskId, user_id: user?.id, action: "Aprovou tarefa" });
     toast({ title: "Tarefa aprovada!" });
     load();
   };
 
   const requestAdjust = async (taskId: string) => {
     await (supabase.from("tasks").update as any)({ status: "em_andamento" }).eq("id", taskId);
+    await (supabase.from as any)("task_history").insert({ task_id: taskId, user_id: user?.id, action: "Solicitou ajuste" });
     toast({ title: "Ajuste solicitado — tarefa retornou para 'Em Andamento'" });
     load();
   };
@@ -670,8 +601,20 @@ export default function KanbanBoard() {
     );
   };
 
-  const getColumnTasks = (slug: string) =>
-    tasks.filter((t) => t.status === slug && matchesAssignee(t)).sort((a, b) => a.position - b.position);
+  // Memoizado por tasks/assigneeFilter — evita refiltrar+reordenar as tarefas
+  // de TODAS as colunas a cada render (ex: durante o drag de reordenar
+  // colunas, que não muda tasks, então o resultado é só reaproveitado).
+  const columnTasksBySlug = useMemo(() => {
+    const bySlug: Record<string, Task[]> = {};
+    tasks.forEach((t) => {
+      if (!matchesAssignee(t)) return;
+      (bySlug[t.status] ||= []).push(t);
+    });
+    Object.values(bySlug).forEach((list) => list.sort((a, b) => a.position - b.position));
+    return bySlug;
+  }, [tasks, assigneeFilter]);
+
+  const getColumnTasks = (slug: string) => columnTasksBySlug[slug] || [];
 
   const getAssigneeDisplay = (task: Task): { name: string; avatarUrl?: string | null; initial: string } | null => {
     if (task.assigned_to) {
@@ -768,13 +711,35 @@ export default function KanbanBoard() {
 
   const loadHistory = useCallback(async () => {
     if (!projectId) return;
-    const { data } = await (supabase.from as any)("project_history")
+    const { data: projectEntries } = await (supabase.from as any)("project_history")
       .select("*, profiles:user_id(full_name, nickname)")
       .eq("project_id", projectId)
       .order("created_at", { ascending: false })
       .limit(50);
-    setHistory(data || []);
-  }, [projectId]);
+
+    const taskIds = tasks.map((t) => t.id);
+    let taskEntries: any[] = [];
+    if (taskIds.length > 0) {
+      const { data } = await (supabase.from as any)("task_history")
+        .select("*, profiles:user_id(full_name, nickname)")
+        .in("task_id", taskIds)
+        .order("created_at", { ascending: false })
+        .limit(50);
+      taskEntries = data || [];
+    }
+
+    const taskTitleById: Record<string, string> = {};
+    tasks.forEach((t) => { taskTitleById[t.id] = t.title; });
+
+    const merged: HistoryEntry[] = [
+      ...(projectEntries || []).map((e: any) => ({ ...e, source: "project" as const })),
+      ...taskEntries.map((e: any) => ({ ...e, source: "task" as const, taskTitle: taskTitleById[e.task_id] })),
+    ]
+      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+      .slice(0, 50);
+
+    setHistory(merged);
+  }, [projectId, tasks]);
 
   useEffect(() => {
     if (historyOpen) loadHistory();
@@ -806,7 +771,22 @@ export default function KanbanBoard() {
     load();
   };
 
+  const formatHistoryTitle = (entry: HistoryEntry) => {
+    if (entry.source === "task") {
+      return entry.taskTitle ? `${entry.action} — ${entry.taskTitle}` : entry.action;
+    }
+    if (entry.action === "delete_task") {
+      const title = entry.previous_data?.title;
+      return title ? `Excluiu tarefa — ${title}` : "Excluiu tarefa";
+    }
+    return ACTION_LABELS[entry.action] || entry.action;
+  };
+
   const formatHistoryDetails = (entry: HistoryEntry) => {
+    if (entry.source === "task") {
+      const changes = entry.details?.changes;
+      return Array.isArray(changes) && changes.length > 0 ? changes.join(", ") : "";
+    }
     const parts: string[] = [];
     if (entry.previous_data?.name && entry.new_data?.name) {
       parts.push(`Nome: "${entry.previous_data.name}" → "${entry.new_data.name}"`);
@@ -819,11 +799,11 @@ export default function KanbanBoard() {
       const next = entry.new_data?.due_date ? new Date(entry.new_data.due_date).toLocaleDateString("pt-BR") : "sem prazo";
       parts.push(`Prazo: ${prev} → ${next}`);
     }
-    return parts.join(" | ") || ACTION_LABELS[entry.action] || entry.action;
+    return parts.join(" | ");
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 overflow-x-hidden">
       <div className="sticky top-0 z-10 bg-background pb-3 border-b space-y-3">
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div className="flex items-center gap-3">
@@ -852,7 +832,10 @@ export default function KanbanBoard() {
                       <Avatar className="h-7 w-7 border-2 border-background">
                         <AvatarImage src={(m.profiles as any)?.avatar_url || ""} />
                         <AvatarFallback className="text-[10px]">
-                          {(((m.profiles as any)?.nickname?.trim()) || (m.profiles as any)?.full_name || "?").charAt(0).toUpperCase()}
+                          {(() => {
+                            const name = ((m.profiles as any)?.nickname?.trim()) || (m.profiles as any)?.full_name || (m.profiles as any)?.email;
+                            return name ? name.charAt(0).toUpperCase() : <User className="h-3 w-3" />;
+                          })()}
                         </AvatarFallback>
                       </Avatar>
                     </TooltipTrigger>
@@ -944,25 +927,18 @@ export default function KanbanBoard() {
                   Sem responsável
                 </span>
               </SelectItem>
-              {members
-                .filter((m) => m.user_id && m.status === "ativo" && tasks.some((t) => t.assigned_to === m.user_id))
-                .map((m) => {
-                  const p: any = m.profiles;
-                  const name =
-                    p?.nickname?.trim() ||
-                    p?.full_name ||
-                    p?.email ||
-                    (m as any).invited_email ||
-                    "Sem nome";
-                  return (
-                    <SelectItem key={m.id} value={m.user_id as string}>
-                      <span className="flex items-center gap-2">
-                        <AssigneeAvatar url={p?.avatar_url} name={name} />
-                        {name}
-                      </span>
-                    </SelectItem>
-                  );
-                })}
+              {Array.from(new Set(tasks.map((t) => t.assigned_to).filter(Boolean) as string[])).map((userId) => {
+                const p = assigneeProfiles[userId];
+                const name = p?.nickname?.trim() || p?.full_name || p?.email || "Sem nome";
+                return (
+                  <SelectItem key={userId} value={userId}>
+                    <span className="flex items-center gap-2">
+                      <AssigneeAvatar url={p?.avatar_url} name={name} />
+                      {name}
+                    </span>
+                  </SelectItem>
+                );
+              })}
             </SelectContent>
           </Select>
           {/* Team Sheet */}
@@ -977,97 +953,34 @@ export default function KanbanBoard() {
                 <SheetTitle>Equipe do Projeto</SheetTitle>
               </SheetHeader>
               <div className="mt-4 space-y-4">
-                {canEdit && (
-                  <div className="flex gap-2">
-                    <Popover open={inviteOpen} onOpenChange={setInviteOpen}>
-                      <PopoverTrigger asChild>
-                        <Input
-                          placeholder="Nome ou e-mail..."
-                          value={inviteEmail}
-                          onChange={(e) => {
-                            setInviteEmail(e.target.value);
-                            setInviteOpen(true);
-                          }}
-                          onKeyDown={(e) => e.key === "Enter" && inviteMember()}
-                          className="text-sm"
-                        />
-                      </PopoverTrigger>
-                      <PopoverContent
-                        className="w-[--radix-popover-trigger-width] p-0"
-                        align="start"
-                        onOpenAutoFocus={(e) => e.preventDefault()}
-                      >
-                        <Command shouldFilter={false}>
-                          <CommandList>
-                            {searchingProfiles && (
-                              <div className="flex items-center gap-2 px-3 py-2.5 text-xs text-muted-foreground">
-                                <Loader2 className="h-3.5 w-3.5 animate-spin" /> Buscando...
-                              </div>
-                            )}
-                            {!searchingProfiles && inviteEmail.trim().length >= 2 && profileResults.length === 0 && (
-                              <CommandEmpty className="px-3 py-2.5 text-xs text-muted-foreground">
-                                Ninguém encontrado — Enter convida por e-mail
-                              </CommandEmpty>
-                            )}
-                            {profileResults.length > 0 && (
-                              <CommandGroup>
-                                {profileResults.map((p) => (
-                                  <CommandItem key={p.id} value={p.id} onSelect={() => selectProfile(p)}>
-                                    <AssigneeAvatar url={p.avatar_url} name={p.nickname || p.full_name || p.email} className="h-6 w-6 mr-2 shrink-0" />
-                                    <div className="flex flex-col min-w-0">
-                                      <span className="truncate text-sm">{p.nickname?.trim() || p.full_name || "Sem nome"}</span>
-                                      {p.email && <span className="truncate text-xs text-muted-foreground">{p.email}</span>}
-                                    </div>
-                                  </CommandItem>
-                                ))}
-                              </CommandGroup>
-                            )}
-                          </CommandList>
-                        </Command>
-                      </PopoverContent>
-                    </Popover>
-                    <Button size="sm" onClick={inviteMember} disabled={inviting}>
-                      <UserPlus className="h-4 w-4" />
-                    </Button>
-                  </div>
-                )}
-                <ScrollArea className="h-[calc(100vh-160px)]">
+                <p className="text-xs text-muted-foreground">
+                  Lista quem já tem acesso à empresa deste projeto. Ative para incluir na equipe do projeto; gente nova é convidada em Admin &gt; Usuários.
+                </p>
+                <ScrollArea className="h-[calc(100vh-180px)]">
                   <div className="space-y-2">
-                    {members.length === 0 && (
-                      <p className="text-sm text-muted-foreground text-center py-8">Nenhum membro adicionado</p>
+                    {companyAccessProfiles.length === 0 && (
+                      <p className="text-sm text-muted-foreground text-center py-8">Ninguém com acesso a esta empresa ainda.</p>
                     )}
-                    {members.map((m) => {
-                      const isPending = m.status === "pendente";
-                      const displayName = isPending
-                        ? (m.invited_email || "Convidado")
-                        : (((m.profiles as any)?.nickname?.trim()) || (m.profiles as any)?.full_name || "Sem nome");
-                      const subtitle = isPending ? "Aguardando aprovação" : (m.profiles as any)?.email;
+                    {companyAccessProfiles.map((p) => {
+                      const name = p.nickname?.trim() || p.full_name || p.email || "Sem nome";
+                      const isMember = members.some((m) => m.user_id === p.id && m.status === "ativo");
                       return (
-                        <div key={m.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50">
+                        <div key={p.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50">
                           <Avatar className="h-8 w-8">
-                            <AvatarImage src={(m.profiles as any)?.avatar_url || ""} />
+                            <AvatarImage src={p.avatar_url || ""} />
                             <AvatarFallback className="text-xs">
-                              {(displayName || "?").charAt(0).toUpperCase()}
+                              {name ? name.charAt(0).toUpperCase() : <User className="h-3.5 w-3.5" />}
                             </AvatarFallback>
                           </Avatar>
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium truncate">{displayName}</p>
-                            <p className="text-xs text-muted-foreground truncate">{subtitle}</p>
+                            <p className="text-sm font-medium truncate">{name}</p>
+                            {p.email && <p className="text-xs text-muted-foreground truncate">{p.email}</p>}
                           </div>
-                          {isPending ? (
-                            <Badge variant="secondary" className="bg-warning/20 text-warning text-[10px] shrink-0">
-                              Pendente
-                            </Badge>
-                          ) : (
-                            <Badge variant="secondary" className="bg-success/20 text-success text-[10px] shrink-0">
-                              Ativo
-                            </Badge>
-                          )}
-                          {canEdit && (
-                            <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => removeMember(m.id)}>
-                              <X className="h-3.5 w-3.5" />
-                            </Button>
-                          )}
+                          <Switch
+                            checked={isMember}
+                            disabled={!canEdit}
+                            onCheckedChange={() => toggleProjectMembership(p.id, isMember)}
+                          />
                         </div>
                       );
                     })}
@@ -1092,16 +1005,18 @@ export default function KanbanBoard() {
                     <p className="text-sm text-muted-foreground text-center py-8">Nenhum registro</p>
                   )}
                   {history.map((entry) => (
-                    <div key={entry.id} className="border rounded-lg p-3 space-y-1">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium">{ACTION_LABELS[entry.action] || entry.action}</span>
-                        {entry.previous_data && entry.action !== "create" && entry.action !== "delete" && (
-                          <Button variant="ghost" size="sm" className="h-6 gap-1 text-xs" onClick={() => undoHistory(entry)}>
+                    <div key={`${entry.source}-${entry.id}`} className="border rounded-lg p-3 space-y-1">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-sm font-medium truncate">{formatHistoryTitle(entry)}</span>
+                        {entry.source === "project" && entry.previous_data && entry.action !== "create" && entry.action !== "delete" && (
+                          <Button variant="ghost" size="sm" className="h-6 gap-1 text-xs shrink-0" onClick={() => undoHistory(entry)}>
                             <Undo2 className="h-3 w-3" /> Desfazer
                           </Button>
                         )}
                       </div>
-                      <p className="text-xs text-muted-foreground">{formatHistoryDetails(entry)}</p>
+                      {formatHistoryDetails(entry) && (
+                        <p className="text-xs text-muted-foreground">{formatHistoryDetails(entry)}</p>
+                      )}
                       <div className="flex items-center justify-between text-[10px] text-muted-foreground">
                         <span>{((entry.profiles as any)?.nickname?.trim()) || (entry.profiles as any)?.full_name || "Sistema"}</span>
                         <span>{new Date(entry.created_at).toLocaleString("pt-BR")}</span>
@@ -1479,7 +1394,7 @@ export default function KanbanBoard() {
                   ) : (
                     <div className="flex items-center gap-2">
                       {canEdit && (
-                        <div {...colDragProvided.dragHandleProps} className="cursor-grab text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" title="Arrastar para reordenar">
+                        <div {...colDragProvided.dragHandleProps} className="cursor-grab text-muted-foreground opacity-40 hover:opacity-100 transition-opacity" title="Arrastar para reordenar">
                           <GripVertical className="h-4 w-4" />
                         </div>
                       )}
