@@ -53,7 +53,7 @@ export type Database = {
           is_master: boolean
           logo_url: string | null
           name: string
-          planning_label: string | null
+          planning_label: string
           slug: string | null
           updated_at: string
           website_url: string | null
@@ -66,7 +66,7 @@ export type Database = {
           is_master?: boolean
           logo_url?: string | null
           name: string
-          planning_label?: string | null
+          planning_label?: string
           slug?: string | null
           updated_at?: string
           website_url?: string | null
@@ -79,48 +79,12 @@ export type Database = {
           is_master?: boolean
           logo_url?: string | null
           name?: string
-          planning_label?: string | null
+          planning_label?: string
           slug?: string | null
           updated_at?: string
           website_url?: string | null
         }
         Relationships: []
-      }
-      project_companies: {
-        Row: {
-          id: string
-          project_id: string
-          company_id: string
-          created_at: string
-        }
-        Insert: {
-          id?: string
-          project_id: string
-          company_id: string
-          created_at?: string
-        }
-        Update: {
-          id?: string
-          project_id?: string
-          company_id?: string
-          created_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "project_companies_project_id_fkey"
-            columns: ["project_id"]
-            isOneToOne: false
-            referencedRelation: "projects"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "project_companies_company_id_fkey"
-            columns: ["company_id"]
-            isOneToOne: false
-            referencedRelation: "companies"
-            referencedColumns: ["id"]
-          },
-        ]
       }
       company_documents: {
         Row: {
@@ -186,44 +150,6 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
-      }
-      presentation_versions: {
-        Row: {
-          created_at: string
-          created_by: string | null
-          id: string
-          name: string
-          presentation_id: string
-          snapshot: Json
-          visible_to_client: boolean
-        }
-        Insert: {
-          created_at?: string
-          created_by?: string | null
-          id?: string
-          name: string
-          presentation_id: string
-          snapshot: Json
-          visible_to_client?: boolean
-        }
-        Update: {
-          created_at?: string
-          created_by?: string | null
-          id?: string
-          name?: string
-          presentation_id?: string
-          snapshot?: Json
-          visible_to_client?: boolean
-        }
-        Relationships: [
-          {
-            foreignKeyName: "presentation_versions_presentation_id_fkey"
-            columns: ["presentation_id"]
-            isOneToOne: false
-            referencedRelation: "project_presentations"
-            referencedColumns: ["id"]
-          },
-        ]
       }
       presentation_blocks: {
         Row: {
@@ -345,6 +271,44 @@ export type Database = {
           },
         ]
       }
+      presentation_versions: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          name: string
+          presentation_id: string
+          snapshot: Json
+          visible_to_client: boolean
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          name: string
+          presentation_id: string
+          snapshot: Json
+          visible_to_client?: boolean
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          name?: string
+          presentation_id?: string
+          snapshot?: Json
+          visible_to_client?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "presentation_versions_presentation_id_fkey"
+            columns: ["presentation_id"]
+            isOneToOne: false
+            referencedRelation: "project_presentations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -415,6 +379,42 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "project_columns_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      project_companies: {
+        Row: {
+          company_id: string
+          created_at: string
+          id: string
+          project_id: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          id?: string
+          project_id: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          id?: string
+          project_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_companies_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_companies_project_id_fkey"
             columns: ["project_id"]
             isOneToOne: false
             referencedRelation: "projects"
@@ -831,17 +831,17 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "tasks_project_id_fkey"
-            columns: ["project_id"]
-            isOneToOne: false
-            referencedRelation: "projects"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "tasks_parent_task_id_fkey"
             columns: ["parent_task_id"]
             isOneToOne: false
             referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tasks_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
             referencedColumns: ["id"]
           },
         ]
@@ -960,6 +960,10 @@ export type Database = {
     Functions: {
       has_company_access: {
         Args: { _company_id: string; _user_id: string }
+        Returns: boolean
+      }
+      has_project_access: {
+        Args: { _project_id: string; _user_id: string }
         Returns: boolean
       }
       has_role: {
