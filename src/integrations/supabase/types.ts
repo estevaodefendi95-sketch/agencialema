@@ -783,6 +783,8 @@ export type Database = {
           position: number
           priority: Database["public"]["Enums"]["task_priority"]
           project_id: string | null
+          recurrence_days: number[] | null
+          recurrence_type: string
           reminder_minutes_before: number | null
           reminder_sent_at: string | null
           status: string
@@ -803,6 +805,8 @@ export type Database = {
           position?: number
           priority?: Database["public"]["Enums"]["task_priority"]
           project_id?: string | null
+          recurrence_days?: number[] | null
+          recurrence_type?: string
           reminder_minutes_before?: number | null
           reminder_sent_at?: string | null
           status?: string
@@ -823,6 +827,8 @@ export type Database = {
           position?: number
           priority?: Database["public"]["Enums"]["task_priority"]
           project_id?: string | null
+          recurrence_days?: number[] | null
+          recurrence_type?: string
           reminder_minutes_before?: number | null
           reminder_sent_at?: string | null
           status?: string
