@@ -1362,7 +1362,30 @@ export default function KanbanBoard() {
         </div>
       ) : (
         <DragDropContext onDragEnd={onColumnDragEnd}>
-          <Droppable droppableId="board-columns" direction="horizontal" type="COLUMN">
+          <Droppable
+            droppableId="board-columns"
+            direction="horizontal"
+            type="COLUMN"
+            renderClone={(provided, snapshot, rubric) => {
+              const col = columns[rubric.source.index];
+              return (
+                <div
+                  ref={provided.innerRef}
+                  {...provided.draggableProps}
+                  {...provided.dragHandleProps}
+                  className="rounded-lg border bg-card shadow-lg p-3 w-[280px]"
+                >
+                  <div className="flex items-center gap-2">
+                    <div className="h-4 w-4 rounded-full shrink-0" style={{ backgroundColor: col.color }} />
+                    <span className="font-medium text-sm truncate">{col.label}</span>
+                    <Badge variant="secondary" className="text-xs ml-auto shrink-0">
+                      {getColumnTasks(col.slug).length}
+                    </Badge>
+                  </div>
+                </div>
+              );
+            }}
+          >
             {(colProvided) => (
           <div
             ref={colProvided.innerRef}
@@ -1372,11 +1395,15 @@ export default function KanbanBoard() {
           >
             {columns.map((col, colIdx) => (
               <Draggable key={col.slug} draggableId={col.slug} index={colIdx} isDragDisabled={!canEdit}>
-                {(colDragProvided) => (
+                {(colDragProvided, colDragSnapshot) => (
               <div
                 ref={colDragProvided.innerRef}
                 {...colDragProvided.draggableProps}
-                className="group rounded-lg p-3 min-h-[200px] min-w-[280px] w-[280px] shrink-0 snap-start flex flex-col" style={{ backgroundColor: `${col.color}10` }}>
+                className={cn(
+                  "group rounded-lg p-3 min-h-[200px] min-w-[280px] w-[280px] shrink-0 snap-start flex flex-col",
+                  colDragSnapshot.isDragging && "opacity-40",
+                )}
+                style={{ backgroundColor: `${col.color}10` }}>
                 <div className="flex items-center justify-between mb-3">
                   {editingColumnId === col.id ? (
                     <div className="flex items-center gap-1">

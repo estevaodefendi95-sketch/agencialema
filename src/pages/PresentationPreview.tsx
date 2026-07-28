@@ -80,7 +80,7 @@ export default function PresentationPreview() {
   return (
     <div>
       {/* Preview banner */}
-      <div className="sticky top-0 z-50 bg-foreground text-background px-4 py-2.5 flex items-center justify-between gap-3 shadow-md">
+      <div className="sticky top-0 z-20 bg-foreground text-background px-4 py-2.5 flex items-center justify-between gap-3 shadow-md">
         <div className="flex items-center gap-2 text-sm">
           <EyeOff className="h-4 w-4" />
           <span className="font-medium">Modo pré-visualização</span>
