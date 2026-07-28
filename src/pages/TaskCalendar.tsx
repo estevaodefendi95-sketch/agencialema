@@ -29,7 +29,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { CalendarDays, Building2, FolderKanban, X, MessageSquare, ChevronLeft, ChevronRight, Plus, Clock } from "lucide-react";
+import { CalendarDays, Building2, FolderKanban, X, MessageSquare, ChevronLeft, ChevronRight, Plus, Clock, CornerDownRight } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { REMINDER_OPTIONS, formatDueTime } from "@/lib/taskReminders";
 import { AssigneeAvatar } from "@/components/AssigneeAvatar";
@@ -51,6 +51,7 @@ type TaskWithRelations = {
   project_id: string;
   status: string;
   color: string | null;
+  parent_task_id: string | null;
   projects: { name: string; company_id: string; color: string | null; companies: { name: string; logo_url: string | null } | null } | null;
   assignee?: { full_name: string | null; nickname?: string | null; avatar_url: string | null; color?: string | null } | null;
   comment_count?: number;
@@ -286,7 +287,7 @@ export default function TaskCalendar() {
     setLoading(true);
     const { data, error } = await supabase
       .from("tasks")
-      .select("id, title, due_date, due_time, priority, assigned_to, assignee_name, project_id, status, color, projects(name, company_id, color, companies(name, logo_url))")
+      .select("id, title, due_date, due_time, priority, assigned_to, assignee_name, project_id, status, color, parent_task_id, projects(name, company_id, color, companies(name, logo_url))")
       .not("due_date", "is", null)
       .order("due_date", { ascending: true });
 
@@ -522,6 +523,9 @@ export default function TaskCalendar() {
         {colorMode === "responsavel" && (task.assigned_to || task.assignee_name) && (
           <AssigneeAvatar url={task.assignee?.avatar_url} name={assigneeName} className="h-5 w-5 shrink-0" />
         )}
+        {task.parent_task_id && (
+          <span title="Subtarefa"><CornerDownRight className="h-3 w-3 shrink-0" /></span>
+        )}
         <span className="truncate">{task.title}</span>
       </button>
     );
@@ -592,7 +596,12 @@ export default function TaskCalendar() {
                       style={{ borderLeftColor: color, backgroundColor: `${color}15` }}
                     >
                       <div className="flex items-start justify-between gap-2 mb-2">
-                        <h3 className="font-medium text-sm">{task.title}</h3>
+                        <h3 className="font-medium text-sm flex items-center gap-1">
+                          {task.parent_task_id && (
+                            <span title="Subtarefa"><CornerDownRight className="h-3 w-3 text-muted-foreground shrink-0" /></span>
+                          )}
+                          <span className="truncate">{task.title}</span>
+                        </h3>
                         <Badge variant="outline" className="shrink-0">
                           <span className={cn("h-2 w-2 rounded-full mr-1.5", priorityColor[task.priority])} />
                           {priorityLabel[task.priority]}

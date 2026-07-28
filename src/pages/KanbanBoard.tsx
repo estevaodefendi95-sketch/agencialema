@@ -28,7 +28,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Command, CommandList, CommandEmpty, CommandGroup, CommandItem } from "@/components/ui/command";
 import { useToast } from "@/hooks/use-toast";
 import { DragDropContext, Droppable, Draggable, type DropResult } from "@hello-pangea/dnd";
-import { Plus, GripVertical, Calendar, CalendarDays, ThumbsUp, RotateCcw, ImageIcon, Play, LayoutGrid, List, ArrowUpDown, Pencil, Check, X, Trash2, Palette, History, Undo2, Users, UserPlus, FileText, CheckSquare, Upload, Printer, MessageSquare, Eye, EyeOff, Loader2, Clock, ChevronLeft, ChevronRight, ClipboardList } from "lucide-react";
+import { Plus, GripVertical, Calendar, CalendarDays, ThumbsUp, RotateCcw, ImageIcon, Play, LayoutGrid, List, ArrowUpDown, Pencil, Check, X, Trash2, Palette, History, Undo2, Users, UserPlus, FileText, CheckSquare, Upload, Printer, MessageSquare, Eye, EyeOff, Loader2, Clock, ChevronLeft, ChevronRight, ClipboardList, CornerDownRight } from "lucide-react";
 import { CalendarColorToggle } from "@/components/CalendarColorToggle";
 import { useCalendarColorMode } from "@/hooks/useCalendarColorMode";
 import { getEntityColor, TEAM_COLOR_PALETTE } from "@/lib/colorPalette";
@@ -67,6 +67,7 @@ interface Task {
   assignee_name: string | null;
   project_id: string;
   color: string | null;
+  parent_task_id: string | null;
 }
 
 interface Column {
@@ -603,6 +604,9 @@ export default function KanbanBoard() {
         {colorMode === "responsavel" && (task.assigned_to || task.assignee_name) && (
           <AssigneeAvatar url={assignee.avatarUrl} name={assignee.name} className="h-4 w-4 shrink-0" />
         )}
+        {task.parent_task_id && (
+          <span title="Subtarefa"><CornerDownRight className="h-3 w-3 shrink-0" /></span>
+        )}
         <span className="truncate">{task.title}</span>
       </button>
     );
@@ -621,6 +625,9 @@ export default function KanbanBoard() {
           <div className="flex items-center gap-2 min-w-0">
             {colorMode === "responsavel" && (task.assigned_to || task.assignee_name) && (
               <AssigneeAvatar url={assignee.avatarUrl} name={assignee.name} className="h-5 w-5 shrink-0" />
+            )}
+            {task.parent_task_id && (
+              <span title="Subtarefa"><CornerDownRight className="h-3 w-3 text-muted-foreground shrink-0" /></span>
             )}
             <h3 className="font-medium text-sm truncate">{task.title}</h3>
           </div>
@@ -1184,10 +1191,13 @@ export default function KanbanBoard() {
                                     </Popover>
                                   )}
                                   <p
-                                    className="flex-1 text-sm font-medium truncate hover:text-primary min-w-0"
+                                    className="flex-1 text-sm font-medium truncate hover:text-primary min-w-0 flex items-center gap-1"
                                     onClick={() => setSelectedTask(task.id)}
                                   >
-                                    {task.title}
+                                    {task.parent_task_id && (
+                                      <span title="Subtarefa"><CornerDownRight className="h-3 w-3 text-muted-foreground shrink-0" /></span>
+                                    )}
+                                    <span className="truncate">{task.title}</span>
                                   </p>
                                   {task.description && (
                                     <span className="hidden md:block text-xs text-muted-foreground truncate max-w-[200px] shrink-0">
@@ -1467,8 +1477,11 @@ export default function KanbanBoard() {
                                     </div>
                                     <div className="flex-1 min-w-0">
                                       <div className="flex items-start gap-1.5">
-                                        <p className="font-medium text-sm cursor-pointer hover:text-primary truncate flex-1" onClick={() => setSelectedTask(task.id)}>
-                                          {task.title}
+                                        <p className="font-medium text-sm cursor-pointer hover:text-primary truncate flex-1 flex items-center gap-1" onClick={() => setSelectedTask(task.id)}>
+                                          {task.parent_task_id && (
+                                            <span title="Subtarefa"><CornerDownRight className="h-3 w-3 text-muted-foreground shrink-0" /></span>
+                                          )}
+                                          <span className="truncate">{task.title}</span>
                                         </p>
                                         {media && !visibleMedia[task.id] && (
                                           <button

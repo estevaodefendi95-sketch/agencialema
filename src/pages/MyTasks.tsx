@@ -14,7 +14,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
 import { DragDropContext, Droppable, Draggable, type DropResult } from "@hello-pangea/dnd";
-import { LayoutGrid, List, CalendarDays, FolderKanban, ChevronLeft, ChevronRight, Filter, CheckSquare, User, Plus, GripVertical, Clock } from "lucide-react";
+import { LayoutGrid, List, CalendarDays, FolderKanban, ChevronLeft, ChevronRight, Filter, CheckSquare, User, Plus, GripVertical, Clock, CornerDownRight } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { REMINDER_OPTIONS, formatDueTime } from "@/lib/taskReminders";
 import { AssigneeAvatar } from "@/components/AssigneeAvatar";
@@ -45,6 +45,7 @@ type Task = {
   assigned_to: string | null;
   project_id: string | null;
   created_by: string | null;
+  parent_task_id: string | null;
   position: number;
   color: string | null;
   projects: { name: string; company_id: string; color: string | null; companies: { name: string } | null } | null;
@@ -275,7 +276,7 @@ export default function MyTasks() {
     setLoading(true);
     const { data, error } = await supabase
       .from("tasks")
-      .select("id, title, description, status, priority, due_date, due_time, assigned_to, created_by, project_id, position, color, projects(name, company_id, color, companies(name))")
+      .select("id, title, description, status, priority, due_date, due_time, assigned_to, created_by, parent_task_id, project_id, position, color, projects(name, company_id, color, companies(name))")
       .eq("assigned_to", uid)
       .not("project_id", "is", null)
       .order("due_date", { ascending: true, nullsFirst: false });
@@ -290,7 +291,7 @@ export default function MyTasks() {
     if (user && uid === user.id) {
       const { data: personalData, error: personalError } = await supabase
         .from("tasks")
-        .select("id, title, description, status, priority, due_date, due_time, assigned_to, created_by, project_id, position, color")
+        .select("id, title, description, status, priority, due_date, due_time, assigned_to, created_by, parent_task_id, project_id, position, color")
         .is("project_id", null)
         .eq("created_by", user.id)
         .order("due_date", { ascending: true, nullsFirst: false });
@@ -468,6 +469,9 @@ export default function MyTasks() {
             className="h-4 w-4 shrink-0"
           />
         )}
+        {task.parent_task_id && (
+          <span title="Subtarefa"><CornerDownRight className="h-3 w-3 shrink-0" /></span>
+        )}
         <span className="truncate min-w-0 flex-1">{task.title}</span>
       </button>
     );
@@ -622,6 +626,9 @@ export default function MyTasks() {
                                         <div className="flex-1 min-w-0">
                                           <div className="flex items-center gap-1.5 min-w-0">
                                             <AssigneeAvatar url={viewedAvatarUrl} name={viewedName} className="h-5 w-5 shrink-0" />
+                                            {t.parent_task_id && (
+                                              <span title="Subtarefa"><CornerDownRight className="h-3 w-3 text-muted-foreground shrink-0" /></span>
+                                            )}
                                             <p
                                               className={cn(
                                                 "font-medium text-sm truncate",
@@ -723,7 +730,12 @@ export default function MyTasks() {
                         onClick={(e) => e.stopPropagation()}
                         onCheckedChange={(v) => toggleComplete(t, !!v)}
                       />
-                      <span className={cn("truncate", t.status === "concluido" && "line-through text-muted-foreground")}>{t.title}</span>
+                      <span className={cn("flex items-center gap-1 min-w-0 truncate", t.status === "concluido" && "line-through text-muted-foreground")}>
+                        {t.parent_task_id && (
+                          <span title="Subtarefa"><CornerDownRight className="h-3 w-3 text-muted-foreground shrink-0" /></span>
+                        )}
+                        <span className="truncate">{t.title}</span>
+                      </span>
                       {t.project_id ? (
                         <span className="text-xs text-muted-foreground truncate">{t.projects?.name || "—"}</span>
                       ) : (
@@ -822,6 +834,9 @@ export default function MyTasks() {
                               <Checkbox checked={t.status === "concluido"} onClick={(e) => e.stopPropagation()} onCheckedChange={(v) => toggleComplete(t, !!v)} />
                               {colorMode === "responsavel" && (
                                 <AssigneeAvatar url={viewedAvatarUrl} name={viewedName} className="h-5 w-5 shrink-0" />
+                              )}
+                              {t.parent_task_id && (
+                                <span title="Subtarefa"><CornerDownRight className="h-3 w-3 text-muted-foreground shrink-0" /></span>
                               )}
                               <span className={cn("font-medium text-sm flex-1", t.status === "concluido" && "line-through text-muted-foreground")}>{t.title}</span>
                               <Badge variant="outline">{PRIORITY_LABEL[t.priority]}</Badge>

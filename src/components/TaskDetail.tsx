@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -15,8 +16,11 @@ import { Switch } from "@/components/ui/switch";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useToast } from "@/hooks/use-toast";
-import { Send, Plus, CheckSquare, History, Image, Upload, X, Trash2, Pencil, Save, FileText, Download, ChevronDown, ChevronUp, User, Check, Clock } from "lucide-react";
+import { Send, Plus, CheckSquare, History, Image, Upload, X, Trash2, Pencil, Save, FileText, Download, ChevronDown, ChevronUp, User, Check, Clock, ListTree } from "lucide-react";
 import { REMINDER_OPTIONS } from "@/lib/taskReminders";
+import { AssigneeAvatar } from "@/components/AssigneeAvatar";
+
+const DONE_LIKE_STATUSES = ["aprovado", "concluido"];
 
 interface ProjectMember {
   id: string;
@@ -80,6 +84,16 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted, projectMemb
   const [activityOpen, setActivityOpen] = useState(false);
   const activityBottomRef = useRef<HTMLDivElement>(null);
 
+  // Subtarefas
+  const [subtasks, setSubtasks] = useState<any[]>([]);
+  const [addingSubtask, setAddingSubtask] = useState(false);
+  const [newSubtaskTitle, setNewSubtaskTitle] = useState("");
+  const [newSubtaskAssignee, setNewSubtaskAssignee] = useState("");
+  const [newSubtaskPriority, setNewSubtaskPriority] = useState("media");
+  const [newSubtaskDue, setNewSubtaskDue] = useState("");
+  const [savingSubtask, setSavingSubtask] = useState(false);
+  const [viewingSubtaskId, setViewingSubtaskId] = useState<string | null>(null);
+
   const load = async () => {
     const { data: t } = await supabase.from("tasks").select("*").eq("id", taskId).single();
     setTask(t);
@@ -140,6 +154,13 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted, projectMemb
 
     const { data: m } = await supabase.from("task_media").select("*").eq("task_id", taskId).order("created_at");
     setMedia(m || []);
+
+    const { data: st } = await supabase
+      .from("tasks")
+      .select("id, title, status, priority, assigned_to, assignee_name")
+      .eq("parent_task_id", taskId)
+      .order("created_at", { ascending: true });
+    setSubtasks(st || []);
   };
 
   useEffect(() => { load(); }, [taskId]);
@@ -322,6 +343,44 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted, projectMemb
     e.target.value = "";
   };
 
+  const addSubtask = async () => {
+    if (!newSubtaskTitle.trim() || !user || !task) return;
+    setSavingSubtask(true);
+
+    let initialStatus = "a_fazer";
+    if (task.project_id) {
+      const { data: cols } = await supabase
+        .from("project_columns")
+        .select("slug")
+        .eq("project_id", task.project_id)
+        .order("position", { ascending: true })
+        .limit(1);
+      initialStatus = cols?.[0]?.slug || "a_fazer";
+    }
+
+    const { error } = await supabase.from("tasks").insert({
+      project_id: task.project_id,
+      parent_task_id: taskId,
+      title: newSubtaskTitle.trim(),
+      priority: newSubtaskPriority,
+      due_date: newSubtaskDue || null,
+      assigned_to: newSubtaskAssignee || user.id,
+      status: initialStatus,
+      created_by: user.id,
+      position: 0,
+    } as any);
+
+    setSavingSubtask(false);
+    if (error) {
+      toast({ title: "Erro ao criar subtarefa", description: error.message, variant: "destructive" });
+      return;
+    }
+    toast({ title: "Subtarefa criada" });
+    setNewSubtaskTitle(""); setNewSubtaskAssignee(""); setNewSubtaskPriority("media"); setNewSubtaskDue("");
+    setAddingSubtask(false);
+    load();
+  };
+
   if (!task) return null;
 
   const completedCount = checklist.filter((c) => c.completed).length;
@@ -379,6 +438,7 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted, projectMemb
   };
 
   return (
+    <>
     <Dialog open onOpenChange={() => onClose()}>
       <DialogContent className="max-w-2xl h-[90vh] flex flex-col p-0 gap-0 overflow-hidden">
         <DialogHeader className="px-6 pt-6 pb-3 border-b shrink-0 pr-14">
@@ -510,6 +570,112 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted, projectMemb
                 >
                   {editDesc || "Clique para adicionar descrição..."}
                 </p>
+              )}
+            </div>
+
+            <Separator />
+
+            {/* Subtarefas */}
+            <div>
+              <div className="flex items-center gap-2 mb-2">
+                <ListTree className="h-4 w-4" />
+                <Label className="font-semibold">Subtarefas</Label>
+                {subtasks.length > 0 && (
+                  <span className="text-xs text-muted-foreground">
+                    ({subtasks.filter((st) => DONE_LIKE_STATUSES.includes(st.status)).length}/{subtasks.length})
+                  </span>
+                )}
+              </div>
+
+              {subtasks.length > 0 && (
+                <div className="space-y-1 mb-2">
+                  {subtasks.map((st) => {
+                    const isDone = DONE_LIKE_STATUSES.includes(st.status);
+                    const profile = st.assigned_to ? projectMembers.find((m) => m.user_id === st.assigned_to)?.profiles : null;
+                    const name = (profile as any)?.nickname?.trim() || profile?.full_name || st.assignee_name || null;
+                    return (
+                      <button
+                        key={st.id}
+                        type="button"
+                        onClick={() => setViewingSubtaskId(st.id)}
+                        className="w-full flex items-center gap-2 px-2 py-1.5 rounded hover:bg-accent transition-colors text-left"
+                      >
+                        <Checkbox checked={isDone} className="pointer-events-none shrink-0" />
+                        <span className={`text-sm flex-1 min-w-0 truncate ${isDone ? "line-through text-muted-foreground" : ""}`}>
+                          {st.title}
+                        </span>
+                        {(st.assigned_to || st.assignee_name) && (
+                          <AssigneeAvatar url={(profile as any)?.avatar_url} name={name} className="h-5 w-5 shrink-0" />
+                        )}
+                        <Badge variant="outline" className="text-[10px] shrink-0">{priorityLabels[st.priority] || st.priority}</Badge>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
+              {canEdit && (
+                addingSubtask ? (
+                  <div className="border rounded-lg p-3 space-y-2">
+                    <Input
+                      placeholder="Título da subtarefa"
+                      value={newSubtaskTitle}
+                      onChange={(e) => setNewSubtaskTitle(e.target.value)}
+                      className="h-9 text-sm"
+                      autoFocus
+                    />
+                    <div className="grid grid-cols-2 gap-2">
+                      <Select value={newSubtaskAssignee || (user?.id ?? "")} onValueChange={setNewSubtaskAssignee}>
+                        <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Responsável" /></SelectTrigger>
+                        <SelectContent>
+                          {user && (
+                            <SelectItem value={user.id}>
+                              <span className="flex items-center gap-2"><AssigneeAvatar name="Eu" />Eu mesmo</span>
+                            </SelectItem>
+                          )}
+                          {projectMembers.filter((m) => m.user_id !== user?.id).map((m) => (
+                            <SelectItem key={m.user_id} value={m.user_id}>
+                              <span className="flex items-center gap-2">
+                                <AssigneeAvatar url={(m.profiles as any)?.avatar_url} name={(m.profiles as any)?.nickname || (m.profiles as any)?.full_name} />
+                                {(m.profiles as any)?.nickname || (m.profiles as any)?.full_name || "Sem nome"}
+                              </span>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Select value={newSubtaskPriority} onValueChange={setNewSubtaskPriority}>
+                        <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          {Object.entries(priorityLabels).map(([k, v]) => (
+                            <SelectItem key={k} value={k}>{v}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <Input
+                      type="date"
+                      value={newSubtaskDue}
+                      onChange={(e) => setNewSubtaskDue(e.target.value)}
+                      className="h-9 text-sm"
+                    />
+                    <div className="flex justify-end gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => { setAddingSubtask(false); setNewSubtaskTitle(""); setNewSubtaskAssignee(""); setNewSubtaskPriority("media"); setNewSubtaskDue(""); }}
+                      >
+                        Cancelar
+                      </Button>
+                      <Button size="sm" onClick={addSubtask} disabled={!newSubtaskTitle.trim() || savingSubtask}>
+                        {savingSubtask ? "Salvando..." : "Adicionar"}
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setAddingSubtask(true)}>
+                    <Plus className="h-3.5 w-3.5" /> Adicionar subtarefa
+                  </Button>
+                )
               )}
             </div>
 
@@ -788,5 +954,14 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted, projectMemb
         )}
       </DialogContent>
     </Dialog>
+    {viewingSubtaskId && (
+      <TaskDetail
+        taskId={viewingSubtaskId}
+        onClose={() => { setViewingSubtaskId(null); load(); }}
+        onTaskDeleted={() => { setViewingSubtaskId(null); load(); }}
+        projectMembers={projectMembers}
+      />
+    )}
+    </>
   );
 }
