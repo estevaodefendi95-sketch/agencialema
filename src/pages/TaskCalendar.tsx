@@ -548,7 +548,7 @@ export default function TaskCalendar() {
         {iconOnly ? (
           <button
             onClick={(e) => e.stopPropagation()}
-            className="h-6 w-6 inline-flex items-center justify-center rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
+            className="opacity-0 group-hover:opacity-100 h-6 w-6 inline-flex items-center justify-center rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-opacity"
             title="Nova tarefa"
           >
             <Plus className="h-3.5 w-3.5" />
@@ -613,13 +613,13 @@ export default function TaskCalendar() {
             </div>
             {canEdit && <NewTaskMenu day={cursor} />}
           </CardHeader>
-          <CardContent>
+          <CardContent className="group">
             {loading ? (
               <div className="text-center py-12 text-muted-foreground">Carregando...</div>
             ) : dayTasks.length === 0 ? (
               <div className="text-center py-12 text-muted-foreground">Nenhuma tarefa neste dia</div>
             ) : (
-              <ScrollArea className="h-[500px] pr-3">
+              <ScrollArea className="max-h-[500px] pr-3">
                 <div className="space-y-2">
                   {dayTasks.map((task) => {
                     const color = getTaskColor(task);
@@ -693,7 +693,7 @@ export default function TaskCalendar() {
               </ScrollArea>
             )}
             {canEdit && (
-              <div className="flex justify-center pt-2">
+              <div className="flex justify-center mt-1">
                 <NewTaskMenu day={cursor} iconOnly />
               </div>
             )}

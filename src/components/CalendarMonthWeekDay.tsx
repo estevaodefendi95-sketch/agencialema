@@ -133,8 +133,8 @@ export function CalendarWeekGrid<T>({
           const today = isToday(day);
           const dayTasks = getDayTasks(day);
           return (
-            <div key={day.toISOString()} className="border-r last:border-r-0 flex flex-col min-h-[500px]">
-              <div className={cn("group flex items-center justify-between px-2 py-2 border-b", today && "bg-primary/5")}>
+            <div key={day.toISOString()} className="group border-r last:border-r-0 flex flex-col min-h-[500px]">
+              <div className={cn("flex items-center justify-between px-2 py-2 border-b", today && "bg-primary/5")}>
                 <button onClick={() => onDayClick(day)} className="text-left hover:opacity-80 flex-1 transition-colors">
                   <div className="text-[10px] uppercase text-muted-foreground tracking-wide">{format(day, "EEE", { locale: ptBR })}</div>
                   <div className={cn("text-lg font-semibold inline-flex h-7 min-w-7 px-1 items-center justify-center rounded-full", today && "bg-primary text-primary-foreground")}>
@@ -157,12 +157,12 @@ export function CalendarWeekGrid<T>({
                 ) : (
                   dayTasks.map((t) => <ItemComponent key={getTaskKey(t)} task={t} />)
                 )}
+                {renderDayFooterAction && (
+                  <div className="flex justify-center mt-1" onClick={(e) => e.stopPropagation()}>
+                    {renderDayFooterAction(day)}
+                  </div>
+                )}
               </div>
-              {renderDayFooterAction && (
-                <div className="p-1 border-t flex justify-center shrink-0" onClick={(e) => e.stopPropagation()}>
-                  {renderDayFooterAction(day)}
-                </div>
-              )}
             </div>
           );
         })}
@@ -176,18 +176,25 @@ interface DayListProps<T> {
   ItemComponent: ComponentType<{ task: T }>;
   getTaskKey: (task: T) => string;
   emptyState?: ReactNode;
-  /** Ação fixa logo abaixo da última tarefa da lista — ex: botão "+" sempre visível. */
+  /** Ação no rodapé, logo abaixo da última tarefa da lista — ex: botão "+" visível no hover. */
   footerAction?: ReactNode;
 }
 
 export function CalendarDayList<T>({ tasks, ItemComponent, getTaskKey, emptyState, footerAction }: DayListProps<T>) {
-  if (tasks.length === 0 && emptyState) return <>{emptyState}</>;
+  if (tasks.length === 0 && emptyState) {
+    return (
+      <>
+        {emptyState}
+        {footerAction && <div className="flex justify-center mt-1">{footerAction}</div>}
+      </>
+    );
+  }
   return (
     <div className="space-y-2">
       {tasks.map((t) => (
         <ItemComponent key={getTaskKey(t)} task={t} />
       ))}
-      {footerAction && <div className="flex justify-center pt-1">{footerAction}</div>}
+      {footerAction && <div className="flex justify-center mt-1">{footerAction}</div>}
     </div>
   );
 }

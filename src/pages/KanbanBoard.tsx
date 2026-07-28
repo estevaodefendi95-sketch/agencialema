@@ -1363,7 +1363,7 @@ export default function KanbanBoard() {
               renderDayFooterAction={canEdit ? (d) => (
                 <button
                   onClick={(e) => { e.stopPropagation(); openNewTaskForDay(d); }}
-                  className="h-6 w-6 inline-flex items-center justify-center rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
+                  className="opacity-0 group-hover:opacity-100 h-6 w-6 inline-flex items-center justify-center rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-opacity"
                   title="Nova tarefa"
                 >
                   <Plus className="h-3.5 w-3.5" />
@@ -1373,7 +1373,7 @@ export default function KanbanBoard() {
           )}
           {calViewMode === "dia" && (
             <Card>
-              <CardContent className="p-4">
+              <CardContent className="group p-4">
                 {getCalDayTasks(calCursor).length === 0 ? (
                   <p className="text-center py-12 text-muted-foreground">Nenhuma tarefa neste dia</p>
                 ) : (
@@ -1384,10 +1384,10 @@ export default function KanbanBoard() {
                   />
                 )}
                 {canEdit && (
-                  <div className="flex justify-center pt-2">
+                  <div className="flex justify-center mt-1">
                     <button
                       onClick={() => openNewTaskForDay(calCursor)}
-                      className="h-6 w-6 inline-flex items-center justify-center rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
+                      className="opacity-0 group-hover:opacity-100 h-6 w-6 inline-flex items-center justify-center rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-opacity"
                       title="Nova tarefa"
                     >
                       <Plus className="h-3.5 w-3.5" />
@@ -1454,7 +1454,11 @@ export default function KanbanBoard() {
                 </div>
                 <Droppable droppableId={col.slug}>
                   {(provided) => (
-                    <div ref={provided.innerRef} {...provided.droppableProps} className="space-y-2 min-h-[100px]">
+                    <div
+                      ref={provided.innerRef}
+                      {...provided.droppableProps}
+                      className={cn("space-y-2 min-h-[100px] flex-1 flex flex-col", getColumnTasks(col.slug).length === 0 && "items-center justify-center")}
+                    >
                       {getColumnTasks(col.slug).map((task, index) => {
                         const media = taskMedia[task.id];
                         return (
@@ -1587,15 +1591,25 @@ export default function KanbanBoard() {
                         );
                       })}
                       {provided.placeholder}
+                      {getColumnTasks(col.slug).length === 0 && canEdit && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 w-7 p-0 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-foreground"
+                          onClick={() => { setNewStatus(col.slug); setNewTaskOpen(true); }}
+                        >
+                          <Plus className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
                     </div>
                   )}
                 </Droppable>
-                {canEdit && (
-                  <div className="flex justify-center mt-auto pt-2">
+                {canEdit && getColumnTasks(col.slug).length > 0 && (
+                  <div className="flex justify-center mt-1">
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
+                      className="h-7 w-7 p-0 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-foreground"
                       onClick={() => { setNewStatus(col.slug); setNewTaskOpen(true); }}
                     >
                       <Plus className="h-3.5 w-3.5" />

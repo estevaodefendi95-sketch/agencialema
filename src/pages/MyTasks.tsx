@@ -276,7 +276,7 @@ export default function MyTasks() {
           {iconOnly ? (
             <button
               onClick={(e) => e.stopPropagation()}
-              className="h-6 w-6 inline-flex items-center justify-center rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
+              className="opacity-0 group-hover:opacity-100 h-6 w-6 inline-flex items-center justify-center rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-opacity"
               title="Nova tarefa"
             >
               <Plus className="h-3.5 w-3.5" />
@@ -634,7 +634,11 @@ export default function MyTasks() {
                       </div>
                       <Droppable droppableId={col.slug}>
                         {(prov) => (
-                          <div ref={prov.innerRef} {...prov.droppableProps} className="space-y-2 min-h-[100px]">
+                          <div
+                            ref={prov.innerRef}
+                            {...prov.droppableProps}
+                            className={cn("space-y-2 min-h-[100px] flex-1 flex flex-col", colTasks.length === 0 && "items-center justify-center")}
+                          >
                             {colTasks.map((t, idx) => (
                               <Draggable key={t.id} draggableId={t.id} index={idx}>
                                 {(p, snapshot) => (
@@ -713,20 +717,15 @@ export default function MyTasks() {
                               </Draggable>
                             ))}
                             {prov.placeholder}
+                            {colTasks.length === 0 && canEdit && (
+                              <NewTaskMenu statusSlug={col.slug} iconOnly />
+                            )}
                           </div>
                         )}
                       </Droppable>
-                      {canEdit && (
-                        <div className="flex justify-center mt-auto pt-2">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
-                            onClick={() => openNewTaskDialog(undefined, col.slug)}
-                            title="Nova tarefa nesta coluna"
-                          >
-                            <Plus className="h-3.5 w-3.5" />
-                          </Button>
+                      {canEdit && colTasks.length > 0 && (
+                        <div className="flex justify-center mt-1">
+                          <NewTaskMenu statusSlug={col.slug} iconOnly />
                         </div>
                       )}
                     </div>
@@ -842,13 +841,9 @@ export default function MyTasks() {
                 <Card>
                   <CardHeader className="flex flex-row items-center justify-between space-y-0">
                     <CardTitle className="text-base lowercase">{format(cursor, "EEEE, d 'de' MMMM", { locale: ptBR })}</CardTitle>
-                    {canEdit && (
-                      <Button size="sm" variant="outline" className="gap-1" onClick={() => openNewTaskDialog(cursor)}>
-                        <Plus className="h-4 w-4" /> Nova tarefa
-                      </Button>
-                    )}
+                    {canEdit && <NewTaskMenu prefillDate={cursor} />}
                   </CardHeader>
-                  <CardContent>
+                  <CardContent className="group">
                     {getDayTasks(cursor).length === 0 ? (
                       <p className="text-center py-12 text-muted-foreground">Nenhuma tarefa neste dia</p>
                     ) : (
@@ -881,7 +876,7 @@ export default function MyTasks() {
                       </div>
                     )}
                     {canEdit && (
-                      <div className="flex justify-center pt-2">
+                      <div className="flex justify-center mt-1">
                         <NewTaskMenu prefillDate={cursor} iconOnly />
                       </div>
                     )}
