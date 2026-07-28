@@ -222,7 +222,7 @@ export function AppSidebar() {
 
   return (
     <Sidebar collapsible="icon">
-      <SidebarHeader className="px-3 py-3 border-b border-sidebar-border">
+      <SidebarHeader className="h-14 px-3 flex flex-row items-center border-b border-sidebar-border">
         <div className="flex items-center gap-2">
           <div
             className={cn(

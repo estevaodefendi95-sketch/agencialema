@@ -167,7 +167,7 @@ export default function KanbanBoard() {
   // Perfis de todo mundo com tarefa atribuída neste projeto (tasks.assigned_to),
   // independente de constar em project_members — usado no filtro de responsável.
   const [assigneeProfiles, setAssigneeProfiles] = useState<
-    Record<string, { full_name: string | null; nickname: string | null; email: string | null; avatar_url: string | null }>
+    Record<string, { full_name: string | null; nickname: string | null; email: string | null; avatar_url: string | null; color?: string | null }>
   >({});
   const [newTaskOpen, setNewTaskOpen] = useState(false);
   const [selectedTask, setSelectedTask] = useState<string | null>(null);
@@ -386,7 +386,7 @@ export default function KanbanBoard() {
     (async () => {
       const { data } = await supabase
         .from("profiles")
-        .select("id, full_name, nickname, email, avatar_url")
+        .select("id, full_name, nickname, email, avatar_url, color")
         .in("id", ids);
       const map: Record<string, any> = {};
       (data || []).forEach((p: any) => { map[p.id] = p; });
@@ -532,7 +532,7 @@ export default function KanbanBoard() {
   };
 
   const getTaskColor = (t: Task) => {
-    const assigneeProfile = t.assigned_to ? members.find((m) => m.user_id === t.assigned_to)?.profiles : null;
+    const assigneeProfile = t.assigned_to ? assigneeProfiles[t.assigned_to] : null;
     return getTaskColorForMode({
       manualColor: t.color,
       projectId: t.project_id,
@@ -543,7 +543,7 @@ export default function KanbanBoard() {
   };
 
   const getAssigneeInfo = (t: Task) => {
-    const profile = t.assigned_to ? members.find((m) => m.user_id === t.assigned_to)?.profiles : null;
+    const profile = t.assigned_to ? assigneeProfiles[t.assigned_to] : null;
     return {
       avatarUrl: profile?.avatar_url ?? null,
       name: profile?.nickname?.trim() || profile?.full_name || t.assignee_name || null,
@@ -618,12 +618,10 @@ export default function KanbanBoard() {
 
   const getAssigneeDisplay = (task: Task): { name: string; avatarUrl?: string | null; initial: string } | null => {
     if (task.assigned_to) {
-      const m = members.find((x) => x.user_id === task.assigned_to);
-      const p: any = m?.profiles;
+      const p = assigneeProfiles[task.assigned_to];
       const full = (p?.nickname?.trim()) || p?.full_name || p?.email || "";
       const first = full.split(" ")[0];
-      // Sem membro/perfil resolvido (ex: criador atribuído automaticamente
-      // mas sem ser membro formal do projeto) — oculta em vez de mostrar "?".
+      // Perfil ainda não carregado/sem nome resolvido — oculta em vez de mostrar "?".
       if (!first) return null;
       return { name: first, avatarUrl: p?.avatar_url, initial: first.charAt(0).toUpperCase() };
     }
