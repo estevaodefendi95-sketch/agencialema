@@ -261,61 +261,63 @@ export default function Companies() {
                 {(c.description || c.website_url || c.instagram_url || companyProjects.length > 0) && (
                   <CardContent className="space-y-3">
                     {c.description && <p className="text-sm text-muted-foreground line-clamp-2 break-words">{c.description}</p>}
-                    {(c.website_url || c.instagram_url) && (
-                      <div className="flex items-center gap-2">
-                        {c.website_url && (
-                          <a
-                            href={c.website_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            onClick={(e) => e.stopPropagation()}
-                            className="text-muted-foreground hover:text-primary transition-colors"
-                            title="Link"
-                          >
-                            <Globe className="h-4 w-4" />
-                          </a>
-                        )}
-                        {c.instagram_url && (
-                          <a
-                            href={c.instagram_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            onClick={(e) => e.stopPropagation()}
-                            className="text-muted-foreground hover:text-primary transition-colors"
-                            title="Instagram"
-                          >
-                            <Camera className="h-4 w-4" />
-                          </a>
-                        )}
+                    {(c.website_url || c.instagram_url || companyProjects.length > 0) && (
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          {c.website_url && (
+                            <a
+                              href={c.website_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              onClick={(e) => e.stopPropagation()}
+                              className="text-muted-foreground hover:text-primary transition-colors"
+                              title="Link"
+                            >
+                              <Globe className="h-4 w-4" />
+                            </a>
+                          )}
+                          {c.instagram_url && (
+                            <a
+                              href={c.instagram_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              onClick={(e) => e.stopPropagation()}
+                              className="text-muted-foreground hover:text-primary transition-colors"
+                              title="Instagram"
+                            >
+                              <Camera className="h-4 w-4" />
+                            </a>
+                          )}
+                        </div>
+                        {companyProjects.length === 1 ? (
+                          <Button variant="outline" size="sm" className="gap-1.5 text-xs shrink-0" onClick={() => openPlanning(companyProjects[0].id)}>
+                            <ClipboardList className="h-3.5 w-3.5" /> {planningLabel}
+                          </Button>
+                        ) : companyProjects.length > 1 ? (
+                          <Popover open={planningPopoverFor === c.id} onOpenChange={(o) => setPlanningPopoverFor(o ? c.id : null)}>
+                            <PopoverTrigger asChild>
+                              <Button variant="outline" size="sm" className="gap-1.5 text-xs shrink-0">
+                                <ClipboardList className="h-3.5 w-3.5" /> {planningLabel}
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent align="end" className="w-64 p-2">
+                              <p className="text-xs font-medium text-muted-foreground px-2 py-1">Escolha o projeto</p>
+                              <div className="space-y-0.5">
+                                {companyProjects.map((p) => (
+                                  <button
+                                    key={p.id}
+                                    onClick={() => openPlanning(p.id)}
+                                    className="w-full text-left px-2 py-1.5 rounded text-sm hover:bg-accent transition-colors"
+                                  >
+                                    {p.name}
+                                  </button>
+                                ))}
+                              </div>
+                            </PopoverContent>
+                          </Popover>
+                        ) : null}
                       </div>
                     )}
-                    {companyProjects.length === 1 ? (
-                      <Button size="sm" className="gap-2 w-full" onClick={() => openPlanning(companyProjects[0].id)}>
-                        <ClipboardList className="h-4 w-4" /> {planningLabel}
-                      </Button>
-                    ) : companyProjects.length > 1 ? (
-                      <Popover open={planningPopoverFor === c.id} onOpenChange={(o) => setPlanningPopoverFor(o ? c.id : null)}>
-                        <PopoverTrigger asChild>
-                          <Button size="sm" className="gap-2 w-full">
-                            <ClipboardList className="h-4 w-4" /> {planningLabel}
-                          </Button>
-                        </PopoverTrigger>
-                        <PopoverContent align="end" className="w-64 p-2">
-                          <p className="text-xs font-medium text-muted-foreground px-2 py-1">Escolha o projeto</p>
-                          <div className="space-y-0.5">
-                            {companyProjects.map((p) => (
-                              <button
-                                key={p.id}
-                                onClick={() => openPlanning(p.id)}
-                                className="w-full text-left px-2 py-1.5 rounded text-sm hover:bg-accent transition-colors"
-                              >
-                                {p.name}
-                              </button>
-                            ))}
-                          </div>
-                        </PopoverContent>
-                      </Popover>
-                    ) : null}
                   </CardContent>
                 )}
               </Card>

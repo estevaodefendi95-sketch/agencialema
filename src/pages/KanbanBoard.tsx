@@ -823,33 +823,38 @@ export default function KanbanBoard() {
             <h2 className="text-2xl font-bold">{projectName}</h2>
           </div>
           {/* Team Avatars */}
-          {members.filter((m) => m.status !== "pendente").length > 0 && (
-            <TooltipProvider>
-              <div className="flex -space-x-2">
-                {members.filter((m) => m.status !== "pendente").slice(0, 5).map((m) => (
-                  <Tooltip key={m.id}>
-                    <TooltipTrigger asChild>
-                      <Avatar className="h-7 w-7 border-2 border-background">
-                        <AvatarImage src={(m.profiles as any)?.avatar_url || ""} />
-                        <AvatarFallback className="text-[10px]">
-                          {(() => {
-                            const name = ((m.profiles as any)?.nickname?.trim()) || (m.profiles as any)?.full_name || (m.profiles as any)?.email;
-                            return name ? name.charAt(0).toUpperCase() : <User className="h-3 w-3" />;
-                          })()}
-                        </AvatarFallback>
-                      </Avatar>
-                    </TooltipTrigger>
-                    <TooltipContent><p>{((m.profiles as any)?.nickname?.trim()) || (m.profiles as any)?.full_name || (m.profiles as any)?.email}</p></TooltipContent>
-                  </Tooltip>
-                ))}
-                {members.filter((m) => m.status !== "pendente").length > 5 && (
-                  <Avatar className="h-7 w-7 border-2 border-background">
-                    <AvatarFallback className="text-[10px]">+{members.filter((m) => m.status !== "pendente").length - 5}</AvatarFallback>
-                  </Avatar>
-                )}
-              </div>
-            </TooltipProvider>
-          )}
+          {(() => {
+            const activeMembers = members.filter(
+              (m) => m.status !== "pendente" && m.profiles && ((m.profiles as any).full_name || (m.profiles as any).email),
+            );
+            return activeMembers.length > 0 && (
+              <TooltipProvider>
+                <div className="flex -space-x-2">
+                  {activeMembers.slice(0, 5).map((m) => (
+                    <Tooltip key={m.id}>
+                      <TooltipTrigger asChild>
+                        <Avatar className="h-7 w-7 border-2 border-background">
+                          <AvatarImage src={(m.profiles as any)?.avatar_url || ""} />
+                          <AvatarFallback className="text-[10px]">
+                            {(() => {
+                              const name = ((m.profiles as any)?.nickname?.trim()) || (m.profiles as any)?.full_name || (m.profiles as any)?.email;
+                              return name ? name.charAt(0).toUpperCase() : <User className="h-3 w-3" />;
+                            })()}
+                          </AvatarFallback>
+                        </Avatar>
+                      </TooltipTrigger>
+                      <TooltipContent><p>{((m.profiles as any)?.nickname?.trim()) || (m.profiles as any)?.full_name || (m.profiles as any)?.email}</p></TooltipContent>
+                    </Tooltip>
+                  ))}
+                  {activeMembers.length > 5 && (
+                    <Avatar className="h-7 w-7 border-2 border-background">
+                      <AvatarFallback className="text-[10px]">+{activeMembers.length - 5}</AvatarFallback>
+                    </Avatar>
+                  )}
+                </div>
+              </TooltipProvider>
+            );
+          })()}
         </div>
         {canEdit && (
           <Button onClick={() => setNewTaskOpen(true)} className="gap-2">
