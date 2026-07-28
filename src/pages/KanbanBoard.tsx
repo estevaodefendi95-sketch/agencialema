@@ -572,6 +572,11 @@ export default function KanbanBoard() {
   const getCalDayTasks = (day: Date) =>
     tasks.filter((t) => t.due_date && matchesAssignee(t) && isSameDay(parseISO(t.due_date), day));
 
+  const openNewTaskForDay = (day: Date) => {
+    setNewDueDate(format(day, "yyyy-MM-dd"));
+    setNewTaskOpen(true);
+  };
+
   const getTaskColor = (t: Task) => {
     const assigneeProfile = t.assigned_to ? members.find((m) => m.user_id === t.assigned_to)?.profiles : null;
     return getTaskColorForMode({
@@ -1355,6 +1360,15 @@ export default function KanbanBoard() {
               ItemComponent={CalTaskPill}
               getTaskKey={(t) => t.id}
               onDayClick={(d) => { setCalCursor(d); setCalViewMode("dia"); }}
+              renderDayFooterAction={canEdit ? (d) => (
+                <button
+                  onClick={(e) => { e.stopPropagation(); openNewTaskForDay(d); }}
+                  className="h-6 w-6 inline-flex items-center justify-center rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
+                  title="Nova tarefa"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                </button>
+              ) : undefined}
             />
           )}
           {calViewMode === "dia" && (
@@ -1368,6 +1382,17 @@ export default function KanbanBoard() {
                     ItemComponent={CalTaskDayCard}
                     getTaskKey={(t) => t.id}
                   />
+                )}
+                {canEdit && (
+                  <div className="flex justify-center pt-2">
+                    <button
+                      onClick={() => openNewTaskForDay(calCursor)}
+                      className="h-6 w-6 inline-flex items-center justify-center rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
+                      title="Nova tarefa"
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
                 )}
               </CardContent>
             </Card>

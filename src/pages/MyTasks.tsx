@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
 import { DragDropContext, Droppable, Draggable, type DropResult } from "@hello-pangea/dnd";
@@ -90,6 +91,8 @@ const PRIORITY_LABEL: Record<string, string> = {
   baixa: "Baixa", media: "Média", alta: "Alta", urgente: "Urgente",
 };
 
+const WEEKDAY_LABELS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
+
 type ViewMode = "cards" | "lista" | "calendario";
 type CalMode = "mes" | "semana" | "dia";
 
@@ -131,6 +134,8 @@ export default function MyTasks() {
   const [ntAssignee, setNtAssignee] = useState<string>("");
   const [ntStatus, setNtStatus] = useState<string | null>(null);
   const [isPersonal, setIsPersonal] = useState(false);
+  const [ntRecurrence, setNtRecurrence] = useState<"none" | "daily" | "weekly" | "monthly">("none");
+  const [ntRecurrenceDays, setNtRecurrenceDays] = useState<number[]>([]);
 
   const changeView = (v: ViewMode) => {
     if (!v) return;
@@ -226,7 +231,7 @@ export default function MyTasks() {
       project_id: isPersonal ? null : ntProject,
       title: ntTitle.trim(),
       description: ntDesc.trim() || null,
-      priority: ntPriority,
+      priority: isPersonal ? "media" : ntPriority,
       due_date: ntDue || null,
       due_time: ntHasDueTime && ntDueTime ? ntDueTime : null,
       reminder_minutes_before: ntHasDueTime && ntDueTime && ntReminderMinutes !== "none" ? parseInt(ntReminderMinutes, 10) : null,
@@ -234,6 +239,10 @@ export default function MyTasks() {
       status: initialStatus,
       created_by: user.id,
       position: 0,
+      ...(isPersonal ? {
+        recurrence_type: ntRecurrence,
+        recurrence_days: ntRecurrence === "weekly" ? ntRecurrenceDays : null,
+      } : {}),
     } as any);
 
     setCreating(false);
@@ -246,6 +255,7 @@ export default function MyTasks() {
     setNtCompany(""); setNtProject(""); setNtTitle(""); setNtDesc(""); setNtPriority("media");
     setNtDue(""); setNtHasDueTime(false); setNtDueTime(""); setNtReminderMinutes("none");
     setNtAssignee(""); setNtStatus(null); setIsPersonal(false);
+    setNtRecurrence("none"); setNtRecurrenceDays([]);
     if (selectedUser) loadTasks(selectedUser);
   }
 
@@ -255,7 +265,38 @@ export default function MyTasks() {
     setNtStatus(statusSlug ?? null);
     setIsPersonal(!!personal);
     if (personal) { setNtCompany(""); setNtProject(""); setNtAssignee(""); }
+    setNtRecurrence("none"); setNtRecurrenceDays([]);
     setOpenNewTask(true);
+  }
+
+  function NewTaskMenu({ prefillDate, statusSlug, iconOnly }: { prefillDate?: Date; statusSlug?: string; iconOnly?: boolean }) {
+    return (
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          {iconOnly ? (
+            <button
+              onClick={(e) => e.stopPropagation()}
+              className="h-6 w-6 inline-flex items-center justify-center rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
+              title="Nova tarefa"
+            >
+              <Plus className="h-3.5 w-3.5" />
+            </button>
+          ) : (
+            <Button className="gap-2" size="sm">
+              <Plus className="h-4 w-4" /> Nova Tarefa
+            </Button>
+          )}
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuItem onClick={() => openNewTaskDialog(prefillDate, statusSlug, false)}>
+            <FolderKanban className="h-4 w-4 mr-2" /> Tarefa de projeto
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => openNewTaskDialog(prefillDate, statusSlug, true)}>
+            <User className="h-4 w-4 mr-2" /> Tarefa pessoal
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    );
   }
 
   async function saveTaskColor(taskId: string, color: string | null) {
@@ -501,16 +542,7 @@ export default function MyTasks() {
         </div>
 
         <div className="flex items-center gap-2">
-          {canEdit && (
-            <Button onClick={() => openNewTaskDialog()} className="gap-2" size="sm">
-              <Plus className="h-4 w-4" /> Nova Tarefa
-            </Button>
-          )}
-          {canEdit && (
-            <Button onClick={() => openNewTaskDialog(undefined, undefined, true)} variant="outline" className="gap-2" size="sm">
-              <Plus className="h-4 w-4" /> Tarefa pessoal
-            </Button>
-          )}
+          {canEdit && <NewTaskMenu />}
           {isAdmin && (
           <Select value={selectedUser} onValueChange={setSelectedUser}>
             <SelectTrigger className="w-[260px] gap-2">
@@ -781,11 +813,7 @@ export default function MyTasks() {
                   <span className="text-sm font-medium min-w-[180px] text-center lowercase">{periodLabel}</span>
                   <Button variant="outline" size="icon" className="h-8 w-8" onClick={navNext}><ChevronRight className="h-4 w-4" /></Button>
                   <Button variant="outline" size="sm" onClick={() => setCursor(new Date())}>Hoje</Button>
-                  {canEdit && (
-                    <Button size="sm" className="gap-1" onClick={() => openNewTaskDialog()}>
-                      <Plus className="h-4 w-4" /> Nova
-                    </Button>
-                  )}
+                  {canEdit && <NewTaskMenu />}
                 </div>
               </div>
 
@@ -807,6 +835,7 @@ export default function MyTasks() {
                   getTaskKey={(t) => t.id}
                   onDayClick={(d) => { setCursor(d); changeCalMode("dia"); }}
                   onAddDay={canEdit ? (d: Date) => openNewTaskDialog(d) : undefined}
+                  renderDayFooterAction={canEdit ? (d) => <NewTaskMenu prefillDate={d} iconOnly /> : undefined}
                 />
               )}
               {calMode === "dia" && (
@@ -849,6 +878,11 @@ export default function MyTasks() {
                           </div>
                           );
                         })}
+                      </div>
+                    )}
+                    {canEdit && (
+                      <div className="flex justify-center pt-2">
+                        <NewTaskMenu prefillDate={cursor} iconOnly />
                       </div>
                     )}
                   </CardContent>
@@ -900,24 +934,66 @@ export default function MyTasks() {
               <Label className="text-sm">Descrição</Label>
               <Textarea value={ntDesc} onChange={(e) => setNtDesc(e.target.value)} rows={3} />
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label className="text-sm">Prioridade</Label>
-                <Select value={ntPriority} onValueChange={(v) => setNtPriority(v as any)}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="baixa">Baixa</SelectItem>
-                    <SelectItem value="media">Média</SelectItem>
-                    <SelectItem value="alta">Alta</SelectItem>
-                    <SelectItem value="urgente">Urgente</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+            <div className={cn("grid gap-3", isPersonal ? "grid-cols-1" : "grid-cols-2")}>
+              {!isPersonal && (
+                <div className="space-y-1.5">
+                  <Label className="text-sm">Prioridade</Label>
+                  <Select value={ntPriority} onValueChange={(v) => setNtPriority(v as any)}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="baixa">Baixa</SelectItem>
+                      <SelectItem value="media">Média</SelectItem>
+                      <SelectItem value="alta">Alta</SelectItem>
+                      <SelectItem value="urgente">Urgente</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
               <div className="space-y-1.5">
                 <Label className="text-sm">Prazo</Label>
                 <Input type="date" value={ntDue} onChange={(e) => setNtDue(e.target.value)} />
               </div>
             </div>
+            {isPersonal && (
+              <div className="space-y-1.5">
+                <Label className="text-sm">Recorrência</Label>
+                <Select
+                  value={ntRecurrence}
+                  onValueChange={(v) => {
+                    setNtRecurrence(v as typeof ntRecurrence);
+                    if (v !== "weekly") setNtRecurrenceDays([]);
+                  }}
+                >
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Não repetir</SelectItem>
+                    <SelectItem value="daily">Diariamente</SelectItem>
+                    <SelectItem value="weekly">Semanalmente</SelectItem>
+                    <SelectItem value="monthly">Mensalmente</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+            {isPersonal && ntRecurrence === "weekly" && (
+              <div className="space-y-1.5">
+                <Label className="text-sm">Repetir nos dias</Label>
+                <div className="flex gap-1.5 flex-wrap">
+                  {WEEKDAY_LABELS.map((label, idx) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => setNtRecurrenceDays((prev) => prev.includes(idx) ? prev.filter((d) => d !== idx) : [...prev, idx])}
+                      className={cn(
+                        "h-8 w-8 rounded-full text-xs font-medium border transition-colors",
+                        ntRecurrenceDays.includes(idx) ? "bg-primary text-primary-foreground border-primary" : "border-input hover:bg-accent",
+                      )}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
             <div className="space-y-1.5">
               <Label className="text-sm flex items-center gap-1"><Clock className="h-3.5 w-3.5" /> Definir horário</Label>
               <div className="flex items-center gap-2">

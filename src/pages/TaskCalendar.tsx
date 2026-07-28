@@ -26,10 +26,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Button } from "@/components/ui/button";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { CalendarDays, Building2, FolderKanban, X, MessageSquare, ChevronLeft, ChevronRight, Plus, Clock, CornerDownRight } from "lucide-react";
+import { CalendarDays, Building2, FolderKanban, X, MessageSquare, ChevronLeft, ChevronRight, Plus, Clock, CornerDownRight, User } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { REMINDER_OPTIONS, formatDueTime } from "@/lib/taskReminders";
 import { AssigneeAvatar } from "@/components/AssigneeAvatar";
@@ -120,6 +121,7 @@ export default function TaskCalendar() {
   const [ntDueTime, setNtDueTime] = useState("");
   const [ntReminderMinutes, setNtReminderMinutes] = useState("none");
   const [ntAssignee, setNtAssignee] = useState("");
+  const [isPersonal, setIsPersonal] = useState(false);
   const [projectMembers, setProjectMembers] = useState<Profile[]>([]);
   const [creating, setCreating] = useState(false);
 
@@ -180,7 +182,7 @@ export default function TaskCalendar() {
     setProjectMembers(list);
   }
 
-  function openNewTaskDialog(date: Date) {
+  function openNewTaskDialog(date: Date, personal?: boolean) {
     setNtProject(projectFilter !== "all" ? projectFilter : "");
     setNtTitle("");
     setNtPriority("media");
@@ -189,28 +191,36 @@ export default function TaskCalendar() {
     setNtDueTime("");
     setNtReminderMinutes("none");
     setNtAssignee("");
+    setIsPersonal(!!personal);
+    if (personal) setNtProject("");
     setNewTaskOpen(true);
   }
 
   async function createTask() {
-    if (!ntProject || !ntTitle.trim() || !user) return;
+    if (!user) return;
+    if (!isPersonal && !ntProject) return;
+    if (!ntTitle.trim()) return;
     setCreating(true);
-    const { data: cols } = await supabase
-      .from("project_columns")
-      .select("slug")
-      .eq("project_id", ntProject)
-      .order("position", { ascending: true })
-      .limit(1);
-    const initialStatus = cols?.[0]?.slug || "a_fazer";
+
+    let initialStatus = "a_fazer";
+    if (!isPersonal) {
+      const { data: cols } = await supabase
+        .from("project_columns")
+        .select("slug")
+        .eq("project_id", ntProject)
+        .order("position", { ascending: true })
+        .limit(1);
+      initialStatus = cols?.[0]?.slug || "a_fazer";
+    }
 
     const { error } = await supabase.from("tasks").insert({
-      project_id: ntProject,
+      project_id: isPersonal ? null : ntProject,
       title: ntTitle.trim(),
       priority: ntPriority,
       due_date: ntDue || null,
       due_time: ntHasDueTime && ntDueTime ? ntDueTime : null,
       reminder_minutes_before: ntHasDueTime && ntDueTime && ntReminderMinutes !== "none" ? parseInt(ntReminderMinutes, 10) : null,
-      assigned_to: ntAssignee || user.id,
+      assigned_to: isPersonal ? user.id : (ntAssignee || user.id),
       status: initialStatus,
       created_by: user.id,
       position: 0,
@@ -221,7 +231,7 @@ export default function TaskCalendar() {
       toast({ title: "Erro ao criar tarefa", description: error.message, variant: "destructive" });
       return;
     }
-    toast({ title: "Tarefa criada" });
+    toast({ title: isPersonal ? "Tarefa pessoal criada" : "Tarefa criada" });
     setNewTaskOpen(false);
     loadTasks();
   }
@@ -531,6 +541,35 @@ export default function TaskCalendar() {
     );
   };
 
+  // Botão único "Nova Tarefa" com escolha de tipo (projeto ou pessoal)
+  const NewTaskMenu = ({ day, iconOnly }: { day: Date; iconOnly?: boolean }) => (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        {iconOnly ? (
+          <button
+            onClick={(e) => e.stopPropagation()}
+            className="h-6 w-6 inline-flex items-center justify-center rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
+            title="Nova tarefa"
+          >
+            <Plus className="h-3.5 w-3.5" />
+          </button>
+        ) : (
+          <Button className="gap-2" size="sm">
+            <Plus className="h-4 w-4" /> Nova Tarefa
+          </Button>
+        )}
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        <DropdownMenuItem onClick={() => openNewTaskDialog(day, false)}>
+          <FolderKanban className="h-4 w-4 mr-2" /> Tarefa de projeto
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => openNewTaskDialog(day, true)}>
+          <User className="h-4 w-4 mr-2" /> Tarefa pessoal
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+
   // ========== Day View (uses existing detailed cards) ==========
   const DayView = () => {
     const dayTasks = getTasksForDay(cursor);
@@ -572,11 +611,7 @@ export default function TaskCalendar() {
                 {dayTasks.length} {dayTasks.length === 1 ? "tarefa" : "tarefas"}
               </p>
             </div>
-            {canEdit && (
-              <Button size="sm" variant="outline" className="gap-1.5 shrink-0" onClick={() => openNewTaskDialog(cursor)}>
-                <Plus className="h-4 w-4" /> Nova Tarefa
-              </Button>
-            )}
+            {canEdit && <NewTaskMenu day={cursor} />}
           </CardHeader>
           <CardContent>
             {loading ? (
@@ -656,6 +691,11 @@ export default function TaskCalendar() {
                   })}
                 </div>
               </ScrollArea>
+            )}
+            {canEdit && (
+              <div className="flex justify-center pt-2">
+                <NewTaskMenu day={cursor} iconOnly />
+              </div>
             )}
           </CardContent>
         </Card>
@@ -839,6 +879,7 @@ export default function TaskCalendar() {
           getTaskKey={(t) => t.id}
           onDayClick={openDayInDayView}
           onAddDay={canEdit ? openNewTaskDialog : undefined}
+          renderDayFooterAction={canEdit ? (d) => <NewTaskMenu day={d} iconOnly /> : undefined}
         />
       )}
       {viewMode === "dia" && <DayView />}
@@ -858,51 +899,55 @@ export default function TaskCalendar() {
       <Dialog open={newTaskOpen} onOpenChange={setNewTaskOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Nova Tarefa</DialogTitle>
+            <DialogTitle>{isPersonal ? "Nova Tarefa Pessoal" : "Nova Tarefa"}</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
-            <div className="space-y-1.5">
-              <Label className="text-sm">Projeto *</Label>
-              <Select value={ntProject} onValueChange={(v) => { setNtProject(v); setNtAssignee(""); }}>
-                <SelectTrigger><SelectValue placeholder="Selecione um projeto..." /></SelectTrigger>
-                <SelectContent>
-                  {projectOptions.map((p) => (
-                    <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-sm">Título *</Label>
-              <Input value={ntTitle} onChange={(e) => setNtTitle(e.target.value)} placeholder="O que precisa ser feito?" />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
+            {!isPersonal && (
               <div className="space-y-1.5">
-                <Label className="text-sm">Responsável</Label>
-                <Select value={ntAssignee || (user?.id ?? "")} onValueChange={setNtAssignee} disabled={!ntProject}>
-                  <SelectTrigger>
-                    <SelectValue placeholder={ntProject ? "Selecione" : "Escolha um projeto"} />
-                  </SelectTrigger>
+                <Label className="text-sm">Projeto *</Label>
+                <Select value={ntProject} onValueChange={(v) => { setNtProject(v); setNtAssignee(""); }}>
+                  <SelectTrigger><SelectValue placeholder="Selecione um projeto..." /></SelectTrigger>
                   <SelectContent>
-                    {user && (
-                      <SelectItem value={user.id}>
-                        <span className="flex items-center gap-2">
-                          <AssigneeAvatar name="Eu" />
-                          Eu mesmo
-                        </span>
-                      </SelectItem>
-                    )}
-                    {projectMembers.filter((m) => m.id !== user?.id).map((m) => (
-                      <SelectItem key={m.id} value={m.id}>
-                        <span className="flex items-center gap-2">
-                          <AssigneeAvatar url={m.avatar_url} name={m.nickname || m.full_name} />
-                          {m.nickname || m.full_name || m.id.slice(0, 8)}
-                        </span>
-                      </SelectItem>
+                    {projectOptions.map((p) => (
+                      <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
+            )}
+            <div className="space-y-1.5">
+              <Label className="text-sm">Título *</Label>
+              <Input value={ntTitle} onChange={(e) => setNtTitle(e.target.value)} placeholder="O que precisa ser feito?" />
+            </div>
+            <div className={cn("grid gap-3", isPersonal ? "grid-cols-1" : "grid-cols-2")}>
+              {!isPersonal && (
+                <div className="space-y-1.5">
+                  <Label className="text-sm">Responsável</Label>
+                  <Select value={ntAssignee || (user?.id ?? "")} onValueChange={setNtAssignee} disabled={!ntProject}>
+                    <SelectTrigger>
+                      <SelectValue placeholder={ntProject ? "Selecione" : "Escolha um projeto"} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {user && (
+                        <SelectItem value={user.id}>
+                          <span className="flex items-center gap-2">
+                            <AssigneeAvatar name="Eu" />
+                            Eu mesmo
+                          </span>
+                        </SelectItem>
+                      )}
+                      {projectMembers.filter((m) => m.id !== user?.id).map((m) => (
+                        <SelectItem key={m.id} value={m.id}>
+                          <span className="flex items-center gap-2">
+                            <AssigneeAvatar url={m.avatar_url} name={m.nickname || m.full_name} />
+                            {m.nickname || m.full_name || m.id.slice(0, 8)}
+                          </span>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
               <div className="space-y-1.5">
                 <Label className="text-sm">Prioridade</Label>
                 <Select value={ntPriority} onValueChange={(v) => setNtPriority(v as typeof ntPriority)}>
@@ -950,7 +995,7 @@ export default function TaskCalendar() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setNewTaskOpen(false)}>Cancelar</Button>
-            <Button onClick={createTask} disabled={!ntProject || !ntTitle.trim() || creating}>
+            <Button onClick={createTask} disabled={(!isPersonal && !ntProject) || !ntTitle.trim() || creating}>
               {creating ? "Criando..." : "Criar"}
             </Button>
           </DialogFooter>

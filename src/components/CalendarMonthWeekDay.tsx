@@ -29,6 +29,13 @@ interface GridProps<T> {
   maxVisible?: number;
   /** Substitui o "+N mais" padrão (texto simples) por algo customizado, ex: um Popover com a lista completa. */
   renderOverflow?: (day: Date, dayTasks: T[], overflowCount: number) => ReactNode;
+  /**
+   * Ação fixa no rodapé de cada coluna de dia (sempre visível, não só no
+   * hover) — diferente de onAddDay, que é o botão pequeno no topo da coluna
+   * que só aparece no hover. Usado pra abrir um menu de escolha de tipo de
+   * tarefa, por exemplo. Só se aplica à grade semanal.
+   */
+  renderDayFooterAction?: (day: Date) => ReactNode;
 }
 
 const WEEKDAYS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
@@ -113,6 +120,7 @@ export function CalendarWeekGrid<T>({
   getTaskKey,
   onDayClick,
   onAddDay,
+  renderDayFooterAction,
 }: GridProps<T>) {
   const ws = startOfWeek(cursor, { weekStartsOn: 0 });
   const we = endOfWeek(cursor, { weekStartsOn: 0 });
@@ -150,6 +158,11 @@ export function CalendarWeekGrid<T>({
                   dayTasks.map((t) => <ItemComponent key={getTaskKey(t)} task={t} />)
                 )}
               </div>
+              {renderDayFooterAction && (
+                <div className="p-1 border-t flex justify-center shrink-0" onClick={(e) => e.stopPropagation()}>
+                  {renderDayFooterAction(day)}
+                </div>
+              )}
             </div>
           );
         })}
@@ -163,15 +176,18 @@ interface DayListProps<T> {
   ItemComponent: ComponentType<{ task: T }>;
   getTaskKey: (task: T) => string;
   emptyState?: ReactNode;
+  /** Ação fixa logo abaixo da última tarefa da lista — ex: botão "+" sempre visível. */
+  footerAction?: ReactNode;
 }
 
-export function CalendarDayList<T>({ tasks, ItemComponent, getTaskKey, emptyState }: DayListProps<T>) {
+export function CalendarDayList<T>({ tasks, ItemComponent, getTaskKey, emptyState, footerAction }: DayListProps<T>) {
   if (tasks.length === 0 && emptyState) return <>{emptyState}</>;
   return (
     <div className="space-y-2">
       {tasks.map((t) => (
         <ItemComponent key={getTaskKey(t)} task={t} />
       ))}
+      {footerAction && <div className="flex justify-center pt-1">{footerAction}</div>}
     </div>
   );
 }
