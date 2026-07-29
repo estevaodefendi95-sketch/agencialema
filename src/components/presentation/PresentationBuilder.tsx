@@ -12,12 +12,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { DragDropContext, Droppable, Draggable, type DropResult } from "@hello-pangea/dnd";
-import { Plus, GripVertical, Trash2, Image as ImageIcon, Type, Smartphone, ListOrdered, Eye, ExternalLink, Copy, Heading, Upload, Play, X, Rocket, History as HistoryIcon } from "lucide-react";
+import { Plus, GripVertical, Trash2, Image as ImageIcon, Type, Smartphone, ListOrdered, Eye, ExternalLink, Copy, Heading, Upload, Play, X, Rocket, History as HistoryIcon, LayoutTemplate, ListChecks, Hash, Grid3x3, Palette } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import ImageCropper from "@/components/ImageCropper";
 import { detectMediaType, getGalleryItems, getPostMediaItems, isLegacyPostMedia, type MediaItem, type PostMediaRow } from "./mediaUtils";
 import PresentationView from "./PresentationView";
+import { THEME_FIELDS, normalizeTheme, DEFAULT_THEME } from "./theme";
+
 
 const MAX_MEDIA_MB = 50;
 
@@ -54,12 +56,23 @@ type Presentation = {
   agency_logo_url: string | null;
   hero_title: string | null;
   hero_description: string | null;
+  theme?: any;
 };
 
 type Block = {
   id: string;
   presentation_id: string;
-  block_type: "header" | "text" | "image" | "gallery" | "instagram_preview" | "posts_plan";
+  block_type:
+    | "cover"
+    | "rules"
+    | "themes"
+    | "feed_overview"
+    | "header"
+    | "text"
+    | "image"
+    | "gallery"
+    | "instagram_preview"
+    | "posts_plan";
   position: number;
   data: any;
 };
@@ -75,6 +88,10 @@ type Post = {
 };
 
 const BLOCK_META = {
+  cover: { label: "Capa", icon: LayoutTemplate },
+  rules: { label: "Regras / Aprovação", icon: ListChecks },
+  themes: { label: "Temas do mês", icon: Hash },
+  feed_overview: { label: "Visão geral do feed", icon: Grid3x3 },
   header: { label: "Cabeçalho", icon: Heading },
   text: { label: "Texto", icon: Type },
   image: { label: "Imagem", icon: ImageIcon },
@@ -82,6 +99,7 @@ const BLOCK_META = {
   instagram_preview: { label: "Preview Instagram", icon: Smartphone },
   posts_plan: { label: "Planejamento de Posts", icon: ListOrdered },
 };
+
 
 function slugify(s: string) {
   return s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
@@ -242,6 +260,10 @@ export default function PresentationBuilder({ projectId, projectName }: { projec
     if (!pres) return;
     const position = blocks.length;
     const defaults: Record<string, any> = {
+      cover: { tagline: "#tudo começa pelo seu lema.", label: "PLANEJAMENTO", month: "", year: String(new Date().getFullYear()) },
+      rules: { items: [""] },
+      themes: { title: "Temas do mês", items: [""] },
+      feed_overview: { title: "#seu feed, seu lema.", subtitle: "Visão geral", images: [] },
       header: { title: "", subtitle: "" },
       text: { content: "" },
       image: { url: "", caption: "" },
@@ -249,6 +271,7 @@ export default function PresentationBuilder({ projectId, projectName }: { projec
       instagram_preview: { images: [] },
       posts_plan: {},
     };
+
     const { data, error } = await supabase
       .from("presentation_blocks")
       .insert({ presentation_id: pres.id, block_type: type, position, data: defaults[type] })
@@ -431,6 +454,43 @@ export default function PresentationBuilder({ projectId, projectName }: { projec
           </div>
         </CardContent>
       </Card>
+
+      {/* Tema visual */}
+      <Card>
+        <CardContent className="p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <Palette className="h-4 w-4 text-muted-foreground" />
+            <p className="text-sm font-medium">Tema da apresentação</p>
+          </div>
+          <div className="flex flex-wrap gap-4">
+            {THEME_FIELDS.map((f) => {
+              const theme = normalizeTheme(pres.theme);
+              return (
+                <div key={f.key} className="space-y-1.5">
+                  <Label className="text-xs">{f.label}</Label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="color"
+                      value={theme[f.key]}
+                      disabled={!canEdit}
+                      onChange={(e) => patchPres({ theme: { ...theme, [f.key]: e.target.value } })}
+                      className="h-8 w-10 rounded border bg-background p-0.5"
+                    />
+                    <span className="text-[11px] text-muted-foreground uppercase">{theme[f.key]}</span>
+                  </div>
+                </div>
+              );
+            })}
+            {canEdit && (
+              <Button variant="ghost" size="sm" className="self-end" onClick={() => patchPres({ theme: DEFAULT_THEME })}>
+                Restaurar padrão
+              </Button>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+
 
       {/* Blocks */}
       <DragDropContext onDragEnd={onDragEnd}>
@@ -677,10 +737,94 @@ function BlockEditor({ block, onChange, posts, postMedia, onAddPost, onPatchPost
   // Determine aspect for each block type
   const isInsta = block.block_type === "instagram_preview";
   const isGallery = block.block_type === "gallery";
+  const isFeedOverview = block.block_type === "feed_overview";
   const isSingleImage = block.block_type === "image";
-  const aspect: number | "free" | "choice" = isInsta ? 1 : isGallery ? 1 : "choice";
-  const isMulti = isGallery || isInsta;
+  const aspect: number | "free" | "choice" = isInsta || isFeedOverview ? 1 : isGallery ? 1 : "choice";
+  const isMulti = isGallery || isInsta || isFeedOverview;
 
+  if (block.block_type === "cover") {
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+        <Input placeholder="Tagline (#tudo começa pelo seu lema.)" value={block.data.tagline || ""} onChange={(e) => onChange({ ...block.data, tagline: e.target.value })} disabled={disabled} />
+        <Input placeholder="Rótulo (PLANEJAMENTO)" value={block.data.label || ""} onChange={(e) => onChange({ ...block.data, label: e.target.value })} disabled={disabled} />
+        <Input placeholder="Mês (ex.: OUTUBRO)" value={block.data.month || ""} onChange={(e) => onChange({ ...block.data, month: e.target.value })} disabled={disabled} />
+        <Input placeholder="Ano" value={block.data.year || ""} onChange={(e) => onChange({ ...block.data, year: e.target.value })} disabled={disabled} />
+      </div>
+    );
+  }
+  if (block.block_type === "rules" || block.block_type === "themes") {
+    const items: string[] = block.data.items || [];
+    const isThemes = block.block_type === "themes";
+    return (
+      <div className="space-y-2">
+        {isThemes && (
+          <Input placeholder="Título do slide" value={block.data.title || ""} onChange={(e) => onChange({ ...block.data, title: e.target.value })} disabled={disabled} />
+        )}
+        {items.map((it, i) => (
+          <div key={i} className="flex gap-2 items-start">
+            <span className="text-xs text-muted-foreground pt-2.5 w-5 shrink-0">{String(i + 1).padStart(2, "0")}</span>
+            <Textarea
+              value={it}
+              rows={2}
+              placeholder={isThemes ? "Tema" : "Regra / instrução"}
+              onChange={(e) => onChange({ ...block.data, items: items.map((x, j) => (j === i ? e.target.value : x)) })}
+              disabled={disabled}
+            />
+            {!disabled && (
+              <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={() => onChange({ ...block.data, items: items.filter((_, j) => j !== i) })}>
+                <Trash2 className="h-3.5 w-3.5" />
+              </Button>
+            )}
+          </div>
+        ))}
+        {!disabled && (
+          <Button variant="outline" size="sm" onClick={() => onChange({ ...block.data, items: [...items, ""] })}>
+            <Plus className="h-3.5 w-3.5 mr-1.5" /> Adicionar item
+          </Button>
+        )}
+      </div>
+    );
+  }
+  if (isFeedOverview) {
+    const images: string[] = block.data.images || [];
+    return (
+      <div className="space-y-2">
+        <Input placeholder="Título" value={block.data.title || ""} onChange={(e) => onChange({ ...block.data, title: e.target.value })} disabled={disabled} />
+        <Input placeholder="Subtítulo" value={block.data.subtitle || ""} onChange={(e) => onChange({ ...block.data, subtitle: e.target.value })} disabled={disabled} />
+        <div className="grid gap-2 grid-cols-3 max-w-xs">
+          {images.map((url, i) => (
+            <div key={i} className="relative aspect-square">
+              <img src={url} alt="" className="w-full h-full object-cover rounded border" />
+              {!disabled && (
+                <button
+                  onClick={() => onChange({ ...block.data, images: images.filter((_, j) => j !== i) })}
+                  className="absolute top-1 right-1 bg-background/80 rounded p-0.5"
+                >
+                  <Trash2 className="h-3 w-3" />
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+        {!disabled && (
+          <label className="cursor-pointer inline-block">
+            <Input type="file" accept="image/*" multiple className="hidden" onChange={handleFiles} />
+            <Button asChild variant="outline" size="sm"><span><Upload className="h-3.5 w-3.5 mr-1.5" />Enviar imagens</span></Button>
+          </label>
+        )}
+        {current && (
+          <ImageCropper
+            file={current}
+            open
+            onClose={cancelCrop}
+            onCropped={(url) => handleCropped(url, true)}
+            aspect={1}
+            uploadPath={`presentations/media/${crypto.randomUUID()}.png`}
+          />
+        )}
+      </div>
+    );
+  }
   if (block.block_type === "header") {
     return (
       <div className="space-y-2">
@@ -689,6 +833,7 @@ function BlockEditor({ block, onChange, posts, postMedia, onAddPost, onPatchPost
       </div>
     );
   }
+
   if (block.block_type === "text") {
     return (
       <Textarea placeholder="Escreva aqui..." value={block.data.content || ""} onChange={(e) => onChange({ ...block.data, content: e.target.value })} rows={6} disabled={disabled} />

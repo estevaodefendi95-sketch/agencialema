@@ -107,7 +107,21 @@
   }
 }
 
+/* Apresentação ao cliente (deck) */
+.pres-display {
+  font-family: "Archivo", ui-sans-serif, system-ui, sans-serif;
+  font-feature-settings: "ss01";
+}
+.pres-root .scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+.pres-root .scrollbar-none {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
 .scrollbar-hide {
+
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
