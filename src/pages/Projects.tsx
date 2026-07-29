@@ -2,6 +2,7 @@ import { useEffect, useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -180,10 +181,11 @@ export default function Projects() {
   );
 
   const groupedProjects = useMemo(() => {
-    const groups: Record<string, { projects: Project[]; logoUrl: string | null }> = {};
+    const groups: Record<string, { projects: Project[]; logoUrl: string | null; companyId: string | null }> = {};
     filteredProjects.forEach((p) => {
       const companyName = (p.companies as any)?.name || "Sem empresa";
-      if (!groups[companyName]) groups[companyName] = { projects: [], logoUrl: (p.companies as any)?.logo_url || null };
+      const companyId = (p.companies as any)?.id || p.company_id;
+      if (!groups[companyName]) groups[companyName] = { projects: [], logoUrl: (p.companies as any)?.logo_url || null, companyId: companyId || null };
       groups[companyName].projects.push(p);
     });
 
@@ -208,7 +210,7 @@ export default function Projects() {
       return sortDir === "asc" ? earliest(groups[a]) - earliest(groups[b]) : earliest(groups[b]) - earliest(groups[a]);
     });
 
-    return sortedKeys.map((key) => ({ companyName: key, logoUrl: groups[key].logoUrl, projects: groups[key].projects }));
+    return sortedKeys.map((key) => ({ companyName: key, logoUrl: groups[key].logoUrl, companyId: groups[key].companyId, projects: groups[key].projects }));
   }, [filteredProjects, sortField, sortDir]);
 
   const logHistory = async (projectId: string, action: string, previousData: any, newData: any) => {
@@ -400,13 +402,16 @@ export default function Projects() {
         <div className="space-y-4">
           {groupedProjects.map((group) => (
             <div key={group.companyName} className="space-y-1">
-              <div className="flex items-center gap-2 px-2 py-1.5">
+              <div
+                className={cn("flex items-center gap-2 px-2 py-1.5", group.companyId && "cursor-pointer group/company")}
+                onClick={() => group.companyId && navigate(`/empresas/${group.companyId}`)}
+              >
                 {group.logoUrl ? (
                   <img src={group.logoUrl} alt={group.companyName} className="h-5 w-5 rounded object-cover" />
                 ) : (
                   <Building2 className="h-4 w-4 text-muted-foreground" />
                 )}
-                <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">{group.companyName}</h3>
+                <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide group-hover/company:underline">{group.companyName}</h3>
                 <span className="text-xs text-muted-foreground">({group.projects.length})</span>
               </div>
               <div className="rounded-lg border">
@@ -471,13 +476,16 @@ export default function Projects() {
         <>
           {groupedProjects.map((group) => (
             <div key={group.companyName} className="space-y-3">
-              <div className="flex items-center gap-2 px-1">
+              <div
+                className={cn("flex items-center gap-2 px-1", group.companyId && "cursor-pointer group/company")}
+                onClick={() => group.companyId && navigate(`/empresas/${group.companyId}`)}
+              >
                 {group.logoUrl ? (
                   <img src={group.logoUrl} alt={group.companyName} className="h-5 w-5 rounded object-cover" />
                 ) : (
                   <Building2 className="h-4 w-4 text-muted-foreground" />
                 )}
-                <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">{group.companyName}</h3>
+                <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide group-hover/company:underline">{group.companyName}</h3>
                 <span className="text-xs text-muted-foreground">({group.projects.length})</span>
               </div>
               <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
@@ -500,7 +508,16 @@ export default function Projects() {
                         <CompanyStack companies={additionalCompaniesByProject[p.id] || []} />
                         <div className="flex-1 min-w-0">
                           <CardTitle className="text-base">{p.name}</CardTitle>
-                          <CardDescription>{(p.companies as any)?.name}</CardDescription>
+                          <CardDescription
+                            className="cursor-pointer hover:underline w-fit"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const companyId = (p.companies as any)?.id || p.company_id;
+                              if (companyId) navigate(`/empresas/${companyId}`);
+                            }}
+                          >
+                            {(p.companies as any)?.name}
+                          </CardDescription>
                         </div>
                         <ProjectActions p={p} />
                       </div>
