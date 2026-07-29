@@ -29,18 +29,27 @@ interface ProjectMember {
   profiles?: { full_name: string | null; nickname?: string | null; email: string | null; avatar_url: string | null } | null;
 }
 
+interface AccessProfile {
+  id: string;
+  full_name: string | null;
+  nickname: string | null;
+  email: string | null;
+  avatar_url: string | null;
+}
+
 interface Props {
   taskId: string;
   onClose: () => void;
   onTaskDeleted?: () => void;
   projectMembers?: ProjectMember[];
   /**
-   * user_ids com acesso liberado à empresa do projeto — quando informado,
-   * restringe as listas de SELEÇÃO de responsável (não afeta a exibição do
-   * responsável já atribuído, mesmo que o acesso dele tenha sido revogado
-   * depois). Sem essa prop, nenhuma restrição é aplicada.
+   * Perfis com acesso liberado à empresa do projeto (admins + quem tem
+   * user_company_access aprovado) — usado nas listas de SELEÇÃO de
+   * responsável. Não afeta a exibição do responsável já atribuído (essa
+   * segue vindo de projectMembers), mesmo que o acesso dele tenha sido
+   * revogado depois.
    */
-  companyAccessUserIds?: Set<string>;
+  companyAccessProfiles?: AccessProfile[];
 }
 
 interface Comment { id: string; content: string; created_at: string; user_id: string; profiles?: { full_name: string | null; nickname?: string | null } | null; }
@@ -51,10 +60,7 @@ const displayName = (p?: { full_name?: string | null; nickname?: string | null }
   p?.nickname?.trim() || p?.full_name || "Usuário";
 interface MediaItem { id: string; file_url: string; file_name: string; file_type: string; created_at: string; }
 
-export default function TaskDetail({ taskId, onClose, onTaskDeleted, projectMembers = [], companyAccessUserIds }: Props) {
-  const assignableMembers = companyAccessUserIds
-    ? projectMembers.filter((m) => m.user_id && companyAccessUserIds.has(m.user_id))
-    : projectMembers;
+export default function TaskDetail({ taskId, onClose, onTaskDeleted, projectMembers = [], companyAccessProfiles = [] }: Props) {
   const { user, isAdmin, canEdit } = useAuth();
   const { toast } = useToast();
   const [task, setTask] = useState<any>(null);
@@ -544,18 +550,18 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted, projectMemb
                       <span className="italic text-muted-foreground">Sem responsável</span>
                       {!editAssignedTo && !editAssigneeName && <Check className="h-3 w-3 ml-auto text-primary" />}
                     </button>
-                    {assignableMembers.map((m) => {
-                      const name = (m.profiles as any)?.nickname?.trim() || (m.profiles as any)?.full_name || (m.profiles as any)?.email || "Sem nome";
-                      const isSelected = editAssignedTo === m.user_id;
+                    {companyAccessProfiles.map((p) => {
+                      const name = p.nickname?.trim() || p.full_name || p.email || "Sem nome";
+                      const isSelected = editAssignedTo === p.id;
                       return (
                         <button
-                          key={m.user_id}
+                          key={p.id}
                           type="button"
-                          onClick={() => pickMember(m.user_id)}
+                          onClick={() => pickMember(p.id)}
                           className="w-full flex items-center gap-2 px-2 py-1.5 rounded text-sm hover:bg-accent text-left"
                         >
                           <Avatar className="h-6 w-6">
-                            {(m.profiles as any)?.avatar_url && <AvatarImage src={(m.profiles as any).avatar_url} />}
+                            {p.avatar_url && <AvatarImage src={p.avatar_url} />}
                             <AvatarFallback className="text-[10px]">{name.charAt(0).toUpperCase()}</AvatarFallback>
                           </Avatar>
                           <span className="truncate">{name}</span>
@@ -678,11 +684,11 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted, projectMemb
                               <span className="flex items-center gap-2"><AssigneeAvatar name="Eu" />Eu mesmo</span>
                             </SelectItem>
                           )}
-                          {assignableMembers.filter((m) => m.user_id !== user?.id).map((m) => (
-                            <SelectItem key={m.user_id} value={m.user_id}>
+                          {companyAccessProfiles.filter((p) => p.id !== user?.id).map((p) => (
+                            <SelectItem key={p.id} value={p.id}>
                               <span className="flex items-center gap-2">
-                                <AssigneeAvatar url={(m.profiles as any)?.avatar_url} name={(m.profiles as any)?.nickname || (m.profiles as any)?.full_name} />
-                                {(m.profiles as any)?.nickname || (m.profiles as any)?.full_name || "Sem nome"}
+                                <AssigneeAvatar url={p.avatar_url} name={p.nickname || p.full_name} />
+                                {p.nickname || p.full_name || "Sem nome"}
                               </span>
                             </SelectItem>
                           ))}
@@ -1017,7 +1023,7 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted, projectMemb
         onClose={() => { setViewingSubtaskId(null); load(); }}
         onTaskDeleted={() => { setViewingSubtaskId(null); load(); }}
         projectMembers={projectMembers}
-        companyAccessUserIds={companyAccessUserIds}
+        companyAccessProfiles={companyAccessProfiles}
       />
     )}
     </>

@@ -157,9 +157,6 @@ export default function KanbanBoard() {
   const [companyName, setCompanyName] = useState("");
   const [companyLogo, setCompanyLogo] = useState<string | null>(null);
   const [companyId, setCompanyId] = useState<string | null>(null);
-  // user_ids com acesso liberado à empresa deste projeto (user_company_access) —
-  // usado pra restringir quem pode ser sugerido/selecionado como responsável.
-  const [companyAccessUserIds, setCompanyAccessUserIds] = useState<Set<string>>(new Set());
   // Perfis de quem já tem acesso liberado à empresa deste projeto — a aba
   // "Equipe do Projeto" lista a partir daqui (não mais busca/convite por e-mail).
   const [companyAccessProfiles, setCompanyAccessProfiles] = useState<
@@ -354,14 +351,12 @@ export default function KanbanBoard() {
   useEffect(() => { loadColumns(); }, [loadColumns]);
   useEffect(() => { loadMembers(); }, [loadMembers]);
 
-  // Quem já tem acesso liberado à empresa deste projeto — usado pra restringir
-  // o autocomplete de convite e o select de Responsável (mesma regra de acesso
-  // usada pra aprovar usuário numa empresa). Combina duas fontes: quem tem
+  // Quem já tem acesso liberado à empresa deste projeto — usado no select de
+  // Responsável e na aba "Equipe do Projeto". Combina duas fontes: quem tem
   // user_company_access pra essa empresa, e admins (acesso universal, sem
   // precisar de vínculo explícito) — sem duplicar quem aparecer nas duas.
   useEffect(() => {
     if (!companyId) {
-      setCompanyAccessUserIds(new Set());
       setCompanyAccessProfiles([]);
       return;
     }
@@ -383,9 +378,7 @@ export default function KanbanBoard() {
       // Switch (acesso sempre incluído).
       (adminProfiles || []).forEach((p: any) => { byId[p.id] = { ...p, isAdmin: true }; });
 
-      const profiles = Object.values(byId);
-      setCompanyAccessProfiles(profiles as any);
-      setCompanyAccessUserIds(new Set(profiles.map((p: any) => p.id)));
+      setCompanyAccessProfiles(Object.values(byId) as any);
     })();
   }, [companyId]);
 
@@ -1474,6 +1467,16 @@ export default function KanbanBoard() {
                   )}
                   <div className="flex items-center gap-1">
                     <Badge variant="secondary" className="text-xs">{getColumnTasks(col.slug).length}</Badge>
+                    {canEdit && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-foreground"
+                        onClick={() => { setNewStatus(col.slug); setNewTaskOpen(true); }}
+                      >
+                        <Plus className="h-3.5 w-3.5" />
+                      </Button>
+                    )}
                     {canEdit && columns.length > 1 && (
                       <Button variant="ghost" size="icon" className="h-5 w-5 opacity-0 group-hover:opacity-100 text-destructive" onClick={() => setDeleteColumnId(col.id)}>
                         <Trash2 className="h-3 w-3" />
@@ -1735,14 +1738,14 @@ export default function KanbanBoard() {
                   <SelectTrigger><SelectValue placeholder="Selecione um responsável..." /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="none">Nenhum</SelectItem>
-                    {members.filter((m) => m.user_id && m.status !== "pendente" && companyAccessUserIds.has(m.user_id)).map((m) => (
-                      <SelectItem key={m.user_id} value={m.user_id!}>
-                        {((m.profiles as any)?.nickname?.trim()) || (m.profiles as any)?.full_name || (m.profiles as any)?.email || "Sem nome"}
+                    {companyAccessProfiles.map((p) => (
+                      <SelectItem key={p.id} value={p.id}>
+                        {p.nickname?.trim() || p.full_name || p.email || "Sem nome"}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
-                {members.filter((m) => m.user_id && m.status !== "pendente" && companyAccessUserIds.has(m.user_id)).length === 0 && (
+                {companyAccessProfiles.length === 0 && (
                   <p className="text-xs text-muted-foreground">
                     Nenhum membro ativo. Adicione membros à equipe do projeto.
                   </p>
@@ -1848,7 +1851,7 @@ export default function KanbanBoard() {
           onClose={() => { setSelectedTask(null); load(); }}
           onTaskDeleted={load}
           projectMembers={members}
-          companyAccessUserIds={companyAccessUserIds}
+          companyAccessProfiles={companyAccessProfiles}
         />
       )}
 
