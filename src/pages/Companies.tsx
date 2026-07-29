@@ -335,7 +335,7 @@ export default function Companies() {
       )}
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-h-[85vh] overflow-y-auto">
+        <DialogContent className="max-h-[90vh] overflow-y-auto scrollbar-hide">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               {editing ? "Editar Empresa" : "Nova Empresa"}

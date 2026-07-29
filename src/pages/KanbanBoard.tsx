@@ -988,9 +988,7 @@ export default function KanbanBoard() {
                             <p className="text-sm font-medium truncate">{name}</p>
                             {p.email && <p className="text-xs text-muted-foreground truncate">{p.email}</p>}
                           </div>
-                          {p.isAdmin ? (
-                            <Badge variant="secondary" className="text-[10px] shrink-0">Sempre incluído</Badge>
-                          ) : (
+                          {!p.isAdmin && (
                             <Switch
                               checked={isMember || hasAssignedTask}
                               disabled={!canEdit}
@@ -1658,9 +1656,9 @@ export default function KanbanBoard() {
 
       {/* New Task Dialog */}
       <Dialog open={newTaskOpen} onOpenChange={setNewTaskOpen}>
-        <DialogContent className="max-w-2xl max-h-[85vh]">
+        <DialogContent className="max-w-2xl max-h-[90vh]">
           <DialogHeader><DialogTitle>Nova Tarefa</DialogTitle></DialogHeader>
-          <ScrollArea className="max-h-[65vh] pr-4">
+          <ScrollArea className="max-h-[72vh] pr-4">
             <div className="space-y-4">
               <div className="space-y-1.5">
                 <Label className="text-sm">Título</Label>
@@ -1740,7 +1738,10 @@ export default function KanbanBoard() {
                     <SelectItem value="none">Nenhum</SelectItem>
                     {companyAccessProfiles.map((p) => (
                       <SelectItem key={p.id} value={p.id}>
-                        {p.nickname?.trim() || p.full_name || p.email || "Sem nome"}
+                        <div className="flex items-center gap-2">
+                          <AssigneeAvatar url={p.avatar_url} name={p.nickname?.trim() || p.full_name} className="h-5 w-5" />
+                          <span>{p.nickname?.trim() || p.full_name || p.email || "Sem nome"}</span>
+                        </div>
                       </SelectItem>
                     ))}
                   </SelectContent>

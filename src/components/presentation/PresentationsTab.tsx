@@ -155,7 +155,7 @@ export function PresentationsTab({
       ))}
 
       <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
-        <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto p-0">
+        <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto scrollbar-hide p-0">
           {previewLoading ? (
             <div className="text-center py-16 text-muted-foreground">Carregando...</div>
           ) : previewSnapshot ? (

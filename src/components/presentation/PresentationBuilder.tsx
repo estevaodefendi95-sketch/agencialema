@@ -548,7 +548,7 @@ export default function PresentationBuilder({ projectId, projectName }: { projec
 
       {/* Dialog: prévia read-only de uma versão lançada */}
       <Dialog open={!!previewSnapshot} onOpenChange={(open) => !open && setPreviewSnapshot(null)}>
-        <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto p-0">
+        <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto scrollbar-hide p-0">
           {previewSnapshot && (
             <PresentationView
               pres={previewSnapshot.pres}

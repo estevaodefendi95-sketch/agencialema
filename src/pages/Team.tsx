@@ -299,7 +299,7 @@ export default function Team() {
       )}
 
       <Dialog open={!!selected} onOpenChange={(open) => !open && setSelected(null)}>
-        <DialogContent className="max-h-[85vh] overflow-y-auto">
+        <DialogContent className="max-h-[90vh] overflow-y-auto scrollbar-hide">
           <DialogHeader>
             <DialogTitle>Editar Membro — {selected?.full_name || selected?.email}</DialogTitle>
           </DialogHeader>
