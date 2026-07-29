@@ -18,6 +18,8 @@ import { format } from "date-fns";
 import ImageCropper from "@/components/ImageCropper";
 import { detectMediaType, getGalleryItems, getPostMediaItems, isLegacyPostMedia, type MediaItem, type PostMediaRow } from "./mediaUtils";
 import PresentationView from "./PresentationView";
+import { THEME_FIELDS, normalizeTheme, DEFAULT_THEME } from "./theme";
+
 
 const MAX_MEDIA_MB = 50;
 
