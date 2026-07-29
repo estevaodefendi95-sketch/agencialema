@@ -258,6 +258,10 @@ export default function PresentationBuilder({ projectId, projectName }: { projec
     if (!pres) return;
     const position = blocks.length;
     const defaults: Record<string, any> = {
+      cover: { tagline: "#tudo começa pelo seu lema.", label: "PLANEJAMENTO", month: "", year: String(new Date().getFullYear()) },
+      rules: { items: [""] },
+      themes: { title: "Temas do mês", items: [""] },
+      feed_overview: { title: "#seu feed, seu lema.", subtitle: "Visão geral", images: [] },
       header: { title: "", subtitle: "" },
       text: { content: "" },
       image: { url: "", caption: "" },
@@ -265,6 +269,7 @@ export default function PresentationBuilder({ projectId, projectName }: { projec
       instagram_preview: { images: [] },
       posts_plan: {},
     };
+
     const { data, error } = await supabase
       .from("presentation_blocks")
       .insert({ presentation_id: pres.id, block_type: type, position, data: defaults[type] })
