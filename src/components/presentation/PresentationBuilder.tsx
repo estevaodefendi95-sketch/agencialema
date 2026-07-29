@@ -54,12 +54,23 @@ type Presentation = {
   agency_logo_url: string | null;
   hero_title: string | null;
   hero_description: string | null;
+  theme?: any;
 };
 
 type Block = {
   id: string;
   presentation_id: string;
-  block_type: "header" | "text" | "image" | "gallery" | "instagram_preview" | "posts_plan";
+  block_type:
+    | "cover"
+    | "rules"
+    | "themes"
+    | "feed_overview"
+    | "header"
+    | "text"
+    | "image"
+    | "gallery"
+    | "instagram_preview"
+    | "posts_plan";
   position: number;
   data: any;
 };
@@ -75,6 +86,10 @@ type Post = {
 };
 
 const BLOCK_META = {
+  cover: { label: "Capa", icon: LayoutTemplate },
+  rules: { label: "Regras / Aprovação", icon: ListChecks },
+  themes: { label: "Temas do mês", icon: Hash },
+  feed_overview: { label: "Visão geral do feed", icon: Grid3x3 },
   header: { label: "Cabeçalho", icon: Heading },
   text: { label: "Texto", icon: Type },
   image: { label: "Imagem", icon: ImageIcon },
@@ -82,6 +97,7 @@ const BLOCK_META = {
   instagram_preview: { label: "Preview Instagram", icon: Smartphone },
   posts_plan: { label: "Planejamento de Posts", icon: ListOrdered },
 };
+
 
 function slugify(s: string) {
   return s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
