@@ -698,10 +698,94 @@ function BlockEditor({ block, onChange, posts, postMedia, onAddPost, onPatchPost
   // Determine aspect for each block type
   const isInsta = block.block_type === "instagram_preview";
   const isGallery = block.block_type === "gallery";
+  const isFeedOverview = block.block_type === "feed_overview";
   const isSingleImage = block.block_type === "image";
-  const aspect: number | "free" | "choice" = isInsta ? 1 : isGallery ? 1 : "choice";
-  const isMulti = isGallery || isInsta;
+  const aspect: number | "free" | "choice" = isInsta || isFeedOverview ? 1 : isGallery ? 1 : "choice";
+  const isMulti = isGallery || isInsta || isFeedOverview;
 
+  if (block.block_type === "cover") {
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+        <Input placeholder="Tagline (#tudo começa pelo seu lema.)" value={block.data.tagline || ""} onChange={(e) => onChange({ ...block.data, tagline: e.target.value })} disabled={disabled} />
+        <Input placeholder="Rótulo (PLANEJAMENTO)" value={block.data.label || ""} onChange={(e) => onChange({ ...block.data, label: e.target.value })} disabled={disabled} />
+        <Input placeholder="Mês (ex.: OUTUBRO)" value={block.data.month || ""} onChange={(e) => onChange({ ...block.data, month: e.target.value })} disabled={disabled} />
+        <Input placeholder="Ano" value={block.data.year || ""} onChange={(e) => onChange({ ...block.data, year: e.target.value })} disabled={disabled} />
+      </div>
+    );
+  }
+  if (block.block_type === "rules" || block.block_type === "themes") {
+    const items: string[] = block.data.items || [];
+    const isThemes = block.block_type === "themes";
+    return (
+      <div className="space-y-2">
+        {isThemes && (
+          <Input placeholder="Título do slide" value={block.data.title || ""} onChange={(e) => onChange({ ...block.data, title: e.target.value })} disabled={disabled} />
+        )}
+        {items.map((it, i) => (
+          <div key={i} className="flex gap-2 items-start">
+            <span className="text-xs text-muted-foreground pt-2.5 w-5 shrink-0">{String(i + 1).padStart(2, "0")}</span>
+            <Textarea
+              value={it}
+              rows={2}
+              placeholder={isThemes ? "Tema" : "Regra / instrução"}
+              onChange={(e) => onChange({ ...block.data, items: items.map((x, j) => (j === i ? e.target.value : x)) })}
+              disabled={disabled}
+            />
+            {!disabled && (
+              <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={() => onChange({ ...block.data, items: items.filter((_, j) => j !== i) })}>
+                <Trash2 className="h-3.5 w-3.5" />
+              </Button>
+            )}
+          </div>
+        ))}
+        {!disabled && (
+          <Button variant="outline" size="sm" onClick={() => onChange({ ...block.data, items: [...items, ""] })}>
+            <Plus className="h-3.5 w-3.5 mr-1.5" /> Adicionar item
+          </Button>
+        )}
+      </div>
+    );
+  }
+  if (isFeedOverview) {
+    const images: string[] = block.data.images || [];
+    return (
+      <div className="space-y-2">
+        <Input placeholder="Título" value={block.data.title || ""} onChange={(e) => onChange({ ...block.data, title: e.target.value })} disabled={disabled} />
+        <Input placeholder="Subtítulo" value={block.data.subtitle || ""} onChange={(e) => onChange({ ...block.data, subtitle: e.target.value })} disabled={disabled} />
+        <div className="grid gap-2 grid-cols-3 max-w-xs">
+          {images.map((url, i) => (
+            <div key={i} className="relative aspect-square">
+              <img src={url} alt="" className="w-full h-full object-cover rounded border" />
+              {!disabled && (
+                <button
+                  onClick={() => onChange({ ...block.data, images: images.filter((_, j) => j !== i) })}
+                  className="absolute top-1 right-1 bg-background/80 rounded p-0.5"
+                >
+                  <Trash2 className="h-3 w-3" />
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+        {!disabled && (
+          <label className="cursor-pointer inline-block">
+            <Input type="file" accept="image/*" multiple className="hidden" onChange={handleFiles} />
+            <Button asChild variant="outline" size="sm"><span><Upload className="h-3.5 w-3.5 mr-1.5" />Enviar imagens</span></Button>
+          </label>
+        )}
+        {current && (
+          <ImageCropper
+            file={current}
+            open
+            onClose={cancelCrop}
+            onCropped={(url) => handleCropped(url, true)}
+            aspect={1}
+            uploadPath={`presentations/media/${crypto.randomUUID()}.png`}
+          />
+        )}
+      </div>
+    );
+  }
   if (block.block_type === "header") {
     return (
       <div className="space-y-2">
@@ -710,6 +794,7 @@ function BlockEditor({ block, onChange, posts, postMedia, onAddPost, onPatchPost
       </div>
     );
   }
+
   if (block.block_type === "text") {
     return (
       <Textarea placeholder="Escreva aqui..." value={block.data.content || ""} onChange={(e) => onChange({ ...block.data, content: e.target.value })} rows={6} disabled={disabled} />
