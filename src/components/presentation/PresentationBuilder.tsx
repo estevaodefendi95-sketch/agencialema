@@ -453,6 +453,43 @@ export default function PresentationBuilder({ projectId, projectName }: { projec
         </CardContent>
       </Card>
 
+      {/* Tema visual */}
+      <Card>
+        <CardContent className="p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <Palette className="h-4 w-4 text-muted-foreground" />
+            <p className="text-sm font-medium">Tema da apresentação</p>
+          </div>
+          <div className="flex flex-wrap gap-4">
+            {THEME_FIELDS.map((f) => {
+              const theme = normalizeTheme(pres.theme);
+              return (
+                <div key={f.key} className="space-y-1.5">
+                  <Label className="text-xs">{f.label}</Label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="color"
+                      value={theme[f.key]}
+                      disabled={!canEdit}
+                      onChange={(e) => patchPres({ theme: { ...theme, [f.key]: e.target.value } })}
+                      className="h-8 w-10 rounded border bg-background p-0.5"
+                    />
+                    <span className="text-[11px] text-muted-foreground uppercase">{theme[f.key]}</span>
+                  </div>
+                </div>
+              );
+            })}
+            {canEdit && (
+              <Button variant="ghost" size="sm" className="self-end" onClick={() => patchPres({ theme: DEFAULT_THEME })}>
+                Restaurar padrão
+              </Button>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+
+
       {/* Blocks */}
       <DragDropContext onDragEnd={onDragEnd}>
         <Droppable droppableId="blocks">
