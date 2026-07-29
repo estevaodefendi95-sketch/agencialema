@@ -19,6 +19,7 @@ import { LayoutGrid, List, CalendarDays, FolderKanban, ChevronLeft, ChevronRight
 import { Switch } from "@/components/ui/switch";
 import { REMINDER_OPTIONS, formatDueTime } from "@/lib/taskReminders";
 import { AssigneeAvatar } from "@/components/AssigneeAvatar";
+import { TaskCardMini } from "@/components/TaskCardMini";
 import { ColorSwatchPicker } from "@/components/ColorSwatchPicker";
 import { CalendarColorToggle } from "@/components/CalendarColorToggle";
 import { CalendarMonthGrid, CalendarWeekGrid } from "@/components/CalendarMonthWeekDay";
@@ -637,7 +638,10 @@ export default function MyTasks() {
                           <div
                             ref={prov.innerRef}
                             {...prov.droppableProps}
-                            className={cn("space-y-2 min-h-[100px] flex-1 flex flex-col", colTasks.length === 0 && "items-center justify-center")}
+                            className={cn(
+                              "space-y-2 min-h-[100px] flex flex-col",
+                              colTasks.length === 0 && "flex-1 items-center justify-center",
+                            )}
                           >
                             {colTasks.map((t, idx) => (
                               <Draggable key={t.id} draggableId={t.id} index={idx}>
@@ -660,55 +664,46 @@ export default function MyTasks() {
                                           <GripVertical className="h-4 w-4 text-muted-foreground" />
                                         </div>
                                         <div className="flex-1 min-w-0">
-                                          <div className="flex items-center gap-1.5 min-w-0">
-                                            <AssigneeAvatar url={viewedAvatarUrl} name={viewedName} className="h-5 w-5 shrink-0" />
-                                            {t.parent_task_id && (
-                                              <span title="Subtarefa"><CornerDownRight className="h-3 w-3 text-muted-foreground shrink-0" /></span>
-                                            )}
-                                            <p
-                                              className={cn(
-                                                "font-medium text-sm truncate",
-                                                t.status === "concluido" && "line-through text-muted-foreground",
-                                                t.project_id && "cursor-pointer hover:text-primary",
-                                              )}
-                                              onClick={() => { if (t.project_id) navigate(`/projetos/${t.project_id}`); }}
-                                            >
-                                              {t.title}
-                                            </p>
-                                          </div>
-                                          {t.description && (
-                                            <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{t.description}</p>
-                                          )}
-                                          <div className="flex items-center gap-2 mt-2 flex-wrap">
-                                            {t.project_id ? (
-                                              t.projects?.name && (
-                                                <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                                                  <FolderKanban className="h-3 w-3" />
-                                                  {t.projects.name}
-                                                </span>
-                                              )
-                                            ) : (
-                                              <Badge variant="outline" className="text-[10px]">Pessoal</Badge>
-                                            )}
-                                            <Badge className={`text-xs ${PRIORITY_BADGE_BG[t.priority] || ""}`} variant="secondary">
-                                              {PRIORITY_LABEL[t.priority]}
-                                            </Badge>
-                                            {t.due_date && (
-                                              <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                                                <CalendarDays className="h-3 w-3" />
-                                                {format(parseISO(t.due_date), "dd MMM", { locale: ptBR })}
-                                                {t.due_time && ` ${formatDueTime(t.due_time)}`}
-                                              </span>
-                                            )}
-                                            {canEdit && (
-                                              <ColorSwatchPicker
-                                                value={t.color}
-                                                onChange={(c) => saveTaskColor(t.id, c)}
-                                                allowNone
-                                                triggerClassName="h-3.5 w-3.5 rounded-full shrink-0 border border-border ml-auto"
-                                              />
-                                            )}
-                                          </div>
+                                          <TaskCardMini
+                                            title={t.title}
+                                            isSubtask={!!t.parent_task_id}
+                                            completed={t.status === "concluido"}
+                                            onTitleClick={t.project_id ? () => navigate(`/projetos/${t.project_id}`) : undefined}
+                                            description={t.description}
+                                            badgesRow={
+                                              <>
+                                                {t.project_id ? (
+                                                  t.projects?.name && (
+                                                    <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                                                      <FolderKanban className="h-3 w-3" />
+                                                      {t.projects.name}
+                                                    </span>
+                                                  )
+                                                ) : (
+                                                  <Badge variant="outline" className="text-[10px]">Pessoal</Badge>
+                                                )}
+                                                <Badge className={`text-xs ${PRIORITY_BADGE_BG[t.priority] || ""}`} variant="secondary">
+                                                  {PRIORITY_LABEL[t.priority]}
+                                                </Badge>
+                                                {t.due_date && (
+                                                  <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                                                    <CalendarDays className="h-3 w-3" />
+                                                    {format(parseISO(t.due_date), "dd MMM", { locale: ptBR })}
+                                                    {t.due_time && ` ${formatDueTime(t.due_time)}`}
+                                                  </span>
+                                                )}
+                                                {canEdit && (
+                                                  <ColorSwatchPicker
+                                                    value={t.color}
+                                                    onChange={(c) => saveTaskColor(t.id, c)}
+                                                    allowNone
+                                                    triggerClassName="h-3.5 w-3.5 rounded-full shrink-0 border border-border ml-auto"
+                                                  />
+                                                )}
+                                              </>
+                                            }
+                                            assignee={viewedName ? { avatarUrl: viewedAvatarUrl, name: viewedName } : null}
+                                          />
                                         </div>
                                       </div>
                                     </div>

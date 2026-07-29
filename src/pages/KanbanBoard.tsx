@@ -46,6 +46,7 @@ import PresentationBuilder from "@/components/presentation/PresentationBuilder";
 import { PresentationsTab } from "@/components/presentation/PresentationsTab";
 import { useAppSettings } from "@/hooks/useAppSettings";
 import { AssigneeAvatar } from "@/components/AssigneeAvatar";
+import { TaskCardMini } from "@/components/TaskCardMini";
 import { CalendarMonthGrid, CalendarWeekGrid, CalendarDayList } from "@/components/CalendarMonthWeekDay";
 
 const COLOR_PALETTE = [
@@ -1479,7 +1480,10 @@ export default function KanbanBoard() {
                     <div
                       ref={provided.innerRef}
                       {...provided.droppableProps}
-                      className={cn("space-y-2 min-h-[100px] flex-1 flex flex-col", getColumnTasks(col.slug).length === 0 && "items-center justify-center")}
+                      className={cn(
+                        "space-y-2 min-h-[100px] flex flex-col",
+                        getColumnTasks(col.slug).length === 0 && "flex-1 items-center justify-center",
+                      )}
                     >
                       {getColumnTasks(col.slug).map((task, index) => {
                         const media = taskMedia[task.id];
@@ -1527,14 +1531,11 @@ export default function KanbanBoard() {
                                       <GripVertical className="h-4 w-4 text-muted-foreground" />
                                     </div>
                                     <div className="flex-1 min-w-0">
-                                      <div className="flex items-start gap-1.5">
-                                        <p className="font-medium text-sm cursor-pointer hover:text-primary truncate flex-1 flex items-center gap-1" onClick={() => setSelectedTask(task.id)}>
-                                          {task.parent_task_id && (
-                                            <span title="Subtarefa"><CornerDownRight className="h-3 w-3 text-muted-foreground shrink-0" /></span>
-                                          )}
-                                          <span className="truncate">{task.title}</span>
-                                        </p>
-                                        {media && !visibleMedia[task.id] && (
+                                      <TaskCardMini
+                                        title={task.title}
+                                        isSubtask={!!task.parent_task_id}
+                                        onTitleClick={() => setSelectedTask(task.id)}
+                                        titleTrailingSlot={media && !visibleMedia[task.id] && (
                                           <button
                                             type="button"
                                             onClick={(e) => { e.stopPropagation(); toggleMediaVisible(task.id); }}
@@ -1544,56 +1545,46 @@ export default function KanbanBoard() {
                                             <Eye className="h-3.5 w-3.5" />
                                           </button>
                                         )}
-                                      </div>
-                                      <div className="flex items-center gap-2 mt-2 flex-wrap">
-                                        <Badge className={`text-xs ${PRIORITY_COLORS[task.priority] || ""}`} variant="secondary">
-                                          {PRIORITY_LABEL[task.priority] || task.priority}
-                                        </Badge>
-                                        {task.due_date && (
-                                          <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                                            <Calendar className="h-3 w-3" />
-                                            {new Date(task.due_date).toLocaleDateString("pt-BR")}
-                                            {task.due_time && ` ${formatDueTime(task.due_time)}`}
-                                          </span>
-                                        )}
-                                        {commentCounts[task.id] > 0 && (
-                                          <span className="flex items-center gap-1 text-xs text-muted-foreground" title="Comentários">
-                                            <MessageSquare className="h-3 w-3" />{commentCounts[task.id]}
-                                          </span>
-                                        )}
-                                        {(() => {
-                                          const a = getAssigneeDisplay(task);
-                                          if (!a) return null;
-                                          return (
-                                            <span className="flex items-center gap-1" title={a.name}>
-                                              <Avatar className="h-5 w-5">
-                                                <AvatarImage src={a.avatarUrl || ""} />
-                                                <AvatarFallback className="text-[9px]">{a.initial}</AvatarFallback>
-                                              </Avatar>
-                                              <span className="text-xs text-muted-foreground truncate max-w-[80px]">{a.name}</span>
-                                            </span>
-                                          );
-                                        })()}
-                                        {canEdit && (
-                                          <Popover>
-                                            <PopoverTrigger asChild>
-                                              <button className="h-3.5 w-3.5 rounded-full shrink-0 border border-border ml-auto" style={{ backgroundColor: task.color || "transparent" }} />
-                                            </PopoverTrigger>
-                                            <PopoverContent className="w-auto p-2" align="start">
-                                              <div className="flex gap-1.5 items-center">
-                                                <button className="h-6 w-6 rounded-full border-2 border-dashed border-muted-foreground" onClick={() => saveTaskColor(task.id, null)} title="Sem cor" />
-                                                {COLOR_PALETTE.map((c) => (
-                                                  <button key={c} className={`h-6 w-6 rounded-full border-2 ${task.color === c ? "border-foreground" : "border-transparent"}`} style={{ backgroundColor: c }} onClick={() => saveTaskColor(task.id, c)} />
-                                                ))}
-                                                <label className="h-6 w-6 rounded-full border-2 border-dashed border-muted-foreground flex items-center justify-center cursor-pointer" title="Cor personalizada">
-                                                  <Pencil className="h-3 w-3 text-muted-foreground" />
-                                                  <input type="color" className="sr-only" value={task.color || "#000000"} onChange={(e) => saveTaskColor(task.id, e.target.value)} />
-                                                </label>
-                                              </div>
-                                            </PopoverContent>
-                                          </Popover>
-                                        )}
-                                      </div>
+                                        badgesRow={
+                                          <>
+                                            <Badge className={`text-xs ${PRIORITY_COLORS[task.priority] || ""}`} variant="secondary">
+                                              {PRIORITY_LABEL[task.priority] || task.priority}
+                                            </Badge>
+                                            {task.due_date && (
+                                              <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                                                <Calendar className="h-3 w-3" />
+                                                {new Date(task.due_date).toLocaleDateString("pt-BR")}
+                                                {task.due_time && ` ${formatDueTime(task.due_time)}`}
+                                              </span>
+                                            )}
+                                            {commentCounts[task.id] > 0 && (
+                                              <span className="flex items-center gap-1 text-xs text-muted-foreground" title="Comentários">
+                                                <MessageSquare className="h-3 w-3" />{commentCounts[task.id]}
+                                              </span>
+                                            )}
+                                            {canEdit && (
+                                              <Popover>
+                                                <PopoverTrigger asChild>
+                                                  <button className="h-3.5 w-3.5 rounded-full shrink-0 border border-border ml-auto" style={{ backgroundColor: task.color || "transparent" }} />
+                                                </PopoverTrigger>
+                                                <PopoverContent className="w-auto p-2" align="start">
+                                                  <div className="flex gap-1.5 items-center">
+                                                    <button className="h-6 w-6 rounded-full border-2 border-dashed border-muted-foreground" onClick={() => saveTaskColor(task.id, null)} title="Sem cor" />
+                                                    {COLOR_PALETTE.map((c) => (
+                                                      <button key={c} className={`h-6 w-6 rounded-full border-2 ${task.color === c ? "border-foreground" : "border-transparent"}`} style={{ backgroundColor: c }} onClick={() => saveTaskColor(task.id, c)} />
+                                                    ))}
+                                                    <label className="h-6 w-6 rounded-full border-2 border-dashed border-muted-foreground flex items-center justify-center cursor-pointer" title="Cor personalizada">
+                                                      <Pencil className="h-3 w-3 text-muted-foreground" />
+                                                      <input type="color" className="sr-only" value={task.color || "#000000"} onChange={(e) => saveTaskColor(task.id, e.target.value)} />
+                                                    </label>
+                                                  </div>
+                                                </PopoverContent>
+                                              </Popover>
+                                            )}
+                                          </>
+                                        }
+                                        assignee={getAssigneeDisplay(task)}
+                                      />
                                       {!isAdmin && task.status === "concluido" && (
                                         <div className="flex gap-2 mt-2">
                                           <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => approveTask(task.id)}>
