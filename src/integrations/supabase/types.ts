@@ -975,6 +975,16 @@ export type Database = {
     }
     Functions: {
       generate_recurring_task_instances: { Args: never; Returns: undefined }
+      get_admin_profiles: {
+        Args: never
+        Returns: {
+          avatar_url: string
+          email: string
+          full_name: string
+          id: string
+          nickname: string
+        }[]
+      }
       has_company_access: {
         Args: { _company_id: string; _user_id: string }
         Returns: boolean
