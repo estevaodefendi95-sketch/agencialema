@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { DragDropContext, Droppable, Draggable, type DropResult } from "@hello-pangea/dnd";
-import { Plus, GripVertical, Trash2, Image as ImageIcon, Type, Smartphone, ListOrdered, Eye, ExternalLink, Copy, Heading, Upload, Play, X, Rocket, History as HistoryIcon } from "lucide-react";
+import { Plus, GripVertical, Trash2, Image as ImageIcon, Type, Smartphone, ListOrdered, Eye, ExternalLink, Copy, Heading, Upload, Play, X, Rocket, History as HistoryIcon, LayoutTemplate, ListChecks, Hash, Grid3x3, Palette } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import ImageCropper from "@/components/ImageCropper";
