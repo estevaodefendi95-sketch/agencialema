@@ -355,7 +355,9 @@ export default function KanbanBoard() {
 
   // Quem já tem acesso liberado à empresa deste projeto — usado pra restringir
   // o autocomplete de convite e o select de Responsável (mesma regra de acesso
-  // usada pra aprovar usuário numa empresa).
+  // usada pra aprovar usuário numa empresa). Combina duas fontes: quem tem
+  // user_company_access pra essa empresa, e admins (acesso universal, sem
+  // precisar de vínculo explícito) — sem duplicar quem aparecer nas duas.
   useEffect(() => {
     if (!companyId) {
       setCompanyAccessUserIds(new Set());
@@ -363,13 +365,24 @@ export default function KanbanBoard() {
       return;
     }
     (async () => {
-      const { data } = await (supabase.from as any)("user_company_access")
-        .select("user_id, profiles(id, full_name, nickname, email, avatar_url)")
-        .eq("company_id", companyId);
-      const profiles = (data || [])
-        .map((r: any) => r.profiles)
-        .filter(Boolean);
-      setCompanyAccessProfiles(profiles);
+      const [{ data: accessRows }, { data: adminProfiles }] = await Promise.all([
+        (supabase.from as any)("user_company_access")
+          .select("user_id, profiles(id, full_name, nickname, email, avatar_url, status)")
+          .eq("company_id", companyId),
+        (supabase.rpc as any)("get_admin_profiles"),
+      ]);
+
+      const byId: Record<string, any> = {};
+      (accessRows || []).forEach((r: any) => {
+        const p = r.profiles;
+        if (p && p.status === "aprovado") byId[p.id] = p;
+      });
+      // Admins têm acesso universal — entram na lista mesmo sem
+      // user_company_access explícito pra essa empresa.
+      (adminProfiles || []).forEach((p: any) => { byId[p.id] = p; });
+
+      const profiles = Object.values(byId);
+      setCompanyAccessProfiles(profiles as any);
       setCompanyAccessUserIds(new Set(profiles.map((p: any) => p.id)));
     })();
   }, [companyId]);
