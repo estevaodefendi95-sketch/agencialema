@@ -1,11 +1,14 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { format, parseISO } from "date-fns";
-import { ptBR } from "date-fns/locale";
-import { Card, CardContent } from "@/components/ui/card";
 import { Carousel, CarouselContent, CarouselItem, CarouselPrevious, CarouselNext, type CarouselApi } from "@/components/ui/carousel";
-import { Image as ImageIcon } from "lucide-react";
+import { ChevronLeft, ChevronRight, Presentation as PresentationIcon, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getGalleryItems, getPostMediaItems, type MediaItem, type PostMediaRow } from "./mediaUtils";
+import { normalizeTheme, themeVars } from "./theme";
+import CoverSlide from "./blocks/CoverSlide";
+import RulesSlide from "./blocks/RulesSlide";
+import ThemesSlide from "./blocks/ThemesSlide";
+import FeedOverviewSlide from "./blocks/FeedOverviewSlide";
 
 export type { PostMediaRow } from "./mediaUtils";
 
@@ -18,6 +21,7 @@ export type PresentationData = {
   agency_logo_url: string | null;
   hero_title: string | null;
   hero_description: string | null;
+  theme?: any;
 };
 
 export type Block = { id: string; block_type: string; position: number; data: any };
@@ -30,6 +34,8 @@ export type Post = {
   copy: string | null;
 };
 
+type SlideDef = { id: string; invert?: boolean; node: React.ReactNode };
+
 export default function PresentationView({
   pres,
   blocks,
@@ -41,129 +47,350 @@ export default function PresentationView({
   posts: Post[];
   postMedia?: PostMediaRow[];
 }) {
+  const theme = useMemo(() => normalizeTheme(pres.theme), [pres.theme]);
+  const [deckMode, setDeckMode] = useState(false);
+  const [index, setIndex] = useState(0);
+
+  const slides = useMemo(
+    () => buildSlides({ pres, blocks, posts, postMedia }),
+    [pres, blocks, posts, postMedia],
+  );
+
+  useEffect(() => {
+    if (!deckMode) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "ArrowRight" || e.key === " ") setIndex((i) => Math.min(i + 1, slides.length - 1));
+      if (e.key === "ArrowLeft") setIndex((i) => Math.max(i - 1, 0));
+      if (e.key === "Escape") setDeckMode(false);
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [deckMode, slides.length]);
+
+  const current = slides[Math.min(index, Math.max(slides.length - 1, 0))];
+
   return (
-    <div className="min-h-screen bg-gradient-to-b from-background via-background to-muted/30">
-      {/* HERO */}
-      <header className="relative overflow-hidden">
-        <div className="absolute inset-0 -z-10 bg-gradient-to-br from-primary/5 via-transparent to-brand-accent/5 pointer-events-none" />
-        {/* pb-20/32 aqui é fixo de propósito — não depende do tamanho da
-            descrição, pra manter o respiro até o próximo bloco constante
-            mesmo quando hero_description está vazia ou é bem curta. */}
-        <div className="max-w-6xl mx-auto px-6 pt-16 md:pt-24 pb-20 md:pb-32">
-          <div className="flex items-center justify-between gap-6 pb-6 md:pb-8 mb-10 md:mb-14 border-b border-foreground/10 animate-fade-in">
-            {pres.client_logo_url ? (
-              <img
-                src={pres.client_logo_url}
-                alt="Logo do cliente"
-                className="h-16 md:h-20 max-w-[220px] object-contain"
-              />
-            ) : (
-              <div />
-            )}
-            {pres.agency_logo_url && (
-              <img
-                src={pres.agency_logo_url}
-                alt="Logo da agência"
-                className="h-10 md:h-12 max-w-[160px] object-contain opacity-70"
-              />
-            )}
+    <div
+      style={themeVars(theme)}
+      className="pres-root min-h-screen"
+    >
+      <div style={{ background: "var(--pres-bg)", color: "var(--pres-fg)" }} className="min-h-screen">
+        {deckMode && current ? (
+          <div className="min-h-screen flex flex-col items-center justify-center gap-4 p-6">
+            <div
+              className="w-full max-w-[1400px] aspect-[16/9] overflow-hidden shadow-2xl"
+              style={
+                current.invert
+                  ? { background: "var(--pres-invert-bg)", color: "var(--pres-invert-fg)" }
+                  : { background: "var(--pres-bg)", color: "var(--pres-fg)" }
+              }
+            >
+              <div className="w-full h-full px-6 md:px-16 py-10 md:py-14 overflow-auto scrollbar-hide">
+                {current.node}
+              </div>
+            </div>
+            <div className="flex items-center gap-4">
+              <button
+                onClick={() => setIndex((i) => Math.max(i - 1, 0))}
+                disabled={index === 0}
+                className="h-9 w-9 rounded-full border border-current/30 flex items-center justify-center disabled:opacity-30"
+                aria-label="Slide anterior"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </button>
+              <span className="text-sm tabular-nums opacity-70">
+                {index + 1} / {slides.length}
+              </span>
+              <button
+                onClick={() => setIndex((i) => Math.min(i + 1, slides.length - 1))}
+                disabled={index >= slides.length - 1}
+                className="h-9 w-9 rounded-full border border-current/30 flex items-center justify-center disabled:opacity-30"
+                aria-label="Próximo slide"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </button>
+              <button
+                onClick={() => setDeckMode(false)}
+                className="ml-2 text-sm flex items-center gap-1.5 opacity-70 hover:opacity-100"
+              >
+                <X className="h-4 w-4" /> Sair
+              </button>
+            </div>
           </div>
-          <span className="block text-xs md:text-sm font-semibold uppercase tracking-wider text-primary mb-3 md:mb-4 animate-fade-in">
-            Apresentação de Conteúdo
-          </span>
-          <h1 className="text-5xl md:text-7xl lg:text-8xl font-bold tracking-tight mb-8 leading-[1.05] animate-fade-in">
-            {pres.hero_title || "Apresentação"}
-          </h1>
-          {pres.hero_description && (
-            <p className="text-lg md:text-2xl text-muted-foreground max-w-3xl leading-relaxed font-light whitespace-pre-line animate-fade-in">
-              {pres.hero_description}
-            </p>
-          )}
-        </div>
-      </header>
+        ) : (
+          <>
+            {slides.map((s) => (
+              <section
+                key={s.id}
+                className="w-full min-h-[80vh] md:min-h-screen flex items-center px-6 md:px-16 py-14 md:py-20 animate-fade-in"
+                style={
+                  s.invert
+                    ? { background: "var(--pres-invert-bg)", color: "var(--pres-invert-fg)" }
+                    : undefined
+                }
+              >
+                <div className="w-full max-w-6xl mx-auto">{s.node}</div>
+              </section>
+            ))}
 
-      {/* BLOCKS */}
-      <main className="max-w-6xl mx-auto px-6 pb-24 space-y-10 md:space-y-16">
-        {blocks.map((b) => (
-          <BlockRender key={b.id} block={b} posts={posts} postMedia={postMedia} />
-        ))}
+            <footer
+              className="px-6 md:px-16 py-10 flex items-center justify-between gap-4 border-t"
+              style={{ borderColor: "color-mix(in srgb, var(--pres-fg) 15%, transparent)" }}
+            >
+              <span className="pres-display text-sm md:text-base text-[color:var(--pres-accent)]">
+                #seu feed, seu lema.
+              </span>
+              {pres.agency_logo_url && (
+                <img src={pres.agency_logo_url} alt="" className="h-8 object-contain opacity-70" />
+              )}
+            </footer>
 
-        {/* Fallback: render posts plan if not in any block */}
-        {!blocks.some((b) => b.block_type === "posts_plan") && posts.length > 0 && (
-          <PostsPlanSection posts={posts} postMedia={postMedia} />
+            {slides.length > 0 && (
+              <button
+                onClick={() => {
+                  setIndex(0);
+                  setDeckMode(true);
+                }}
+                className="hidden md:flex fixed bottom-6 right-6 items-center gap-2 rounded-full px-4 py-2.5 text-sm font-medium shadow-lg z-30"
+                style={{ background: "var(--pres-accent)", color: "var(--pres-invert-fg)" }}
+              >
+                <PresentationIcon className="h-4 w-4" /> Modo apresentação
+              </button>
+            )}
+          </>
         )}
-      </main>
-
-      <footer className="border-t py-10 text-center text-xs text-muted-foreground">
-        <div className="flex flex-col items-center gap-3">
-          {pres.agency_logo_url && (
-            <img src={pres.agency_logo_url} alt="" className="h-8 opacity-60" />
-          )}
-          <span>Apresentação preparada com cuidado · {new Date().getFullYear()}</span>
-        </div>
-      </footer>
+      </div>
     </div>
   );
 }
 
-function BlockRender({ block, posts, postMedia }: { block: Block; posts: Post[]; postMedia: PostMediaRow[] }) {
-  if (block.block_type === "header") {
-    return (
-      <section className="text-center py-2 animate-fade-in">
-        {block.data.title && (
-          <h2 className="text-3xl md:text-5xl font-bold mb-2 tracking-tight">{block.data.title}</h2>
-        )}
-        {block.data.subtitle && (
-          <p className="text-lg text-muted-foreground max-w-2xl mx-auto">{block.data.subtitle}</p>
-        )}
-      </section>
-    );
+function buildSlides({
+  pres,
+  blocks,
+  posts,
+  postMedia,
+}: {
+  pres: PresentationData;
+  blocks: Block[];
+  posts: Post[];
+  postMedia: PostMediaRow[];
+}): SlideDef[] {
+  const slides: SlideDef[] = [];
+  const hasCover = blocks.some((b) => b.block_type === "cover");
+
+  if (!hasCover) {
+    slides.push({
+      id: "hero",
+      node: <HeroSlide pres={pres} />,
+    });
   }
-  if (block.block_type === "text") {
-    return (
-      <section className="prose prose-neutral dark:prose-invert max-w-2xl mx-auto text-center animate-fade-in">
-        <p className="whitespace-pre-line text-lg md:text-xl leading-relaxed font-light text-foreground/90">
-          {block.data.content}
-        </p>
-      </section>
-    );
+
+  for (const b of blocks) {
+    slides.push(...blockSlides(b, pres, posts, postMedia));
   }
-  if (block.block_type === "image" && block.data.url) {
-    return (
-      <div className="py-2">
-        <section className="animate-fade-in">
-          <img
-            src={block.data.url}
-            alt={block.data.caption || ""}
-            className="w-full rounded-2xl border shadow-xl"
-          />
-          {block.data.caption && (
-            <p className="text-sm text-muted-foreground text-center mt-4 italic">
-              {block.data.caption}
+
+  if (!blocks.some((b) => b.block_type === "posts_plan") && posts.length > 0) {
+    slides.push(...postSlides(posts, postMedia));
+  }
+
+  return slides;
+}
+
+function blockSlides(b: Block, pres: PresentationData, posts: Post[], postMedia: PostMediaRow[]): SlideDef[] {
+  const invert = !!b.data?.invert;
+
+  switch (b.block_type) {
+    case "cover":
+      return [
+        {
+          id: b.id,
+          invert,
+          node: <CoverSlide data={b.data || {}} clientLogo={pres.client_logo_url} agencyLogo={pres.agency_logo_url} />,
+        },
+      ];
+    case "rules":
+      return [
+        {
+          id: b.id,
+          invert: b.data?.invert !== false,
+          node: <RulesSlide data={b.data || {}} agencyLogo={pres.agency_logo_url} />,
+        },
+      ];
+    case "themes":
+      return [{ id: b.id, node: <ThemesSlide data={b.data || {}} /> }];
+    case "feed_overview":
+      return [{ id: b.id, node: <FeedOverviewSlide data={b.data || {}} /> }];
+    case "header":
+      return [
+        {
+          id: b.id,
+          invert,
+          node: (
+            <div className={cn(b.data?.align === "center" && "text-center")}>
+              {b.data?.title && (
+                <h2 className="pres-display text-4xl md:text-7xl font-bold tracking-tight leading-[1.05]">
+                  {b.data.title}
+                </h2>
+              )}
+              {b.data?.subtitle && (
+                <p className="text-lg md:text-2xl mt-5 opacity-80 max-w-3xl whitespace-pre-line">
+                  {b.data.subtitle}
+                </p>
+              )}
+            </div>
+          ),
+        },
+      ];
+    case "text":
+      return [
+        {
+          id: b.id,
+          invert,
+          node: (
+            <p
+              className={cn(
+                "text-xl md:text-3xl leading-relaxed font-light whitespace-pre-line max-w-4xl",
+                b.data?.align === "center" && "text-center mx-auto",
+              )}
+            >
+              {b.data?.content}
             </p>
+          ),
+        },
+      ];
+    case "image":
+      if (!b.data?.url) return [];
+      return [
+        {
+          id: b.id,
+          invert,
+          node: (
+            <figure>
+              <img src={b.data.url} alt={b.data.caption || ""} className="w-full max-h-[70vh] object-contain" />
+              {b.data.caption && (
+                <figcaption className="text-sm mt-4 opacity-70 text-center">{b.data.caption}</figcaption>
+              )}
+            </figure>
+          ),
+        },
+      ];
+    case "gallery": {
+      const items = getGalleryItems(b.data);
+      if (items.length === 0) return [];
+      return [
+        {
+          id: b.id,
+          invert,
+          node: (
+            <>
+              <div className="hidden md:grid gap-2" style={{ gridTemplateColumns: `repeat(${Math.min(items.length, 5)}, minmax(0,1fr))` }}>
+                {items.map((item, i) => (
+                  <MediaTile key={i} item={item} className="w-full aspect-[4/5] object-cover" />
+                ))}
+              </div>
+              <div className="md:hidden">
+                <MediaCarousel items={items} />
+              </div>
+              {b.data?.caption && <p className="text-sm mt-4 opacity-70 text-center">{b.data.caption}</p>}
+            </>
+          ),
+        },
+      ];
+    }
+    case "instagram_preview":
+      return [{ id: b.id, invert, node: <InstagramPreview data={b.data || {}} /> }];
+    case "posts_plan":
+      return postSlides(posts, postMedia);
+    default:
+      return [];
+  }
+}
+
+function postSlides(posts: Post[], postMedia: PostMediaRow[]): SlideDef[] {
+  return posts.map((p, i) => ({
+    id: `post-${p.id}`,
+    node: <PostSlide post={p} index={i} media={postMedia} />,
+  }));
+}
+
+function HeroSlide({ pres }: { pres: PresentationData }) {
+  return (
+    <div>
+      <div className="flex items-center justify-between gap-6 pb-8 mb-10 border-b border-current/15">
+        {pres.client_logo_url ? (
+          <img src={pres.client_logo_url} alt="Logo do cliente" className="h-16 md:h-24 max-w-[260px] object-contain" />
+        ) : (
+          <div />
+        )}
+        {pres.agency_logo_url && (
+          <img src={pres.agency_logo_url} alt="" className="h-9 md:h-12 max-w-[160px] object-contain opacity-70" />
+        )}
+      </div>
+      <span className="pres-display block text-xs md:text-sm uppercase tracking-[0.2em] text-[color:var(--pres-accent)] mb-4">
+        Apresentação de conteúdo
+      </span>
+      <h1 className="pres-display text-5xl md:text-8xl font-bold tracking-tight leading-[1.02] mb-8">
+        {pres.hero_title || "Apresentação"}
+      </h1>
+      {pres.hero_description && (
+        <p className="text-lg md:text-2xl max-w-3xl leading-relaxed font-light opacity-80 whitespace-pre-line">
+          {pres.hero_description}
+        </p>
+      )}
+    </div>
+  );
+}
+
+function PostSlide({ post, index, media }: { post: Post; index: number; media: PostMediaRow[] }) {
+  const items = getPostMediaItems(post, media).map((m) => ({ url: m.media_url, type: m.media_type } as MediaItem));
+
+  return (
+    <div className="w-full">
+      <div className="flex flex-wrap items-start justify-between gap-4 mb-8">
+        <div className="flex items-baseline gap-4 flex-wrap">
+          <h2 className="pres-display text-3xl md:text-5xl font-bold tracking-tight text-[color:var(--pres-accent)]">
+            Post {String(index + 1).padStart(2, "0")}
+          </h2>
+          {post.title && (
+            <span className="pres-display text-base md:text-2xl font-semibold text-[color:var(--pres-accent)]">
+              {post.title}
+            </span>
           )}
-        </section>
+        </div>
+        {post.publish_date && (
+          <span
+            className="pres-display text-xs md:text-base font-bold px-3 py-1.5 uppercase whitespace-nowrap"
+            style={{ background: "var(--pres-accent)", color: "var(--pres-invert-fg)" }}
+          >
+            DATA: {format(parseISO(post.publish_date), "dd/MM")}
+          </span>
+        )}
       </div>
-    );
-  }
-  if (block.block_type === "gallery") {
-    const items = getGalleryItems(block.data);
-    if (items.length === 0) return null;
-    return (
-      <div className="py-2">
-        <section className="max-w-2xl mx-auto animate-fade-in">
-          <MediaCarousel items={items} />
-        </section>
-      </div>
-    );
-  }
-  if (block.block_type === "instagram_preview") {
-    return <InstagramPreview data={block.data} />;
-  }
-  if (block.block_type === "posts_plan") {
-    return <PostsPlanSection posts={posts} postMedia={postMedia} />;
-  }
-  return null;
+
+      {items.length > 0 && (
+        <>
+          <div
+            className="hidden md:grid gap-3 mb-8"
+            style={{ gridTemplateColumns: `repeat(${Math.min(items.length, 5)}, minmax(0,1fr))` }}
+          >
+            {items.slice(0, 5).map((item, i) => (
+              <MediaTile key={i} item={item} className="w-full aspect-[4/5] object-cover" />
+            ))}
+          </div>
+          <div className="md:hidden mb-8">
+            <MediaCarousel items={items} mediaClassName="w-full aspect-[4/5] object-cover" />
+          </div>
+        </>
+      )}
+
+      {post.copy && (
+        <div className="max-w-4xl">
+          <p className="pres-display font-bold text-lg md:text-2xl text-[color:var(--pres-accent)] mb-2">Legenda:</p>
+          <p className="text-base md:text-xl leading-relaxed whitespace-pre-line opacity-90">{post.copy}</p>
+        </div>
+      )}
+    </div>
+  );
 }
 
 // Carrossel simples (dots + setas nas laterais em telas maiores) usado tanto
@@ -207,7 +434,7 @@ function MediaCarousel({ items, mediaClassName }: { items: MediaItem[]; mediaCla
             onClick={() => api?.scrollTo(i)}
             className={cn(
               "h-1.5 rounded-full transition-all",
-              i === selected ? "w-4 bg-primary" : "w-1.5 bg-muted-foreground/30",
+              i === selected ? "w-4 bg-[color:var(--pres-accent)]" : "w-1.5 bg-current opacity-30",
             )}
             aria-label={`Ir para item ${i + 1}`}
           />
@@ -218,11 +445,11 @@ function MediaCarousel({ items, mediaClassName }: { items: MediaItem[]; mediaCla
 }
 
 function MediaTile({ item, className }: { item: MediaItem; className?: string }) {
-  const cls = className || "aspect-square w-full object-cover rounded-2xl border shadow-md";
+  const cls = className || "aspect-square w-full object-cover";
   if (item.type === "video") {
     return <video src={item.url} controls className={cn(cls, "bg-black")} />;
   }
-  return <img src={item.url} alt="" className={cn(cls, "hover:scale-[1.02] transition-transform duration-300")} />;
+  return <img src={item.url} alt="" className={cn(cls, "hover:scale-[1.01] transition-transform duration-300")} />;
 }
 
 function InstagramPreview({ data }: { data: any }) {
@@ -233,10 +460,10 @@ function InstagramPreview({ data }: { data: any }) {
 
   return (
     <section className="animate-fade-in">
-      <h2 className="text-3xl md:text-4xl font-bold text-center mb-3 tracking-tight">
+      <h2 className="pres-display text-3xl md:text-4xl font-bold text-center mb-3 tracking-tight">
         {isFull ? "Preview do Perfil" : "Preview do Feed"}
       </h2>
-      <p className="text-center text-muted-foreground mb-10">
+      <p className="text-center opacity-70 mb-10">
         {isFull ? "Como ficará o perfil completo do cliente" : "Como ficará o Instagram do cliente"}
       </p>
       <div className="flex justify-center">
@@ -435,62 +662,5 @@ function FakeBtn({ children, className = "" }: { children: React.ReactNode; clas
     >
       {children}
     </div>
-  );
-}
-
-function PostsPlanSection({ posts, postMedia }: { posts: Post[]; postMedia: PostMediaRow[] }) {
-  if (posts.length === 0) return null;
-  return (
-    <section className="animate-fade-in">
-      <h2 className="text-3xl md:text-4xl font-bold mb-3 tracking-tight text-center">
-        Planejamento de Postagens
-      </h2>
-      <p className="text-center text-muted-foreground mb-10">
-        Cronograma e copies dos próximos posts
-      </p>
-      <div className="space-y-6">
-        {posts.map((p) => {
-          const items = getPostMediaItems(p, postMedia);
-          return (
-          <Card
-            key={p.id}
-            className="overflow-hidden border shadow-lg hover:shadow-xl transition-shadow duration-300 rounded-2xl"
-          >
-            <CardContent className="p-0 grid grid-cols-1 md:grid-cols-[280px_1fr] gap-0">
-              {items.length > 0 ? (
-                <div className="w-full aspect-square md:aspect-auto md:h-full">
-                  <MediaCarousel
-                    items={items.map((m) => ({ url: m.media_url, type: m.media_type }))}
-                    mediaClassName="w-full h-full object-cover"
-                  />
-                </div>
-              ) : (
-                <div className="w-full aspect-square md:aspect-auto bg-muted flex items-center justify-center">
-                  <ImageIcon className="h-10 w-10 text-muted-foreground" />
-                </div>
-              )}
-              <div className="p-6 md:p-8 flex flex-col">
-                <div className="flex items-start justify-between gap-3 mb-4">
-                  <h3 className="font-bold text-xl md:text-2xl tracking-tight">
-                    {p.title || "Sem título"}
-                  </h3>
-                  {p.publish_date && (
-                    <span className="text-xs px-3 py-1.5 bg-primary/10 text-primary rounded-full font-medium whitespace-nowrap">
-                      {format(parseISO(p.publish_date), "dd 'de' MMMM", { locale: ptBR })}
-                    </span>
-                  )}
-                </div>
-                {p.copy && (
-                  <p className="text-base text-muted-foreground whitespace-pre-line leading-relaxed">
-                    {p.copy}
-                  </p>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-          );
-        })}
-      </div>
-    </section>
   );
 }
