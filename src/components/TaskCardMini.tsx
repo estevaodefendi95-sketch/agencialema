@@ -71,7 +71,7 @@ export function TaskCardMini({
       )}
 
       {assignee && (
-        <div className="flex items-center gap-1.5 mt-2">
+        <div className="flex items-center gap-1.5 mt-1.5">
           <AssigneeAvatar url={assignee.avatarUrl} name={assignee.name} className="h-5 w-5 shrink-0" />
           <span className="text-xs text-muted-foreground truncate max-w-[160px]">{assignee.name}</span>
         </div>

@@ -163,7 +163,7 @@ export default function KanbanBoard() {
   // Perfis de quem já tem acesso liberado à empresa deste projeto — a aba
   // "Equipe do Projeto" lista a partir daqui (não mais busca/convite por e-mail).
   const [companyAccessProfiles, setCompanyAccessProfiles] = useState<
-    { id: string; full_name: string | null; nickname: string | null; email: string | null; avatar_url: string | null }[]
+    { id: string; full_name: string | null; nickname: string | null; email: string | null; avatar_url: string | null; isAdmin?: boolean }[]
   >([]);
   // Perfis de todo mundo com tarefa atribuída neste projeto (tasks.assigned_to),
   // independente de constar em project_members — usado no filtro de responsável.
@@ -376,11 +376,12 @@ export default function KanbanBoard() {
       const byId: Record<string, any> = {};
       (accessRows || []).forEach((r: any) => {
         const p = r.profiles;
-        if (p && p.status === "aprovado") byId[p.id] = p;
+        if (p && p.status === "aprovado") byId[p.id] = { ...p, isAdmin: false };
       });
       // Admins têm acesso universal — entram na lista mesmo sem
-      // user_company_access explícito pra essa empresa.
-      (adminProfiles || []).forEach((p: any) => { byId[p.id] = p; });
+      // user_company_access explícito pra essa empresa, e não recebem
+      // Switch (acesso sempre incluído).
+      (adminProfiles || []).forEach((p: any) => { byId[p.id] = { ...p, isAdmin: true }; });
 
       const profiles = Object.values(byId);
       setCompanyAccessProfiles(profiles as any);
@@ -981,6 +982,7 @@ export default function KanbanBoard() {
                     {companyAccessProfiles.map((p) => {
                       const name = p.nickname?.trim() || p.full_name || p.email || "Sem nome";
                       const isMember = members.some((m) => m.user_id === p.id && m.status === "ativo");
+                      const hasAssignedTask = tasks.some((t) => t.assigned_to === p.id);
                       return (
                         <div key={p.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50">
                           <Avatar className="h-8 w-8">
@@ -993,11 +995,15 @@ export default function KanbanBoard() {
                             <p className="text-sm font-medium truncate">{name}</p>
                             {p.email && <p className="text-xs text-muted-foreground truncate">{p.email}</p>}
                           </div>
-                          <Switch
-                            checked={isMember}
-                            disabled={!canEdit}
-                            onCheckedChange={() => toggleProjectMembership(p.id, isMember)}
-                          />
+                          {p.isAdmin ? (
+                            <Badge variant="secondary" className="text-[10px] shrink-0">Sempre incluído</Badge>
+                          ) : (
+                            <Switch
+                              checked={isMember || hasAssignedTask}
+                              disabled={!canEdit}
+                              onCheckedChange={() => toggleProjectMembership(p.id, isMember)}
+                            />
+                          )}
                         </div>
                       );
                     })}
