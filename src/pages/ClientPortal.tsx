@@ -2,28 +2,22 @@ import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Carousel, CarouselContent, CarouselItem, CarouselPrevious, CarouselNext, type CarouselApi } from "@/components/ui/carousel";
 import { cn } from "@/lib/utils";
 import * as Icons from "lucide-react";
-import { Presentation as PresentationIcon, ChevronDown, Building2 } from "lucide-react";
+import { Presentation as PresentationIcon, ChevronDown, Building2, ExternalLink } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import PresentationView, { type PresentationData, type Block, type Post, type PostMediaRow } from "@/components/presentation/PresentationView";
-
-type Snapshot = {
-  pres: PresentationData;
-  blocks: Block[];
-  posts: Post[];
-  postMedia: PostMediaRow[];
-};
 
 type VersionRow = {
   id: string;
   name: string;
   created_at: string;
-  presentation_id: string;
-  snapshot: Snapshot;
+  slug: string;
+  hero_title: string | null;
+  client_logo_url: string | null;
   projectName: string;
 };
 
@@ -90,41 +84,49 @@ export default function ClientPortal() {
 
       const { data: presData } = await supabase
         .from("project_presentations")
-        .select("id, project_id")
+        .select("id, project_id, slug, hero_title, client_logo_url")
         .in("project_id", projectIds)
         .eq("status", "publicado")
         .eq("released", true);
-      const presentations = (presData || []) as { id: string; project_id: string }[];
+      const presentations = (presData || []) as { id: string; project_id: string; slug: string; hero_title: string | null; client_logo_url: string | null }[];
       const presentationIds = presentations.map((p) => p.id);
       if (presentationIds.length === 0) {
         setVersions([]);
         setLoadingVersions(false);
         return;
       }
-      const presProjectMap = new Map(presentations.map((p) => [p.id, p.project_id]));
+      const presMap = new Map(presentations.map((p) => [p.id, p]));
 
       const { data: versionsData } = await supabase
         .from("presentation_versions")
-        .select("id, name, created_at, presentation_id, snapshot")
+        .select("id, name, created_at, presentation_id")
         .in("presentation_id", presentationIds)
         .eq("visible_to_client", true)
         .order("created_at", { ascending: false });
 
-      const list: VersionRow[] = ((versionsData || []) as any[]).map((v) => {
-        const projectId = presProjectMap.get(v.presentation_id);
-        return {
-          id: v.id,
-          name: v.name,
-          created_at: v.created_at,
-          presentation_id: v.presentation_id,
-          snapshot: v.snapshot as Snapshot,
-          projectName: (projectId && projectNameMap.get(projectId)) || "Projeto",
-        };
-      });
+      const list: VersionRow[] = ((versionsData || []) as any[])
+        .map((v) => {
+          const pres = presMap.get(v.presentation_id);
+          if (!pres) return null;
+          return {
+            id: v.id,
+            name: v.name,
+            created_at: v.created_at,
+            slug: pres.slug,
+            hero_title: pres.hero_title,
+            client_logo_url: pres.client_logo_url,
+            projectName: projectNameMap.get(pres.project_id) || "Projeto",
+          };
+        })
+        .filter((v): v is VersionRow => v !== null);
       setVersions(list);
       setLoadingVersions(false);
     })();
   }, [companyId]);
+
+  function openPresentation(slug: string) {
+    window.open(`${window.location.origin}/c/${slug}`, "_blank");
+  }
 
   const featured = versions[0] || null;
   const older = useMemo(() => versions.slice(1), [versions]);
@@ -164,14 +166,30 @@ export default function ClientPortal() {
         </div>
       ) : (
         <>
-          <div className="rounded-xl border overflow-hidden bg-background">
-            <PresentationView
-              pres={featured.snapshot.pres}
-              blocks={featured.snapshot.blocks}
-              posts={featured.snapshot.posts}
-              postMedia={featured.snapshot.postMedia}
-            />
-          </div>
+          <Card className="max-w-md overflow-hidden">
+            <CardHeader className="pb-2">
+              <p className="text-xs text-muted-foreground">Mais recente</p>
+              <p className="font-semibold truncate">{featured.projectName} — {featured.name}</p>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="h-32 rounded border bg-muted flex items-center justify-center overflow-hidden">
+                {featured.client_logo_url ? (
+                  <img src={featured.client_logo_url} alt={featured.projectName} className="h-full w-full object-contain p-4" />
+                ) : (
+                  <PresentationIcon className="h-8 w-8 text-muted-foreground" />
+                )}
+              </div>
+              {featured.hero_title && <p className="text-sm truncate">{featured.hero_title}</p>}
+              <p className="text-xs text-muted-foreground">
+                Lançado em {format(new Date(featured.created_at), "d 'de' MMM 'de' yyyy", { locale: ptBR })}
+              </p>
+            </CardContent>
+            <CardFooter>
+              <Button className="w-full gap-2" onClick={() => openPresentation(featured.slug)}>
+                <ExternalLink className="h-4 w-4" /> Ver apresentação
+              </Button>
+            </CardFooter>
+          </Card>
 
           {older.length > 0 && (
             <section className="space-y-3">
@@ -180,22 +198,13 @@ export default function ClientPortal() {
                 {olderVisible.map((v) => (
                   <button
                     key={v.id}
-                    onClick={() => {
-                      setVersions((prev) => {
-                        const idx = prev.findIndex((p) => p.id === v.id);
-                        if (idx <= 0) return prev;
-                        const next = [...prev];
-                        const [item] = next.splice(idx, 1);
-                        next.unshift(item);
-                        return next;
-                      });
-                      window.scrollTo({ top: 0, behavior: "smooth" });
-                    }}
+                    onClick={() => openPresentation(v.slug)}
                     className="w-full flex items-center justify-between gap-3 text-left border rounded-lg px-4 py-3 hover:bg-accent/50 transition-colors"
                   >
                     <span className="font-medium truncate">{v.projectName} — {v.name}</span>
-                    <span className="text-sm text-muted-foreground shrink-0">
+                    <span className="text-sm text-muted-foreground shrink-0 flex items-center gap-2">
                       {format(new Date(v.created_at), "d 'de' MMM 'de' yyyy", { locale: ptBR })}
+                      <ExternalLink className="h-3.5 w-3.5" />
                     </span>
                   </button>
                 ))}
