@@ -1186,7 +1186,7 @@ function PostEditor({
               </Button>
             </label>
             <p className="text-[9px] text-muted-foreground leading-snug">
-              Imagens são recortadas em 1:1. Vídeos não são recortados automaticamente, envie já no formato desejado. Recomendado até {MAX_MEDIA_MB}MB por arquivo.
+              Escolha manter a imagem original ou formatar para o Instagram (a foto inteira é preservada, sem cortes). Vídeos não são ajustados automaticamente, envie já no formato desejado. Recomendado até {MAX_MEDIA_MB}MB por arquivo.
             </p>
           </>
         )}
@@ -1196,7 +1196,8 @@ function PostEditor({
             open
             onClose={() => { setCroppingFile(null); setImageQueue([]); }}
             onCropped={handleCropped}
-            aspect={1}
+            aspect="choice"
+            instagramFit
             uploadPath={`presentations/posts/${crypto.randomUUID()}.png`}
           />
         )}

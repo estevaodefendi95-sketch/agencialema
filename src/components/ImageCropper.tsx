@@ -15,6 +15,8 @@ interface Props {
   /** Aspect ratio. number like 1, 16/9, 4/5, or "free" for unrestricted, or "choice" to let the user pick. Default: 1 */
   aspect?: number | "free" | "choice";
   uploadPath: string;
+  /** Quando true, troca o recorte manual por um modo "Instagram": a imagem inteira é sempre preservada (sem cortar conteúdo), ajustada dentro da proporção escolhida com um fundo desfocado preenchendo as sobras. Também libera a opção de manter o arquivo original, sem nenhum ajuste. */
+  instagramFit?: boolean;
 }
 
 function centerAspectCrop(mediaWidth: number, mediaHeight: number, aspect?: number) {
@@ -36,6 +38,13 @@ const ASPECT_OPTIONS: { label: string; value: string; ratio: number | undefined 
   { label: "4:3", value: "4-3", ratio: 4 / 3 },
 ];
 
+const INSTAGRAM_RATIOS: { label: string; value: string; ratio: number }[] = [
+  { label: "Quadrado (1:1)", value: "1:1", ratio: 1 },
+  { label: "Vertical (4:5)", value: "4:5", ratio: 4 / 5 },
+  { label: "Paisagem (1.91:1)", value: "1.91:1", ratio: 1.91 },
+  { label: "Stories/Reels (9:16)", value: "9:16", ratio: 9 / 16 },
+];
+
 export default function ImageCropper({
   file,
   open,
@@ -44,11 +53,13 @@ export default function ImageCropper({
   circular = false,
   aspect = 1,
   uploadPath,
+  instagramFit = false,
 }: Props) {
   const [crop, setCrop] = useState<Crop>();
   const [uploading, setUploading] = useState(false);
   const imgRef = useRef<HTMLImageElement>(null);
   const [imgSrc] = useState(() => URL.createObjectURL(file));
+  const [instaMode, setInstaMode] = useState<string>("1:1");
 
   // For "choice" mode, let the user pick. Default to 1:1.
   const [chosenAspect, setChosenAspect] = useState<string>("1");
@@ -118,24 +129,133 @@ export default function ImageCropper({
     });
   };
 
+  // Modo Instagram: preserva a imagem inteira (sem cortar), centralizada em
+  // "contain" sobre um fundo desfocado que preenche a proporção escolhida.
+  const getInstagramFitBlob = (ratio: number): Promise<Blob> => {
+    return new Promise((resolve, reject) => {
+      const image = imgRef.current;
+      if (!image) return reject("No image");
+
+      const iw = image.naturalWidth;
+      const ih = image.naturalHeight;
+
+      const canvas = document.createElement("canvas");
+      const canvasW = 1080;
+      const canvasH = Math.round(1080 / ratio);
+      canvas.width = canvasW;
+      canvas.height = canvasH;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return reject("No ctx");
+
+      // Fundo: cobre o canvas inteiro, desfocado e escurecido
+      const coverScale = Math.max(canvasW / iw, canvasH / ih) * 1.15;
+      const bgW = iw * coverScale;
+      const bgH = ih * coverScale;
+      ctx.filter = "blur(24px)";
+      ctx.drawImage(image, (canvasW - bgW) / 2, (canvasH - bgH) / 2, bgW, bgH);
+      ctx.filter = "none";
+      ctx.fillStyle = "rgba(0, 0, 0, 0.35)";
+      ctx.fillRect(0, 0, canvasW, canvasH);
+
+      // Primeiro plano: imagem inteira, sem cortar nada
+      const containScale = Math.min(canvasW / iw, canvasH / ih);
+      const fgW = iw * containScale;
+      const fgH = ih * containScale;
+      ctx.drawImage(image, (canvasW - fgW) / 2, (canvasH - fgH) / 2, fgW, fgH);
+
+      canvas.toBlob((blob) => (blob ? resolve(blob) : reject("Blob failed")), "image/png", 0.95);
+    });
+  };
+
+  const upload = async (blob: Blob) => {
+    const { error } = await supabase.storage.from("attachments").upload(uploadPath, blob, {
+      contentType: blob.type || "image/png",
+      upsert: true,
+    });
+    if (error) throw error;
+    const { data } = supabase.storage.from("attachments").getPublicUrl(uploadPath);
+    onCropped(data.publicUrl + "?t=" + Date.now());
+    onClose();
+  };
+
   const handleCrop = async () => {
     setUploading(true);
     try {
-      const blob = await getCroppedBlob();
-      const { error } = await supabase.storage.from("attachments").upload(uploadPath, blob, {
-        contentType: "image/png",
-        upsert: true,
-      });
-      if (error) throw error;
-      const { data } = supabase.storage.from("attachments").getPublicUrl(uploadPath);
-      onCropped(data.publicUrl + "?t=" + Date.now());
-      onClose();
+      if (instagramFit && instaMode === "original") {
+        await upload(file);
+      } else if (instagramFit) {
+        const ratio = INSTAGRAM_RATIOS.find((o) => o.value === instaMode)?.ratio || 1;
+        const blob = await getInstagramFitBlob(ratio);
+        await upload(blob);
+      } else {
+        const blob = await getCroppedBlob();
+        await upload(blob);
+      }
     } catch (err) {
       console.error("Crop upload failed", err);
     } finally {
       setUploading(false);
     }
   };
+
+  if (instagramFit) {
+    const activeRatio = INSTAGRAM_RATIOS.find((o) => o.value === instaMode)?.ratio;
+    return (
+      <Dialog open={open} onOpenChange={() => onClose()}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Formatar imagem</DialogTitle>
+          </DialogHeader>
+
+          <div className="flex items-center gap-2 flex-wrap">
+            <ToggleGroup type="single" value={instaMode} onValueChange={(v) => v && setInstaMode(v)} size="sm">
+              <ToggleGroupItem value="original" className="text-xs h-7 px-2">
+                Manter original
+              </ToggleGroupItem>
+              {INSTAGRAM_RATIOS.map((o) => (
+                <ToggleGroupItem key={o.value} value={o.value} className="text-xs h-7 px-2">
+                  {o.label}
+                </ToggleGroupItem>
+              ))}
+            </ToggleGroup>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            {instaMode === "original"
+              ? "A imagem vai ser enviada sem nenhum ajuste."
+              : "A foto inteira é preservada, sem cortes — o espaço ao redor é preenchido com um fundo desfocado."}
+          </p>
+
+          <div className="flex justify-center bg-muted/30 rounded p-2 max-h-[60vh] overflow-auto">
+            {instaMode === "original" ? (
+              <img src={imgSrc} alt="Prévia" className="max-h-[55vh] max-w-full object-contain" />
+            ) : (
+              <div className="relative w-full max-h-[55vh] overflow-hidden" style={{ aspectRatio: activeRatio }}>
+                <img
+                  src={imgSrc}
+                  alt=""
+                  className="absolute inset-0 w-full h-full object-cover scale-110"
+                  style={{ filter: "blur(24px) brightness(0.65)" }}
+                />
+                <img
+                  ref={imgRef}
+                  src={imgSrc}
+                  alt="Prévia"
+                  className="absolute inset-0 w-full h-full object-contain"
+                />
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={onClose}>Cancelar</Button>
+            <Button onClick={handleCrop} disabled={uploading}>
+              {uploading ? "Salvando..." : "Salvar"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    );
+  }
 
   return (
     <Dialog open={open} onOpenChange={() => onClose()}>
