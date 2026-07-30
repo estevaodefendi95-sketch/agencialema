@@ -151,6 +151,72 @@ export type Database = {
         }
         Relationships: []
       }
+      portal_banners: {
+        Row: {
+          active: boolean
+          created_at: string
+          id: string
+          image_url: string
+          link_url: string | null
+          position: number
+          title: string | null
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          id?: string
+          image_url?: string
+          link_url?: string | null
+          position?: number
+          title?: string | null
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          id?: string
+          image_url?: string
+          link_url?: string | null
+          position?: number
+          title?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      portal_services: {
+        Row: {
+          active: boolean
+          created_at: string
+          description: string | null
+          icon: string
+          id: string
+          position: number
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          description?: string | null
+          icon?: string
+          id?: string
+          position?: number
+          title?: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          description?: string | null
+          icon?: string
+          id?: string
+          position?: number
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       presentation_blocks: {
         Row: {
           block_type: string
@@ -228,11 +294,13 @@ export type Database = {
           client_status: string
           copy: string | null
           created_at: string
+          format_type: string | null
           id: string
           image_url: string | null
           position: number
           presentation_id: string
           publish_date: string | null
+          publish_time: string | null
           title: string | null
         }
         Insert: {
@@ -241,11 +309,13 @@ export type Database = {
           client_status?: string
           copy?: string | null
           created_at?: string
+          format_type?: string | null
           id?: string
           image_url?: string | null
           position?: number
           presentation_id: string
           publish_date?: string | null
+          publish_time?: string | null
           title?: string | null
         }
         Update: {
@@ -254,11 +324,13 @@ export type Database = {
           client_status?: string
           copy?: string | null
           created_at?: string
+          format_type?: string | null
           id?: string
           image_url?: string | null
           position?: number
           presentation_id?: string
           publish_date?: string | null
+          publish_time?: string | null
           title?: string | null
         }
         Relationships: [
