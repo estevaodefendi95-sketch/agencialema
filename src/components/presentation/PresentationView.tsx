@@ -479,7 +479,7 @@ function InstagramPreview({ data }: { data: any }) {
 
           {/* iPhone outer frame — proportional to a real device (~9:19.5) */}
           <div
-            className="relative h-[58vh] md:h-[65vh] max-h-[620px] min-h-[420px] w-auto bg-white border-[3px] border-neutral-900 rounded-[44px] p-[6px] shadow-[0_25px_60px_-15px_rgba(0,0,0,0.35)]"
+            className="relative h-[68vh] md:h-[78vh] max-h-[760px] min-h-[480px] w-auto bg-white border-[3px] border-neutral-900 rounded-[44px] p-[6px] shadow-[0_25px_60px_-15px_rgba(0,0,0,0.35)]"
             style={{ aspectRatio: "9 / 19" }}
           >
             {/* Inner screen */}
@@ -649,9 +649,9 @@ function ProfileHeader({
 
 function Stat({ value, label }: { value: string | number; label: string }) {
   return (
-    <div className="min-w-0 overflow-hidden">
-      <div className="font-semibold text-[13px] leading-tight truncate">{value}</div>
-      <div className="text-[10px] text-neutral-600 truncate">{label}</div>
+    <div className="min-w-0">
+      <div className="font-semibold text-[13px] leading-tight">{value}</div>
+      <div className="text-[10px] text-neutral-600">{label}</div>
     </div>
   );
 }

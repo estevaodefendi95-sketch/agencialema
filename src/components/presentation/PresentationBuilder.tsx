@@ -154,7 +154,6 @@ export default function PresentationBuilder({ projectId, projectName }: { projec
           posts_count: igBlock.data?.posts_count,
           followers_count: igBlock.data?.followers_count,
           following_count: igBlock.data?.following_count,
-          instagram_link: igBlock.data?.instagram_link,
           highlights: igBlock.data?.highlights || [],
           layout: igBlock.data?.layout,
           images: [],
@@ -1389,18 +1388,8 @@ function ProfileFieldsEditor({
         <div className="flex-1 space-y-2">
           <Input placeholder="@username" value={block.data.username || ""} onChange={(e) => patch({ username: e.target.value })} disabled={disabled} />
           <Input placeholder="Nome de exibição" value={block.data.display_name || ""} onChange={(e) => patch({ display_name: e.target.value })} disabled={disabled} />
-          <Input
-            placeholder="Link do Instagram (opcional)"
-            value={block.data.instagram_link || ""}
-            onChange={(e) => patch({ instagram_link: e.target.value })}
-            disabled={disabled}
-          />
         </div>
       </div>
-      <p className="text-[10px] text-muted-foreground -mt-1">
-        O link é só um atalho pra abrir o perfil de referência — o Instagram não permite importar os dados
-        automaticamente, então @, bio e números continuam preenchidos à mão.
-      </p>
       <Textarea placeholder="Bio (use quebras de linha)" value={block.data.bio || ""} onChange={(e) => patch({ bio: e.target.value })} rows={3} disabled={disabled} />
       <div className="grid grid-cols-3 gap-2">
         <div>
