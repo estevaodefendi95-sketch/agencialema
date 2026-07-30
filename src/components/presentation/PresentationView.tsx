@@ -124,7 +124,7 @@ export default function PresentationView({
             {slides.map((s) => (
               <section
                 key={s.id}
-                className="w-full h-[85vh] md:h-screen overflow-y-auto flex items-center px-6 md:px-16 py-14 md:py-20 animate-fade-in"
+                className="w-full h-[85vh] md:h-screen overflow-y-auto flex [align-items:safe_center] px-6 md:px-16 py-14 md:py-20 animate-fade-in"
                 style={
                   s.invert
                     ? { background: "var(--pres-invert-bg)", color: "var(--pres-invert-fg)" }
