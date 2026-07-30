@@ -397,6 +397,18 @@ export default function PresentationBuilder({ projectId, projectName }: { projec
       return;
     }
 
+    if (droppableId.startsWith("insta-images:")) {
+      const blockId = droppableId.slice("insta-images:".length);
+      const block = blocks.find((b) => b.id === blockId);
+      if (!block) return;
+      const items: string[] = block.data.images || [];
+      const reordered = Array.from(items);
+      const [moved] = reordered.splice(r.source.index, 1);
+      reordered.splice(r.destination.index, 0, moved);
+      await patchBlock(blockId, { ...block.data, images: reordered });
+      return;
+    }
+
     if (droppableId.startsWith("post-media:")) {
       const postId = droppableId.slice("post-media:".length);
       const items = getPostMediaItems(
@@ -1010,22 +1022,40 @@ function BlockEditor({ block, onChange, posts, postMedia, onAddPost, onPatchPost
             <ProfileFieldsEditor block={block} onChange={onChange} disabled={disabled} highlights={highlights} />
           )}
         </div>
-        <p className="text-xs text-muted-foreground">Escolha manter a imagem original ou formatar sem cortar (recomendado 1:1 para o grid).</p>
-        <div className="grid gap-2 grid-cols-3 max-w-xs">
-          {images.map((url, i) => (
-            <div key={i} className="relative aspect-square">
-              <img src={url} alt="" className="w-full h-full object-cover rounded border" />
-              {!disabled && (
-                <button
-                  onClick={() => onChange({ ...block.data, images: images.filter((_, j) => j !== i) })}
-                  className="absolute top-1 right-1 bg-background/80 rounded p-0.5"
-                >
-                  <Trash2 className="h-3 w-3" />
-                </button>
-              )}
+        <p className="text-xs text-muted-foreground">Escolha manter a imagem original ou formatar sem cortar (recomendado 1:1 para o grid). Arraste pra reordenar.</p>
+        <Droppable droppableId={`insta-images:${block.id}`} direction="horizontal" isDropDisabled={disabled}>
+          {(dropProvided) => (
+            <div
+              ref={dropProvided.innerRef}
+              {...dropProvided.droppableProps}
+              className="grid gap-2 grid-cols-3 max-w-xs"
+            >
+              {images.map((url, i) => (
+                <Draggable key={`insta-image:${block.id}:${i}`} draggableId={`insta-image:${block.id}:${i}`} index={i} isDragDisabled={disabled}>
+                  {(dragProvided, snapshot) => (
+                    <div
+                      ref={dragProvided.innerRef}
+                      {...dragProvided.draggableProps}
+                      {...dragProvided.dragHandleProps}
+                      className={cn("relative aspect-square", snapshot.isDragging && "z-10 shadow-lg")}
+                    >
+                      <img src={url} alt="" className="w-full h-full object-cover rounded border" />
+                      {!disabled && (
+                        <button
+                          onClick={() => onChange({ ...block.data, images: images.filter((_, j) => j !== i) })}
+                          className="absolute top-1 right-1 bg-background/80 rounded p-0.5"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </Draggable>
+              ))}
+              {dropProvided.placeholder}
             </div>
-          ))}
-        </div>
+          )}
+        </Droppable>
         {!disabled && (
           <label className="cursor-pointer inline-block">
             <Input type="file" accept="image/*" multiple className="hidden" onChange={handleFiles} />
