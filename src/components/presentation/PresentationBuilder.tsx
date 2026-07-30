@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { DragDropContext, Droppable, Draggable, type DropResult } from "@hello-pangea/dnd";
-import { Plus, GripVertical, Trash2, Image as ImageIcon, Type, Smartphone, ListOrdered, Eye, ExternalLink, Copy, Heading, Upload, Play, X, Rocket, History as HistoryIcon, LayoutTemplate, ListChecks, Hash, Grid3x3, Palette, RefreshCw } from "lucide-react";
+import { Plus, GripVertical, Trash2, Image as ImageIcon, Type, Smartphone, ListOrdered, Eye, ExternalLink, Copy, Heading, Upload, Play, X, Rocket, History as HistoryIcon, LayoutTemplate, ListChecks, Hash, Grid3x3, Palette, RefreshCw, ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import ImageCropper from "@/components/ImageCropper";
@@ -371,6 +371,22 @@ export default function PresentationBuilder({ projectId, projectName }: { projec
   // (itens da Galeria, mídia de cada post) — @hello-pangea/dnd não suporta
   // DragDropContext aninhado, só Droppables aninhados dentro do mesmo.
   // O droppableId de origem decide qual lista foi reordenada.
+  async function reorderPostMedia(postId: string, fromIndex: number, toIndex: number) {
+    const items = getPostMediaItems(
+      posts.find((p) => p.id === postId) || { id: postId, image_url: null },
+      postMedia,
+    ).filter((m) => !isLegacyPostMedia(m.id));
+    if (items.length === 0 || fromIndex === toIndex || toIndex < 0 || toIndex >= items.length) return;
+    const reordered = Array.from(items);
+    const [moved] = reordered.splice(fromIndex, 1);
+    reordered.splice(toIndex, 0, moved);
+    const withPositions = reordered.map((m, idx) => ({ ...m, position: idx }));
+    setPostMedia((prev) => prev.map((m) => withPositions.find((u) => u.id === m.id) || m));
+    await Promise.all(
+      withPositions.map((m) => supabase.from("presentation_post_media").update({ position: m.position }).eq("id", m.id)),
+    );
+  }
+
   async function onDragEnd(r: DropResult) {
     if (!r.destination) return;
     const { droppableId } = r.source;
@@ -411,21 +427,7 @@ export default function PresentationBuilder({ projectId, projectName }: { projec
 
     if (droppableId.startsWith("post-media:")) {
       const postId = droppableId.slice("post-media:".length);
-      const items = getPostMediaItems(
-        posts.find((p) => p.id === postId) || { id: postId, image_url: null },
-        postMedia,
-      ).filter((m) => !isLegacyPostMedia(m.id));
-      if (items.length === 0) return;
-      const reordered = Array.from(items);
-      const [moved] = reordered.splice(r.source.index, 1);
-      reordered.splice(r.destination.index, 0, moved);
-      const withPositions = reordered.map((m, idx) => ({ ...m, position: idx }));
-      setPostMedia((prev) =>
-        prev.map((m) => withPositions.find((u) => u.id === m.id) || m),
-      );
-      await Promise.all(
-        withPositions.map((m) => supabase.from("presentation_post_media").update({ position: m.position }).eq("id", m.id)),
-      );
+      await reorderPostMedia(postId, r.source.index, r.destination.index);
       return;
     }
   }
@@ -612,6 +614,7 @@ export default function PresentationBuilder({ projectId, projectName }: { projec
                           onRemovePost={removePost}
                           onAddPostMedia={addPostMedia}
                           onRemovePostMedia={removePostMedia}
+                          onReorderPostMedia={reorderPostMedia}
                           disabled={!canEdit}
                         />
                       </CardContent>
@@ -773,7 +776,7 @@ function LogoField({ label, value, onChange, disabled, folder }: { label: string
   );
 }
 
-function BlockEditor({ block, onChange, posts, postMedia, onAddPost, onPatchPost, onRemovePost, onAddPostMedia, onRemovePostMedia, disabled }: any) {
+function BlockEditor({ block, onChange, posts, postMedia, onAddPost, onPatchPost, onRemovePost, onAddPostMedia, onRemovePostMedia, onReorderPostMedia, disabled }: any) {
   const { toast } = useToast();
   const [queue, setQueue] = useState<File[]>([]);
   const [current, setCurrent] = useState<File | null>(null);
@@ -1169,6 +1172,7 @@ function BlockEditor({ block, onChange, posts, postMedia, onAddPost, onPatchPost
               onRemove={() => onRemovePost(p.id)}
               onAddMedia={onAddPostMedia}
               onRemoveMedia={onRemovePostMedia}
+              onReorderMedia={(from: number, to: number) => onReorderPostMedia(p.id, from, to)}
               disabled={disabled}
             />
           ))}
@@ -1189,6 +1193,7 @@ function PostEditor({
   onRemove,
   onAddMedia,
   onRemoveMedia,
+  onReorderMedia,
   disabled,
 }: {
   post: Post;
@@ -1197,6 +1202,7 @@ function PostEditor({
   onRemove: () => void;
   onAddMedia: (postId: string, url: string, type: "image" | "video") => void;
   onRemoveMedia: (mediaId: string) => void;
+  onReorderMedia: (fromIndex: number, toIndex: number) => void;
   disabled?: boolean;
 }) {
   const { toast } = useToast();
@@ -1261,7 +1267,7 @@ function PostEditor({
         ) : (
           <Droppable droppableId={`post-media:${post.id}`} direction="horizontal" isDropDisabled={disabled}>
             {(dprov) => (
-              <div ref={dprov.innerRef} {...dprov.droppableProps} className="flex flex-wrap gap-1.5">
+              <div ref={dprov.innerRef} {...dprov.droppableProps} className="flex flex-wrap gap-2">
                 {items.map((item, i) => (
                   <Draggable
                     key={`post-media:${post.id}:${item.id}`}
@@ -1269,37 +1275,58 @@ function PostEditor({
                     index={i}
                     isDragDisabled={disabled || isLegacyPostMedia(item.id)}
                   >
-                    {(p) => (
-                      <div ref={p.innerRef} {...p.draggableProps} className="relative w-14 h-14 shrink-0">
+                    {(p, snapshot) => (
+                      <div
+                        ref={p.innerRef}
+                        {...p.draggableProps}
+                        {...p.dragHandleProps}
+                        className={cn(
+                          "group relative w-20 h-20 shrink-0 rounded border overflow-hidden",
+                          !disabled && !isLegacyPostMedia(item.id) && "cursor-grab active:cursor-grabbing",
+                          snapshot.isDragging && "z-10 ring-2 ring-primary shadow-lg",
+                        )}
+                        title={!disabled && !isLegacyPostMedia(item.id) ? "Arraste pra reordenar" : undefined}
+                      >
                         {item.media_type === "video" ? (
-                          <video src={item.media_url} muted className="w-full h-full object-cover rounded border" />
+                          <video src={item.media_url} muted className="w-full h-full object-cover pointer-events-none" />
                         ) : (
-                          <img src={item.media_url} alt="" className="w-full h-full object-cover rounded border" />
+                          <img src={item.media_url} alt="" className="w-full h-full object-cover pointer-events-none" />
                         )}
                         {item.media_type === "video" && (
                           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                             <Play className="h-4 w-4 text-white drop-shadow" fill="white" />
                           </div>
                         )}
-                        <span className="absolute -top-1 -left-1 h-4 w-4 rounded-full bg-foreground text-background text-[9px] flex items-center justify-center font-medium">
+                        <span className="absolute top-1 left-1 h-4 w-4 rounded-full bg-foreground text-background text-[9px] flex items-center justify-center font-medium pointer-events-none">
                           {i + 1}
                         </span>
-                        {!disabled && !isLegacyPostMedia(item.id) && (
-                          <div
-                            {...p.dragHandleProps}
-                            className="absolute -bottom-1 -left-1 h-4 w-4 rounded-full bg-background border border-border flex items-center justify-center cursor-grab"
-                            title="Arrastar para reordenar"
-                          >
-                            <GripVertical className="h-2.5 w-2.5" />
-                          </div>
-                        )}
                         {!disabled && (
                           <button
                             onClick={() => removeItem(item)}
-                            className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-background border border-border flex items-center justify-center"
+                            className="absolute top-1 right-1 h-5 w-5 rounded-full bg-background/90 border border-border flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
                           >
-                            <X className="h-2.5 w-2.5" />
+                            <X className="h-3 w-3" />
                           </button>
+                        )}
+                        {!disabled && !isLegacyPostMedia(item.id) && items.length > 1 && (
+                          <div className="absolute inset-x-0 bottom-0 flex items-center justify-between px-0.5 pb-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button
+                              onClick={(e) => { e.stopPropagation(); onReorderMedia(i, i - 1); }}
+                              disabled={i === 0}
+                              className="h-5 w-5 rounded-full bg-background/90 border border-border flex items-center justify-center disabled:opacity-30"
+                              title="Mover pra esquerda"
+                            >
+                              <ChevronLeft className="h-3 w-3" />
+                            </button>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); onReorderMedia(i, i + 1); }}
+                              disabled={i === items.length - 1}
+                              className="h-5 w-5 rounded-full bg-background/90 border border-border flex items-center justify-center disabled:opacity-30"
+                              title="Mover pra direita"
+                            >
+                              <ChevronRight className="h-3 w-3" />
+                            </button>
+                          </div>
                         )}
                       </div>
                     )}
