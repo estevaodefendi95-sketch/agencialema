@@ -187,7 +187,7 @@ export default function PresentationBuilder({ projectId, projectName }: { projec
     setResetting(false);
     setResetOpen(false);
     toast({ title: "Novo ciclo de planejamento criado" });
-    load();
+    loadOrCreate();
   }
 
   const [launchName, setLaunchName] = useState("");
