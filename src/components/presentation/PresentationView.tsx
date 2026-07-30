@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { format, parseISO } from "date-fns";
 import { Carousel, CarouselContent, CarouselItem, CarouselPrevious, CarouselNext, type CarouselApi } from "@/components/ui/carousel";
-import { ChevronLeft, ChevronRight, Presentation as PresentationIcon, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, ChevronDown, Plus, Grid3x3, Play, UserSquare2, Presentation as PresentationIcon, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getGalleryItems, getPostMediaItems, type MediaItem, type PostMediaRow } from "./mediaUtils";
 import { normalizeTheme, themeVars } from "./theme";
@@ -613,10 +613,14 @@ function ProfileHeader({
 
       {/* Action buttons */}
       <div className="flex gap-1.5 mb-3">
-        <FakeBtn className="flex-1">Following ▾</FakeBtn>
+        <FakeBtn className="flex-1">
+          Following <ChevronDown className="h-3 w-3 inline-block ml-0.5 -mt-0.5" />
+        </FakeBtn>
         <FakeBtn className="flex-1">Message</FakeBtn>
         <FakeBtn className="flex-1">Contact</FakeBtn>
-        <FakeBtn className="px-2">＋</FakeBtn>
+        <FakeBtn className="px-2.5">
+          <Plus className="h-3.5 w-3.5" />
+        </FakeBtn>
       </div>
 
       {/* Highlights */}
@@ -638,10 +642,10 @@ function ProfileHeader({
       )}
 
       {/* Tabs */}
-      <div className="flex justify-around border-t border-neutral-200 pt-1.5 -mx-3 px-3 text-neutral-500 text-sm">
-        <span className="text-neutral-900">▦</span>
-        <span>▷</span>
-        <span>👤</span>
+      <div className="flex justify-around border-t border-neutral-200 pt-2.5 -mx-3 px-3 text-neutral-400">
+        <Grid3x3 className="h-5 w-5 text-neutral-900" strokeWidth={1.5} />
+        <Play className="h-5 w-5" strokeWidth={1.5} />
+        <UserSquare2 className="h-5 w-5" strokeWidth={1.5} />
       </div>
     </div>
   );
@@ -659,7 +663,7 @@ function Stat({ value, label }: { value: string | number; label: string }) {
 function FakeBtn({ children, className = "" }: { children: React.ReactNode; className?: string }) {
   return (
     <div
-      className={`text-[11px] font-semibold bg-neutral-100 border border-neutral-200 rounded-md py-1.5 text-center text-neutral-800 ${className}`}
+      className={`flex items-center justify-center gap-0.5 text-[12px] font-semibold bg-neutral-100 border border-neutral-200 rounded-lg h-[30px] text-center text-neutral-900 ${className}`}
     >
       {children}
     </div>
