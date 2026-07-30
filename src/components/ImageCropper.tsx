@@ -3,6 +3,7 @@ import ReactCrop, { type Crop, centerCrop, makeAspectCrop } from "react-image-cr
 import "react-image-crop/dist/ReactCrop.css";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Slider } from "@/components/ui/slider";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -56,6 +57,7 @@ export default function ImageCropper({
   instagramFit = false,
 }: Props) {
   const [crop, setCrop] = useState<Crop>();
+  const [zoom, setZoom] = useState(100);
   const [uploading, setUploading] = useState(false);
   const imgRef = useRef<HTMLImageElement>(null);
   const [imgSrc] = useState(() => URL.createObjectURL(file));
@@ -87,6 +89,14 @@ export default function ImageCropper({
     if (imgRef.current) {
       const { naturalWidth, naturalHeight } = imgRef.current;
       setCrop(centerAspectCrop(naturalWidth, naturalHeight, ratio));
+    }
+  };
+
+  const recenter = () => {
+    setZoom(100);
+    if (imgRef.current) {
+      const { naturalWidth, naturalHeight } = imgRef.current;
+      setCrop(centerAspectCrop(naturalWidth, naturalHeight, effectiveAspect));
     }
   };
 
@@ -277,6 +287,14 @@ export default function ImageCropper({
           </div>
         )}
 
+        <div className="flex items-center gap-3">
+          <span className="text-xs text-muted-foreground shrink-0">Zoom</span>
+          <Slider min={100} max={300} step={5} value={[zoom]} onValueChange={([v]) => setZoom(v)} className="flex-1" />
+          <Button variant="ghost" size="sm" className="h-7 px-2 text-xs shrink-0" onClick={recenter}>
+            Recentralizar
+          </Button>
+        </div>
+
         <div className="flex justify-center bg-muted/30 rounded p-2 max-h-[60vh] overflow-auto">
           <ReactCrop
             crop={crop}
@@ -289,7 +307,7 @@ export default function ImageCropper({
               src={imgSrc}
               onLoad={onImageLoad}
               alt="Crop"
-              className="max-h-[55vh] max-w-full"
+              style={{ width: `${(480 * zoom) / 100}px`, height: "auto", maxWidth: "none" }}
             />
           </ReactCrop>
         </div>

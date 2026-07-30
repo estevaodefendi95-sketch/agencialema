@@ -1270,77 +1270,56 @@ function PostEditor({
             <ImageIcon className="h-5 w-5" />
           </div>
         ) : (
-          <Droppable droppableId={`post-media:${post.id}`} direction="horizontal" isDropDisabled={disabled}>
-            {(dprov) => (
-              <div ref={dprov.innerRef} {...dprov.droppableProps} className="flex flex-wrap gap-2">
-                {items.map((item, i) => (
-                  <Draggable
-                    key={`post-media:${post.id}:${item.id}`}
-                    draggableId={`post-media:${post.id}:${item.id}`}
-                    index={i}
-                    isDragDisabled={disabled || isLegacyPostMedia(item.id)}
+          <div className="flex flex-wrap gap-2">
+            {items.map((item, i) => (
+              <div
+                key={item.id}
+                className="group relative w-20 h-20 shrink-0 rounded border overflow-hidden"
+              >
+                {item.media_type === "video" ? (
+                  <video src={item.media_url} muted className="w-full h-full object-cover" />
+                ) : (
+                  <img src={item.media_url} alt="" className="w-full h-full object-cover" />
+                )}
+                {item.media_type === "video" && (
+                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                    <Play className="h-4 w-4 text-white drop-shadow" fill="white" />
+                  </div>
+                )}
+                <span className="absolute top-1 left-1 h-4 w-4 rounded-full bg-foreground text-background text-[9px] flex items-center justify-center font-medium pointer-events-none">
+                  {i + 1}
+                </span>
+                {!disabled && (
+                  <button
+                    onClick={() => removeItem(item)}
+                    className="absolute top-1 right-1 h-5 w-5 rounded-full bg-background/90 border border-border flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
                   >
-                    {(p, snapshot) => (
-                      <div
-                        ref={p.innerRef}
-                        {...p.draggableProps}
-                        {...p.dragHandleProps}
-                        className={cn(
-                          "group relative w-20 h-20 shrink-0 rounded border overflow-hidden",
-                          !disabled && !isLegacyPostMedia(item.id) && "cursor-grab active:cursor-grabbing",
-                          snapshot.isDragging && "z-10 ring-2 ring-primary shadow-lg",
-                        )}
-                        title={!disabled && !isLegacyPostMedia(item.id) ? "Arraste pra reordenar" : undefined}
-                      >
-                        {item.media_type === "video" ? (
-                          <video src={item.media_url} muted className="w-full h-full object-cover pointer-events-none" />
-                        ) : (
-                          <img src={item.media_url} alt="" className="w-full h-full object-cover pointer-events-none" />
-                        )}
-                        {item.media_type === "video" && (
-                          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                            <Play className="h-4 w-4 text-white drop-shadow" fill="white" />
-                          </div>
-                        )}
-                        <span className="absolute top-1 left-1 h-4 w-4 rounded-full bg-foreground text-background text-[9px] flex items-center justify-center font-medium pointer-events-none">
-                          {i + 1}
-                        </span>
-                        {!disabled && (
-                          <button
-                            onClick={() => removeItem(item)}
-                            className="absolute top-1 right-1 h-5 w-5 rounded-full bg-background/90 border border-border flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                          >
-                            <X className="h-3 w-3" />
-                          </button>
-                        )}
-                        {!disabled && !isLegacyPostMedia(item.id) && items.length > 1 && (
-                          <div className="absolute inset-x-0 bottom-0 flex items-center justify-between px-0.5 pb-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <button
-                              onClick={(e) => { e.stopPropagation(); onReorderMedia(i, i - 1); }}
-                              disabled={i === 0}
-                              className="h-5 w-5 rounded-full bg-background/90 border border-border flex items-center justify-center disabled:opacity-30"
-                              title="Mover pra esquerda"
-                            >
-                              <ChevronLeft className="h-3 w-3" />
-                            </button>
-                            <button
-                              onClick={(e) => { e.stopPropagation(); onReorderMedia(i, i + 1); }}
-                              disabled={i === items.length - 1}
-                              className="h-5 w-5 rounded-full bg-background/90 border border-border flex items-center justify-center disabled:opacity-30"
-                              title="Mover pra direita"
-                            >
-                              <ChevronRight className="h-3 w-3" />
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </Draggable>
-                ))}
-                {dprov.placeholder}
+                    <X className="h-3 w-3" />
+                  </button>
+                )}
+                {!disabled && !isLegacyPostMedia(item.id) && items.length > 1 && (
+                  <div className="absolute inset-x-0 bottom-0 flex items-center justify-between px-0.5 pb-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button
+                      onClick={() => onReorderMedia(i, i - 1)}
+                      disabled={i === 0}
+                      className="h-5 w-5 rounded-full bg-background/90 border border-border flex items-center justify-center disabled:opacity-30"
+                      title="Mover pra esquerda"
+                    >
+                      <ChevronLeft className="h-3 w-3" />
+                    </button>
+                    <button
+                      onClick={() => onReorderMedia(i, i + 1)}
+                      disabled={i === items.length - 1}
+                      className="h-5 w-5 rounded-full bg-background/90 border border-border flex items-center justify-center disabled:opacity-30"
+                      title="Mover pra direita"
+                    >
+                      <ChevronRight className="h-3 w-3" />
+                    </button>
+                  </div>
+                )}
               </div>
-            )}
-          </Droppable>
+            ))}
+          </div>
         )}
         {!disabled && (
           <>
