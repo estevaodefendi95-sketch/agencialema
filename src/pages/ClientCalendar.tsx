@@ -109,10 +109,7 @@ export default function ClientCalendar() {
     const assigneeIds = Array.from(new Set((tasksData || []).map((t: any) => t.assigned_to).filter(Boolean)));
     let profileMap = new Map<string, { full_name: string | null; nickname: string | null; avatar_url: string | null }>();
     if (assigneeIds.length > 0) {
-      const { data: profiles } = await supabase
-        .from("profiles")
-        .select("id, full_name, nickname, avatar_url")
-        .in("id", assigneeIds);
+      const { data: profiles } = await (supabase.rpc as any)("get_profiles_by_ids", { _ids: assigneeIds });
       profileMap = new Map((profiles || []).map((p: any) => [p.id, p]));
     }
 

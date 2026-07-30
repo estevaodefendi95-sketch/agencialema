@@ -105,10 +105,7 @@ export default function ClientTasks() {
     const assigneeIds = Array.from(new Set((tasksData || []).map((t: any) => t.assigned_to).filter(Boolean)));
     const profileMap: Record<string, Profile> = {};
     if (assigneeIds.length > 0) {
-      const { data: profilesData } = await supabase
-        .from("profiles")
-        .select("id, full_name, nickname, avatar_url")
-        .in("id", assigneeIds);
+      const { data: profilesData } = await (supabase.rpc as any)("get_profiles_by_ids", { _ids: assigneeIds });
       (profilesData || []).forEach((p: any) => {
         profileMap[p.id] = p;
       });
