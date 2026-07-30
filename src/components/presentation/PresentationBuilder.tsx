@@ -84,6 +84,8 @@ type Post = {
   image_url: string | null;
   title: string | null;
   publish_date: string | null;
+  publish_time: string | null;
+  format_type: string | null;
   copy: string | null;
 };
 
@@ -1200,8 +1202,23 @@ function PostEditor({
         )}
       </div>
       <div className="space-y-2">
+        <Input
+          placeholder="Formato (Reels, Carrossel, Estático...)"
+          list="post-format-suggestions"
+          value={post.format_type || ""}
+          onChange={(e) => onPatch({ format_type: e.target.value })}
+          disabled={disabled}
+        />
+        <datalist id="post-format-suggestions">
+          <option value="Reels" />
+          <option value="Carrossel" />
+          <option value="Estático" />
+        </datalist>
         <Input placeholder="Título do post" value={post.title || ""} onChange={(e) => onPatch({ title: e.target.value })} disabled={disabled} />
-        <Input type="date" value={post.publish_date || ""} onChange={(e) => onPatch({ publish_date: e.target.value })} disabled={disabled} />
+        <div className="flex gap-2">
+          <Input type="date" className="flex-1" value={post.publish_date || ""} onChange={(e) => onPatch({ publish_date: e.target.value })} disabled={disabled} />
+          <Input type="time" className="flex-1" value={post.publish_time || ""} onChange={(e) => onPatch({ publish_time: e.target.value })} disabled={disabled} />
+        </div>
         <Textarea placeholder="Copy / texto do post" value={post.copy || ""} onChange={(e) => onPatch({ copy: e.target.value })} rows={3} disabled={disabled} />
       </div>
       {!disabled && (

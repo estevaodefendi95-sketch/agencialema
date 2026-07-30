@@ -228,11 +228,13 @@ export type Database = {
           client_status: string
           copy: string | null
           created_at: string
+          format_type: string | null
           id: string
           image_url: string | null
           position: number
           presentation_id: string
           publish_date: string | null
+          publish_time: string | null
           title: string | null
         }
         Insert: {
@@ -241,11 +243,13 @@ export type Database = {
           client_status?: string
           copy?: string | null
           created_at?: string
+          format_type?: string | null
           id?: string
           image_url?: string | null
           position?: number
           presentation_id: string
           publish_date?: string | null
+          publish_time?: string | null
           title?: string | null
         }
         Update: {
@@ -254,11 +258,13 @@ export type Database = {
           client_status?: string
           copy?: string | null
           created_at?: string
+          format_type?: string | null
           id?: string
           image_url?: string | null
           position?: number
           presentation_id?: string
           publish_date?: string | null
+          publish_time?: string | null
           title?: string | null
         }
         Relationships: [

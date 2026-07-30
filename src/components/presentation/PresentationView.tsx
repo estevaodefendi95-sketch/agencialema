@@ -31,6 +31,8 @@ export type Post = {
   image_url: string | null;
   title: string | null;
   publish_date: string | null;
+  publish_time: string | null;
+  format_type: string | null;
   copy: string | null;
 };
 
@@ -351,40 +353,34 @@ function PostSlide({ post, index, media }: { post: Post; index: number; media: P
           <h2 className="pres-display text-3xl md:text-5xl font-bold tracking-tight text-[color:var(--pres-accent)]">
             Post {String(index + 1).padStart(2, "0")}
           </h2>
-          {post.title && (
-            <span className="pres-display text-base md:text-2xl font-semibold text-[color:var(--pres-accent)]">
-              {post.title}
-            </span>
-          )}
+          <span className="pres-display text-base md:text-2xl font-semibold text-[color:var(--pres-accent)]">
+            {post.format_type && <span className="font-bold">{post.format_type}: </span>}
+            {post.title && <span className="font-semibold">{post.title}</span>}
+          </span>
         </div>
-        {post.publish_date && (
+        {(post.publish_date || post.publish_time) && (
           <span
             className="pres-display text-xs md:text-base font-bold px-3 py-1.5 uppercase whitespace-nowrap"
             style={{ background: "var(--pres-accent)", color: "var(--pres-invert-fg)" }}
           >
-            DATA: {format(parseISO(post.publish_date), "dd/MM")}
+            {[
+              post.publish_date && `DATA: ${format(parseISO(post.publish_date), "dd/MM")}`,
+              post.publish_time && `HORÁRIO: ${post.publish_time.slice(0, 5)}`,
+            ]
+              .filter(Boolean)
+              .join(" | ")}
           </span>
         )}
       </div>
 
       {items.length > 0 && (
-        <>
-          <div
-            className="hidden md:grid gap-3 mb-8"
-            style={{ gridTemplateColumns: `repeat(${Math.min(items.length, 5)}, minmax(0,1fr))` }}
-          >
-            {items.slice(0, 5).map((item, i) => (
-              <MediaTile key={i} item={item} className="w-full aspect-[4/5] object-cover" />
-            ))}
-          </div>
-          <div className="md:hidden mb-8">
-            <MediaCarousel items={items} mediaClassName="w-full aspect-[4/5] object-cover" />
-          </div>
-        </>
+        <div className="w-full max-w-md mx-auto mb-8">
+          <MediaCarousel items={items} mediaClassName="w-full aspect-[4/5] object-cover" />
+        </div>
       )}
 
       {post.copy && (
-        <div className="max-w-4xl">
+        <div className="max-w-4xl mx-auto">
           <p className="pres-display font-bold text-lg md:text-2xl text-[color:var(--pres-accent)] mb-2">Legenda:</p>
           <p className="text-base md:text-xl leading-relaxed whitespace-pre-line opacity-90">{post.copy}</p>
         </div>

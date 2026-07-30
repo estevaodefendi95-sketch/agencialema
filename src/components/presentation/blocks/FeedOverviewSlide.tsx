@@ -5,7 +5,7 @@ export default function FeedOverviewSlide({ data }: { data: FeedOverviewData }) 
 
   return (
     <div className="w-full h-full grid grid-cols-1 md:grid-cols-2 items-center gap-10 md:gap-16">
-      <div className="text-[color:var(--pres-accent)] md:text-right">
+      <div className="text-[color:var(--pres-accent)]">
         <h2 className="pres-display text-3xl md:text-6xl font-bold tracking-tight leading-[1.05]">
           {data.title || "#seu feed, seu lema."}
         </h2>
