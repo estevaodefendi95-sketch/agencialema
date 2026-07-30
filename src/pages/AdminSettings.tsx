@@ -9,6 +9,7 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
+import * as Icons from "lucide-react";
 import { Settings, Upload, X, ShieldAlert, Plus, Trash2, ArrowUp, ArrowDown, Image as ImageIcon, Sparkles } from "lucide-react";
 import ImageCropper from "@/components/ImageCropper";
 
