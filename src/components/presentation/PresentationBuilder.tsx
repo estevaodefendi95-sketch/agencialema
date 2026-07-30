@@ -821,6 +821,7 @@ function BlockEditor({ block, onChange, posts, postMedia, onAddPost, onPatchPost
             onClose={cancelCrop}
             onCropped={(url) => handleCropped(url, true)}
             aspect={1}
+            instagramFit
             uploadPath={`presentations/media/${crypto.randomUUID()}.png`}
           />
         )}
@@ -863,6 +864,7 @@ function BlockEditor({ block, onChange, posts, postMedia, onAddPost, onPatchPost
             onClose={cancelCrop}
             onCropped={(url) => handleCropped(url, false)}
             aspect={aspect}
+            instagramFit
             uploadPath={`presentations/media/${crypto.randomUUID()}.png`}
           />
         )}
@@ -909,7 +911,7 @@ function BlockEditor({ block, onChange, posts, postMedia, onAddPost, onPatchPost
             <ProfileFieldsEditor block={block} onChange={onChange} disabled={disabled} highlights={highlights} />
           )}
         </div>
-        <p className="text-xs text-muted-foreground">Imagens do feed em 1:1 (recorte obrigatório).</p>
+        <p className="text-xs text-muted-foreground">Escolha manter a imagem original ou formatar sem cortar (recomendado 1:1 para o grid).</p>
         <div className="grid gap-2 grid-cols-3 max-w-xs">
           {images.map((url, i) => (
             <div key={i} className="relative aspect-square">
@@ -938,6 +940,7 @@ function BlockEditor({ block, onChange, posts, postMedia, onAddPost, onPatchPost
             onClose={cancelCrop}
             onCropped={(url) => handleCropped(url, true)}
             aspect={aspect}
+            instagramFit
             uploadPath={`presentations/media/${crypto.randomUUID()}.png`}
           />
         )}
@@ -1016,6 +1019,7 @@ function BlockEditor({ block, onChange, posts, postMedia, onAddPost, onPatchPost
             onClose={cancelCrop}
             onCropped={(url) => handleCropped(url, true)}
             aspect={aspect}
+            instagramFit
             uploadPath={`presentations/media/${crypto.randomUUID()}.png`}
           />
         )}
