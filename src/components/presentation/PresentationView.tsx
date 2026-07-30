@@ -318,27 +318,31 @@ function postSlides(posts: Post[], postMedia: PostMediaRow[]): SlideDef[] {
 function HeroSlide({ pres }: { pres: PresentationData }) {
   return (
     <div>
-      <div className="flex items-center justify-between gap-6 pb-8 mb-10 border-b border-current/15">
-        {pres.client_logo_url ? (
-          <img src={pres.client_logo_url} alt="Logo do cliente" className="h-16 md:h-24 max-w-[260px] object-contain" />
-        ) : (
-          <div />
+      <div className="flex items-center justify-center gap-16 pb-8 mb-10 border-b border-current/15">
+        {pres.client_logo_url && (
+          <div className="h-20 md:h-28 flex items-center justify-center">
+            <img src={pres.client_logo_url} alt="Logo do cliente" className="max-h-full max-w-full object-contain" />
+          </div>
         )}
         {pres.agency_logo_url && (
-          <img src={pres.agency_logo_url} alt="" className="h-9 md:h-12 max-w-[160px] object-contain opacity-70" />
+          <div className="h-20 md:h-28 flex items-center justify-center">
+            <img src={pres.agency_logo_url} alt="" className="max-h-full max-w-full object-contain opacity-70" />
+          </div>
         )}
       </div>
-      <span className="pres-display block text-xs md:text-sm uppercase tracking-[0.2em] text-[color:var(--pres-accent)] mb-4">
-        Apresentação de conteúdo
-      </span>
-      <h1 className="pres-display text-5xl md:text-8xl font-bold tracking-tight leading-[1.02] mb-8">
-        {pres.hero_title || "Apresentação"}
-      </h1>
-      {pres.hero_description && (
-        <p className="text-lg md:text-2xl max-w-3xl leading-relaxed font-light opacity-80 whitespace-pre-line">
-          {pres.hero_description}
-        </p>
-      )}
+      <div className="text-center">
+        <span className="pres-display block text-xs md:text-sm uppercase tracking-[0.2em] text-[color:var(--pres-accent)] mb-4">
+          Apresentação de conteúdo
+        </span>
+        <h1 className="pres-display text-5xl md:text-8xl font-bold tracking-tight leading-[1.02] mb-8">
+          {pres.hero_title || "Apresentação"}
+        </h1>
+        {pres.hero_description && (
+          <p className="text-lg md:text-2xl max-w-3xl mx-auto leading-relaxed font-light opacity-80 whitespace-pre-line">
+            {pres.hero_description}
+          </p>
+        )}
+      </div>
     </div>
   );
 }
@@ -347,9 +351,15 @@ function PostSlide({ post, index, media }: { post: Post; index: number; media: P
   const items = getPostMediaItems(post, media).map((m) => ({ url: m.media_url, type: m.media_type } as MediaItem));
 
   return (
-    <div className="w-full">
-      <div className="flex flex-wrap items-start justify-between gap-4 mb-8">
-        <div className="flex items-baseline gap-4 flex-wrap">
+    <div className="w-full grid grid-cols-1 md:grid-cols-[1.1fr_1fr] gap-8 md:gap-12 items-start">
+      <div className="w-full">
+        {items.length > 0 && (
+          <MediaCarousel items={items} mediaClassName="w-full aspect-[4/5] object-cover" />
+        )}
+      </div>
+
+      <div className="w-full space-y-6">
+        <div>
           <h2 className="pres-display text-3xl md:text-5xl font-bold tracking-tight text-[color:var(--pres-accent)]">
             Post {String(index + 1).padStart(2, "0")}
           </h2>
@@ -358,6 +368,7 @@ function PostSlide({ post, index, media }: { post: Post; index: number; media: P
             {post.title && <span className="font-semibold">{post.title}</span>}
           </span>
         </div>
+
         {(post.publish_date || post.publish_time) && (
           <span
             className="pres-display text-xs md:text-base font-bold px-3 py-1.5 uppercase whitespace-nowrap"
@@ -371,20 +382,14 @@ function PostSlide({ post, index, media }: { post: Post; index: number; media: P
               .join(" | ")}
           </span>
         )}
+
+        {post.copy && (
+          <div className="w-full">
+            <p className="pres-display font-bold text-lg md:text-2xl text-[color:var(--pres-accent)] mb-2">Legenda:</p>
+            <p className="text-base md:text-xl leading-relaxed whitespace-pre-line opacity-90">{post.copy}</p>
+          </div>
+        )}
       </div>
-
-      {items.length > 0 && (
-        <div className="w-full max-w-md mx-auto mb-8">
-          <MediaCarousel items={items} mediaClassName="w-full aspect-[4/5] object-cover" />
-        </div>
-      )}
-
-      {post.copy && (
-        <div className="max-w-4xl mx-auto">
-          <p className="pres-display font-bold text-lg md:text-2xl text-[color:var(--pres-accent)] mb-2">Legenda:</p>
-          <p className="text-base md:text-xl leading-relaxed whitespace-pre-line opacity-90">{post.copy}</p>
-        </div>
-      )}
     </div>
   );
 }
