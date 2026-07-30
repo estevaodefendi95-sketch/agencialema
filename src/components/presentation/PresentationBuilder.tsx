@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { DragDropContext, Droppable, Draggable, type DropResult } from "@hello-pangea/dnd";
-import { Plus, GripVertical, Trash2, Image as ImageIcon, Type, Smartphone, ListOrdered, Eye, ExternalLink, Copy, Heading, Upload, Play, X, Rocket, History as HistoryIcon, LayoutTemplate, ListChecks, Hash, Grid3x3, Palette } from "lucide-react";
+import { Plus, GripVertical, Trash2, Image as ImageIcon, Type, Smartphone, ListOrdered, Eye, ExternalLink, Copy, Heading, Upload, Play, X, Rocket, History as HistoryIcon, LayoutTemplate, ListChecks, Hash, Grid3x3, Palette, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import ImageCropper from "@/components/ImageCropper";
@@ -137,6 +137,59 @@ export default function PresentationBuilder({ projectId, projectName }: { projec
   const [loading, setLoading] = useState(true);
   const [versions, setVersions] = useState<PresentationVersion[]>([]);
   const [launchOpen, setLaunchOpen] = useState(false);
+  const [resetOpen, setResetOpen] = useState(false);
+  const [resetting, setResetting] = useState(false);
+
+  async function resetForNewCycle() {
+    if (!pres) return;
+    setResetting(true);
+
+    const igBlock = blocks.find((b) => b.block_type === "instagram_preview");
+    const preservedIgData = igBlock
+      ? {
+          avatar_url: igBlock.data?.avatar_url,
+          username: igBlock.data?.username,
+          display_name: igBlock.data?.display_name,
+          bio: igBlock.data?.bio,
+          posts_count: igBlock.data?.posts_count,
+          followers_count: igBlock.data?.followers_count,
+          following_count: igBlock.data?.following_count,
+          instagram_link: igBlock.data?.instagram_link,
+          highlights: igBlock.data?.highlights || [],
+          layout: igBlock.data?.layout,
+          images: [],
+        }
+      : null;
+
+    const postIds = posts.map((p) => p.id);
+    if (postIds.length > 0) {
+      await supabase.from("presentation_post_media").delete().in("post_id", postIds);
+    }
+    const { error: postsErr } = await supabase.from("presentation_posts").delete().eq("presentation_id", pres.id);
+    const { error: blocksErr } = await supabase.from("presentation_blocks").delete().eq("presentation_id", pres.id);
+    if (postsErr || blocksErr) {
+      setResetting(false);
+      toast({ title: "Erro ao limpar planejamento", description: (postsErr || blocksErr)?.message, variant: "destructive" });
+      return;
+    }
+
+    if (preservedIgData) {
+      await supabase.from("presentation_blocks").insert({
+        presentation_id: pres.id,
+        block_type: "instagram_preview",
+        position: 0,
+        data: preservedIgData,
+      });
+    }
+
+    await supabase.from("project_presentations").update({ hero_title: "", hero_description: "" }).eq("id", pres.id);
+
+    setResetting(false);
+    setResetOpen(false);
+    toast({ title: "Novo ciclo de planejamento criado" });
+    load();
+  }
+
   const [launchName, setLaunchName] = useState("");
   const [launching, setLaunching] = useState(false);
   const [previewSnapshot, setPreviewSnapshot] = useState<any | null>(null);
@@ -437,6 +490,11 @@ export default function PresentationBuilder({ projectId, projectName }: { projec
               <Rocket className="h-4 w-4 mr-1.5" /> Lançar e Salvar
             </Button>
           )}
+          {canEdit && canShowLink && (
+            <Button variant="outline" size="sm" onClick={() => setResetOpen(true)}>
+              <RefreshCw className="h-4 w-4 mr-1.5" /> Gerar novo planejamento
+            </Button>
+          )}
           <p className="text-[11px] text-muted-foreground max-w-[320px] leading-snug">
             "Lançar e Salvar" publica esta versão e libera o acesso do cliente imediatamente.{" "}
             Depois, use a aba <strong className="font-medium">Apresentação</strong> pra bloquear
@@ -622,6 +680,29 @@ export default function PresentationBuilder({ projectId, projectName }: { projec
             <Button variant="outline" onClick={() => setLaunchOpen(false)}>Cancelar</Button>
             <Button onClick={launchVersion} disabled={!launchName.trim() || launching}>
               {launching ? "Lançando..." : "Lançar e liberar pro cliente"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog: confirmar reset pra novo ciclo de planejamento */}
+      <Dialog open={resetOpen} onOpenChange={setResetOpen}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Gerar novo planejamento?</DialogTitle></DialogHeader>
+          <div className="space-y-2 text-sm">
+            <p>Isso vai limpar o conteúdo deste rascunho pra começar um novo ciclo:</p>
+            <ul className="list-disc pl-5 space-y-1 text-muted-foreground">
+              <li>Capa, temas, regras, galeria, imagens e planejamento de posts são apagados.</li>
+              <li>Logo do cliente, logo da agência e os dados do Instagram (@, bio, avatar, números, destaques) são mantidos.</li>
+            </ul>
+            <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-md p-2.5 leading-snug">
+              As versões já lançadas (visíveis na aba Apresentação) não são afetadas — isso só limpa o rascunho atual em edição.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setResetOpen(false)}>Cancelar</Button>
+            <Button onClick={resetForNewCycle} disabled={resetting} variant="destructive">
+              {resetting ? "Limpando..." : "Limpar e começar novo ciclo"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1308,8 +1389,18 @@ function ProfileFieldsEditor({
         <div className="flex-1 space-y-2">
           <Input placeholder="@username" value={block.data.username || ""} onChange={(e) => patch({ username: e.target.value })} disabled={disabled} />
           <Input placeholder="Nome de exibição" value={block.data.display_name || ""} onChange={(e) => patch({ display_name: e.target.value })} disabled={disabled} />
+          <Input
+            placeholder="Link do Instagram (opcional)"
+            value={block.data.instagram_link || ""}
+            onChange={(e) => patch({ instagram_link: e.target.value })}
+            disabled={disabled}
+          />
         </div>
       </div>
+      <p className="text-[10px] text-muted-foreground -mt-1">
+        O link é só um atalho pra abrir o perfil de referência — o Instagram não permite importar os dados
+        automaticamente, então @, bio e números continuam preenchidos à mão.
+      </p>
       <Textarea placeholder="Bio (use quebras de linha)" value={block.data.bio || ""} onChange={(e) => patch({ bio: e.target.value })} rows={3} disabled={disabled} />
       <div className="grid grid-cols-3 gap-2">
         <div>
