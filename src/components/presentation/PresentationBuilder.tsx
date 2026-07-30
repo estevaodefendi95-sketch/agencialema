@@ -413,18 +413,6 @@ export default function PresentationBuilder({ projectId, projectName }: { projec
       return;
     }
 
-    if (droppableId.startsWith("insta-images:")) {
-      const blockId = droppableId.slice("insta-images:".length);
-      const block = blocks.find((b) => b.id === blockId);
-      if (!block) return;
-      const items: string[] = block.data.images || [];
-      const reordered = Array.from(items);
-      const [moved] = reordered.splice(r.source.index, 1);
-      reordered.splice(r.destination.index, 0, moved);
-      await patchBlock(blockId, { ...block.data, images: reordered });
-      return;
-    }
-
     if (droppableId.startsWith("post-media:")) {
       const postId = droppableId.slice("post-media:".length);
       await reorderPostMedia(postId, r.source.index, r.destination.index);
@@ -1025,82 +1013,57 @@ function BlockEditor({ block, onChange, posts, postMedia, onAddPost, onPatchPost
             <ProfileFieldsEditor block={block} onChange={onChange} disabled={disabled} highlights={highlights} />
           )}
         </div>
-        <p className="text-xs text-muted-foreground">Escolha manter a imagem original ou formatar sem cortar (recomendado 1:1 para o grid). Arraste pra reordenar, ou use as setas.</p>
-        <Droppable droppableId={`insta-images:${block.id}`} direction="horizontal" isDropDisabled={disabled}>
-          {(dropProvided) => (
-            <div
-              ref={dropProvided.innerRef}
-              {...dropProvided.droppableProps}
-              className="grid gap-2 grid-cols-3 max-w-xs"
-            >
-              {images.map((url, i) => (
-                <Draggable key={`insta-image:${block.id}:${i}`} draggableId={`insta-image:${block.id}:${i}`} index={i} isDragDisabled={disabled}>
-                  {(dragProvided, snapshot) => (
-                    <div
-                      ref={dragProvided.innerRef}
-                      {...dragProvided.draggableProps}
-                      {...dragProvided.dragHandleProps}
-                      className={cn(
-                        "group relative aspect-square rounded border overflow-hidden",
-                        !disabled && "cursor-grab active:cursor-grabbing",
-                        snapshot.isDragging && "z-10 ring-2 ring-primary shadow-lg",
-                      )}
-                      title={!disabled ? "Arraste pra reordenar" : undefined}
-                    >
-                      <img src={url} alt="" className="w-full h-full object-cover pointer-events-none" />
-                      <span className="absolute top-1 left-1 h-4 w-4 rounded-full bg-foreground text-background text-[9px] flex items-center justify-center font-medium pointer-events-none">
-                        {i + 1}
-                      </span>
-                      {!disabled && (
-                        <button
-                          onClick={() => onChange({ ...block.data, images: images.filter((_, j) => j !== i) })}
-                          className="absolute top-1 right-1 h-5 w-5 rounded-full bg-background/90 border border-border flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                        >
-                          <X className="h-3 w-3" />
-                        </button>
-                      )}
-                      {!disabled && images.length > 1 && (
-                        <div className="absolute inset-x-0 bottom-0 flex items-center justify-between px-0.5 pb-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              if (i === 0) return;
-                              const reordered = Array.from(images);
-                              const [moved] = reordered.splice(i, 1);
-                              reordered.splice(i - 1, 0, moved);
-                              onChange({ ...block.data, images: reordered });
-                            }}
-                            disabled={i === 0}
-                            className="h-5 w-5 rounded-full bg-background/90 border border-border flex items-center justify-center disabled:opacity-30"
-                            title="Mover pra esquerda"
-                          >
-                            <ChevronLeft className="h-3 w-3" />
-                          </button>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              if (i === images.length - 1) return;
-                              const reordered = Array.from(images);
-                              const [moved] = reordered.splice(i, 1);
-                              reordered.splice(i + 1, 0, moved);
-                              onChange({ ...block.data, images: reordered });
-                            }}
-                            disabled={i === images.length - 1}
-                            className="h-5 w-5 rounded-full bg-background/90 border border-border flex items-center justify-center disabled:opacity-30"
-                            title="Mover pra direita"
-                          >
-                            <ChevronRight className="h-3 w-3" />
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </Draggable>
-              ))}
-              {dropProvided.placeholder}
+        <p className="text-xs text-muted-foreground">Escolha manter a imagem original ou formatar sem cortar (recomendado 1:1 para o grid). Use as setas pra reordenar.</p>
+        <div className="grid gap-2 grid-cols-3 max-w-xs">
+          {images.map((url, i) => (
+            <div key={i} className="group relative aspect-square rounded border overflow-hidden">
+              <img src={url} alt="" className="w-full h-full object-cover" />
+              <span className="absolute top-1 left-1 h-4 w-4 rounded-full bg-foreground text-background text-[9px] flex items-center justify-center font-medium pointer-events-none">
+                {i + 1}
+              </span>
+              {!disabled && (
+                <button
+                  onClick={() => onChange({ ...block.data, images: images.filter((_, j) => j !== i) })}
+                  className="absolute top-1 right-1 h-5 w-5 rounded-full bg-background/90 border border-border flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              )}
+              {!disabled && images.length > 1 && (
+                <div className="absolute inset-x-0 bottom-0 flex items-center justify-between px-0.5 pb-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button
+                    onClick={() => {
+                      if (i === 0) return;
+                      const reordered = Array.from(images);
+                      const [moved] = reordered.splice(i, 1);
+                      reordered.splice(i - 1, 0, moved);
+                      onChange({ ...block.data, images: reordered });
+                    }}
+                    disabled={i === 0}
+                    className="h-5 w-5 rounded-full bg-background/90 border border-border flex items-center justify-center disabled:opacity-30"
+                    title="Mover pra esquerda"
+                  >
+                    <ChevronLeft className="h-3 w-3" />
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (i === images.length - 1) return;
+                      const reordered = Array.from(images);
+                      const [moved] = reordered.splice(i, 1);
+                      reordered.splice(i + 1, 0, moved);
+                      onChange({ ...block.data, images: reordered });
+                    }}
+                    disabled={i === images.length - 1}
+                    className="h-5 w-5 rounded-full bg-background/90 border border-border flex items-center justify-center disabled:opacity-30"
+                    title="Mover pra direita"
+                  >
+                    <ChevronRight className="h-3 w-3" />
+                  </button>
+                </div>
+              )}
             </div>
-          )}
-        </Droppable>
+          ))}
+        </div>
         {!disabled && (
           <label className="cursor-pointer inline-block">
             <Input type="file" accept="image/*" multiple className="hidden" onChange={handleFiles} />
