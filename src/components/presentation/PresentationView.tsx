@@ -87,7 +87,7 @@ export default function PresentationView({
                   : { background: "var(--pres-bg)", color: "var(--pres-fg)" }
               }
             >
-              <div className="w-full h-full px-6 md:px-16 py-10 md:py-14 overflow-auto scrollbar-hide">
+              <div className="w-full h-full px-6 md:px-16 py-10 md:py-14 overflow-auto">
                 {current.node}
               </div>
             </div>
@@ -124,7 +124,7 @@ export default function PresentationView({
             {slides.map((s) => (
               <section
                 key={s.id}
-                className="w-full min-h-[80vh] md:min-h-screen flex items-center px-6 md:px-16 py-14 md:py-20 animate-fade-in"
+                className="w-full h-[85vh] md:h-screen overflow-y-auto flex items-center px-6 md:px-16 py-14 md:py-20 animate-fade-in"
                 style={
                   s.invert
                     ? { background: "var(--pres-invert-bg)", color: "var(--pres-invert-fg)" }
@@ -351,7 +351,7 @@ function PostSlide({ post, index, media }: { post: Post; index: number; media: P
   const items = getPostMediaItems(post, media).map((m) => ({ url: m.media_url, type: m.media_type } as MediaItem));
 
   return (
-    <div className="w-full grid grid-cols-1 md:grid-cols-[1.1fr_1fr] gap-8 md:gap-12 items-start">
+    <div className="w-full grid grid-cols-1 md:grid-cols-[1fr_2fr] gap-8 md:gap-12 items-start">
       <div className="w-full">
         {items.length > 0 && (
           <MediaCarousel items={items} mediaClassName="w-full aspect-[4/5] object-cover" />
