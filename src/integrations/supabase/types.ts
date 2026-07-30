@@ -166,7 +166,7 @@ export type Database = {
           active?: boolean
           created_at?: string
           id?: string
-          image_url: string
+          image_url?: string
           link_url?: string | null
           position?: number
           title?: string | null
@@ -189,7 +189,7 @@ export type Database = {
           active: boolean
           created_at: string
           description: string | null
-          icon: string | null
+          icon: string
           id: string
           position: number
           title: string
@@ -199,17 +199,17 @@ export type Database = {
           active?: boolean
           created_at?: string
           description?: string | null
-          icon?: string | null
+          icon?: string
           id?: string
           position?: number
-          title: string
+          title?: string
           updated_at?: string
         }
         Update: {
           active?: boolean
           created_at?: string
           description?: string | null
-          icon?: string | null
+          icon?: string
           id?: string
           position?: number
           title?: string
