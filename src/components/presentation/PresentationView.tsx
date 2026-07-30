@@ -461,14 +461,14 @@ function InstagramPreview({ data }: { data: any }) {
 
   return (
     <section className="animate-fade-in">
-      <h2 className="pres-display text-3xl md:text-4xl font-bold text-center mb-3 tracking-tight">
+      <h2 className="pres-display text-3xl md:text-4xl font-bold text-center mb-1 tracking-tight">
         {isFull ? "Preview do Perfil" : "Preview do Feed"}
       </h2>
-      <p className="text-center opacity-70 mb-10">
+      <p className="text-center opacity-70 mb-4">
         {isFull ? "Como ficará o perfil completo do cliente" : "Como ficará o Instagram do cliente"}
       </p>
       <div className="flex justify-center">
-        <div className="relative py-8 px-3">
+        <div className="relative py-2 px-3">
           {/* Side buttons (drawn outside the frame) */}
           {/* Left: silent switch + volume up + volume down */}
           <div className="absolute left-[1px] top-[120px] w-[4px] h-[24px] bg-neutral-900 rounded-l-md" />
@@ -479,7 +479,7 @@ function InstagramPreview({ data }: { data: any }) {
 
           {/* iPhone outer frame — proportional to a real device (~9:19.5) */}
           <div
-            className="relative w-[290px] md:w-[310px] bg-white border-[3px] border-neutral-900 rounded-[44px] p-[6px] shadow-[0_25px_60px_-15px_rgba(0,0,0,0.35)]"
+            className="relative h-[48vh] md:h-[52vh] max-h-[520px] min-h-[360px] w-auto bg-white border-[3px] border-neutral-900 rounded-[44px] p-[6px] shadow-[0_25px_60px_-15px_rgba(0,0,0,0.35)]"
             style={{ aspectRatio: "9 / 19" }}
           >
             {/* Inner screen */}
