@@ -7,7 +7,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
@@ -213,12 +212,30 @@ export default function PresentationBuilder({ projectId, projectName }: { projec
   async function launchVersion() {
     if (!pres || !launchName.trim()) return;
     setLaunching(true);
+
+    // Publica + libera a apresentação pro cliente (se ainda não estiver).
+    // Antes isso dependia de dois toggles manuais que podiam "parecer"
+    // salvos na tela sem terem sido gravados de fato — agora é parte do
+    // mesmo ato de lançar, e qualquer erro é mostrado, não escondido.
+    if (pres.status !== "publicado" || !pres.released) {
+      const { error: presError } = await supabase
+        .from("project_presentations")
+        .update({ status: "publicado", released: true })
+        .eq("id", pres.id);
+      if (presError) {
+        setLaunching(false);
+        toast({ title: "Erro ao publicar apresentação", description: presError.message, variant: "destructive" });
+        return;
+      }
+      setPres((prev) => (prev ? { ...prev, status: "publicado", released: true } : prev));
+    }
+
     const snapshot = {
       pres: {
         id: pres.id,
         slug: pres.slug,
-        status: pres.status,
-        released: pres.released,
+        status: "publicado",
+        released: true,
         client_logo_url: pres.client_logo_url,
         agency_logo_url: pres.agency_logo_url,
         hero_title: pres.hero_title,
@@ -232,6 +249,7 @@ export default function PresentationBuilder({ projectId, projectName }: { projec
       presentation_id: pres.id,
       name: launchName.trim(),
       snapshot,
+      visible_to_client: true,
       created_by: user?.id,
     });
     setLaunching(false);
@@ -239,7 +257,7 @@ export default function PresentationBuilder({ projectId, projectName }: { projec
       toast({ title: "Erro ao lançar versão", description: error.message, variant: "destructive" });
       return;
     }
-    toast({ title: "Versão lançada" });
+    toast({ title: "Versão lançada e liberada para o cliente" });
     setLaunchOpen(false);
     setLaunchName("");
     loadVersions(pres.id);
@@ -253,9 +271,14 @@ export default function PresentationBuilder({ projectId, projectName }: { projec
   // Persist presentation
   async function patchPres(patch: Partial<Presentation>) {
     if (!pres) return;
+    const previous = pres;
     const next = { ...pres, ...patch };
     setPres(next);
-    await supabase.from("project_presentations").update(patch).eq("id", pres.id);
+    const { error } = await supabase.from("project_presentations").update(patch).eq("id", pres.id);
+    if (error) {
+      setPres(previous);
+      toast({ title: "Não foi possível salvar", description: error.message, variant: "destructive" });
+    }
   }
 
   async function addBlock(type: Block["block_type"]) {
@@ -405,27 +428,19 @@ export default function PresentationBuilder({ projectId, projectName }: { projec
         <CardContent className="p-4 flex flex-wrap items-center gap-4">
           <div className="flex items-center gap-2">
             <Label className="text-xs">Status</Label>
-            <Select value={pres.status} onValueChange={(v) => patchPres({ status: v as any })} disabled={!canEdit}>
-              <SelectTrigger className="h-8 w-[130px]"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="rascunho">Rascunho</SelectItem>
-                <SelectItem value="publicado">Publicado</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="flex items-center gap-2">
-            <Label className="text-xs">Liberar para o cliente</Label>
-            <Switch checked={pres.released} onCheckedChange={(v) => patchPres({ released: v })} disabled={!canEdit} />
+            <Badge variant={canShowLink ? "default" : "secondary"}>
+              {canShowLink ? "Publicado" : "Rascunho (ainda não lançado)"}
+            </Badge>
           </div>
           {canEdit && (
             <Button variant="outline" size="sm" onClick={() => setLaunchOpen(true)}>
               <Rocket className="h-4 w-4 mr-1.5" /> Lançar e Salvar
             </Button>
           )}
-          <p className="text-[11px] text-muted-foreground max-w-[280px] leading-snug">
-            O Status controla se a página existe; o toggle controla se o cliente pode acessá-la.{" "}
-            <strong className="font-medium">Os dois precisam estar em "Publicado" + ligado</strong> para o cliente ver a página.
-            {" "}A aba <strong className="font-medium">Apresentação</strong> só mostra o que foi lançado aqui.
+          <p className="text-[11px] text-muted-foreground max-w-[320px] leading-snug">
+            "Lançar e Salvar" publica esta versão e libera o acesso do cliente imediatamente.{" "}
+            Depois, use a aba <strong className="font-medium">Apresentação</strong> pra bloquear
+            o acesso a uma versão específica, editar ou excluir um lançamento.
           </p>
           <div className="flex-1" />
           <Button variant="outline" size="sm" onClick={() => window.open(internalPreviewUrl, "_blank")}>
@@ -599,10 +614,14 @@ export default function PresentationBuilder({ projectId, projectName }: { projec
             <Label className="text-xs">Nome deste lançamento</Label>
             <Input value={launchName} onChange={(e) => setLaunchName(e.target.value)} placeholder="Ex: Julho 2026 v2" />
           </div>
+          <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-md p-2.5 leading-snug">
+            Assim que você clicar em "Lançar", o cliente terá acesso imediato a esta versão.
+            Pra bloquear o acesso depois, use a aba Apresentação.
+          </p>
           <DialogFooter>
             <Button variant="outline" onClick={() => setLaunchOpen(false)}>Cancelar</Button>
             <Button onClick={launchVersion} disabled={!launchName.trim() || launching}>
-              {launching ? "Lançando..." : "Lançar"}
+              {launching ? "Lançando..." : "Lançar e liberar pro cliente"}
             </Button>
           </DialogFooter>
         </DialogContent>

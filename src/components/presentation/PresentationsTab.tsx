@@ -4,7 +4,12 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
-import { Presentation, Eye, EyeOff, Pencil, Plus } from "lucide-react";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { useToast } from "@/hooks/use-toast";
+import { Presentation, EyeOff, ShieldCheck, Pencil, Plus, Trash2 } from "lucide-react";
 import PresentationView, { type PresentationData, type Block, type Post, type PostMediaRow } from "./PresentationView";
 
 type Snapshot = {
@@ -42,6 +47,8 @@ export function PresentationsTab({
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewSnapshot, setPreviewSnapshot] = useState<Snapshot | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<VersionRow | null>(null);
+  const { toast } = useToast();
 
   async function load() {
     setLoading(true);
@@ -71,8 +78,28 @@ export function PresentationsTab({
 
   async function toggleVisible(v: VersionRow) {
     const visible_to_client = !v.visible_to_client;
+    const previous = versions;
     setVersions((prev) => prev.map((x) => (x.id === v.id ? { ...x, visible_to_client } : x)));
-    await supabase.from("presentation_versions").update({ visible_to_client }).eq("id", v.id);
+    const { error } = await supabase.from("presentation_versions").update({ visible_to_client }).eq("id", v.id);
+    if (error) {
+      setVersions(previous);
+      toast({ title: "Não foi possível salvar", description: error.message, variant: "destructive" });
+    }
+  }
+
+  async function deleteVersion() {
+    if (!deleteTarget) return;
+    const target = deleteTarget;
+    setDeleteTarget(null);
+    const previous = versions;
+    setVersions((prev) => prev.filter((x) => x.id !== target.id));
+    const { error } = await supabase.from("presentation_versions").delete().eq("id", target.id);
+    if (error) {
+      setVersions(previous);
+      toast({ title: "Não foi possível excluir", description: error.message, variant: "destructive" });
+    } else {
+      toast({ title: "Lançamento excluído" });
+    }
   }
 
   async function openPreview(versionId: string) {
@@ -137,13 +164,16 @@ export function PresentationsTab({
           )}
           {canEdit && (
             <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 shrink-0"
+              variant="outline"
+              size="sm"
+              className="shrink-0 gap-1.5"
               onClick={() => toggleVisible(v)}
-              title={v.visible_to_client ? "Cliente vê esta versão — clique pra ocultar" : "Cliente não vê esta versão — clique pra mostrar"}
             >
-              {v.visible_to_client ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4 text-muted-foreground" />}
+              {v.visible_to_client ? (
+                <><EyeOff className="h-3.5 w-3.5" /> Bloquear visualização</>
+              ) : (
+                <><ShieldCheck className="h-3.5 w-3.5" /> Liberar visualização</>
+              )}
             </Button>
           )}
           {canEdit && (
@@ -151,8 +181,36 @@ export function PresentationsTab({
               <Pencil className="h-3.5 w-3.5" /> Editar
             </Button>
           )}
+          {canEdit && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 shrink-0 text-destructive hover:text-destructive"
+              onClick={() => setDeleteTarget(v)}
+              title="Excluir este lançamento"
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          )}
         </div>
       ))}
+
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir "{deleteTarget?.name}"?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Essa ação não pode ser desfeita. O cliente deixa de ver este lançamento imediatamente.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={deleteVersion} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
         <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto scrollbar-hide p-0">
