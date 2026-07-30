@@ -1025,7 +1025,7 @@ function BlockEditor({ block, onChange, posts, postMedia, onAddPost, onPatchPost
             <ProfileFieldsEditor block={block} onChange={onChange} disabled={disabled} highlights={highlights} />
           )}
         </div>
-        <p className="text-xs text-muted-foreground">Escolha manter a imagem original ou formatar sem cortar (recomendado 1:1 para o grid). Arraste pra reordenar.</p>
+        <p className="text-xs text-muted-foreground">Escolha manter a imagem original ou formatar sem cortar (recomendado 1:1 para o grid). Arraste pra reordenar, ou use as setas.</p>
         <Droppable droppableId={`insta-images:${block.id}`} direction="horizontal" isDropDisabled={disabled}>
           {(dropProvided) => (
             <div
@@ -1040,16 +1040,58 @@ function BlockEditor({ block, onChange, posts, postMedia, onAddPost, onPatchPost
                       ref={dragProvided.innerRef}
                       {...dragProvided.draggableProps}
                       {...dragProvided.dragHandleProps}
-                      className={cn("relative aspect-square", snapshot.isDragging && "z-10 shadow-lg")}
+                      className={cn(
+                        "group relative aspect-square rounded border overflow-hidden",
+                        !disabled && "cursor-grab active:cursor-grabbing",
+                        snapshot.isDragging && "z-10 ring-2 ring-primary shadow-lg",
+                      )}
+                      title={!disabled ? "Arraste pra reordenar" : undefined}
                     >
-                      <img src={url} alt="" className="w-full h-full object-cover rounded border" />
+                      <img src={url} alt="" className="w-full h-full object-cover pointer-events-none" />
+                      <span className="absolute top-1 left-1 h-4 w-4 rounded-full bg-foreground text-background text-[9px] flex items-center justify-center font-medium pointer-events-none">
+                        {i + 1}
+                      </span>
                       {!disabled && (
                         <button
                           onClick={() => onChange({ ...block.data, images: images.filter((_, j) => j !== i) })}
-                          className="absolute top-1 right-1 bg-background/80 rounded p-0.5"
+                          className="absolute top-1 right-1 h-5 w-5 rounded-full bg-background/90 border border-border flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
                         >
-                          <Trash2 className="h-3 w-3" />
+                          <X className="h-3 w-3" />
                         </button>
+                      )}
+                      {!disabled && images.length > 1 && (
+                        <div className="absolute inset-x-0 bottom-0 flex items-center justify-between px-0.5 pb-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (i === 0) return;
+                              const reordered = Array.from(images);
+                              const [moved] = reordered.splice(i, 1);
+                              reordered.splice(i - 1, 0, moved);
+                              onChange({ ...block.data, images: reordered });
+                            }}
+                            disabled={i === 0}
+                            className="h-5 w-5 rounded-full bg-background/90 border border-border flex items-center justify-center disabled:opacity-30"
+                            title="Mover pra esquerda"
+                          >
+                            <ChevronLeft className="h-3 w-3" />
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (i === images.length - 1) return;
+                              const reordered = Array.from(images);
+                              const [moved] = reordered.splice(i, 1);
+                              reordered.splice(i + 1, 0, moved);
+                              onChange({ ...block.data, images: reordered });
+                            }}
+                            disabled={i === images.length - 1}
+                            className="h-5 w-5 rounded-full bg-background/90 border border-border flex items-center justify-center disabled:opacity-30"
+                            title="Mover pra direita"
+                          >
+                            <ChevronRight className="h-3 w-3" />
+                          </button>
+                        </div>
                       )}
                     </div>
                   )}
