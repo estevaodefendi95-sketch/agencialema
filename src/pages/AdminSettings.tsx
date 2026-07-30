@@ -263,11 +263,21 @@ export default function AdminSettings() {
                     </button>
                   </div>
                 ) : (
-                  <label className="h-20 w-36 rounded border border-dashed flex flex-col items-center justify-center gap-1 cursor-pointer text-muted-foreground hover:text-foreground text-xs">
+                  <label
+                    htmlFor={`banner-file-${b.id}`}
+                    onClick={() => {
+                      setBannerDraftId(b.id);
+                      setCropTarget("banner");
+                    }}
+                    className="h-20 w-36 rounded border border-dashed flex flex-col items-center justify-center gap-1 cursor-pointer text-muted-foreground hover:text-foreground hover:border-foreground/40 transition-colors text-xs text-center px-1"
+                  >
                     <ImageIcon className="h-5 w-5" />
                     Enviar imagem
                   </label>
                 )}
+                <p className="text-[10px] text-muted-foreground w-36 mt-1 leading-snug">
+                  Recomendado: 1200×400px (proporção 3:1), até 5MB.
+                </p>
                 <input
                   id={`banner-file-${b.id}`}
                   type="file"
@@ -395,7 +405,7 @@ export default function AdminSettings() {
             else setLogoUrl(url);
           }}
           circular={cropTarget !== "banner"}
-          aspect={cropTarget === "banner" ? 21 / 9 : 1}
+          aspect={cropTarget === "banner" ? 3 : 1}
           uploadPath={cropTarget === "banner" ? `portal/banners/${Date.now()}.png` : `logos/${cropTarget}-logo-${Date.now()}.png`}
         />
       )}
