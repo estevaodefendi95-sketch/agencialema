@@ -479,7 +479,7 @@ function InstagramPreview({ data }: { data: any }) {
 
           {/* iPhone outer frame — proportional to a real device (~9:19.5) */}
           <div
-            className="relative h-[48vh] md:h-[52vh] max-h-[520px] min-h-[360px] w-auto bg-white border-[3px] border-neutral-900 rounded-[44px] p-[6px] shadow-[0_25px_60px_-15px_rgba(0,0,0,0.35)]"
+            className="relative h-[58vh] md:h-[65vh] max-h-[620px] min-h-[420px] w-auto bg-white border-[3px] border-neutral-900 rounded-[44px] p-[6px] shadow-[0_25px_60px_-15px_rgba(0,0,0,0.35)]"
             style={{ aspectRatio: "9 / 19" }}
           >
             {/* Inner screen */}
@@ -588,15 +588,15 @@ function ProfileHeader({
       </div>
 
       {/* Avatar + counters */}
-      <div className="flex items-center gap-4 mb-2">
+      <div className="flex items-center gap-3 mb-2">
         <div className="shrink-0">
           {avatarUrl ? (
-            <img src={avatarUrl} alt="" className="h-[68px] w-[68px] rounded-full object-cover ring-1 ring-neutral-200" />
+            <img src={avatarUrl} alt="" className="h-[60px] w-[60px] rounded-full object-cover ring-1 ring-neutral-200" />
           ) : (
-            <div className="h-[68px] w-[68px] rounded-full bg-gradient-to-br from-pink-300 via-fuchsia-300 to-orange-300" />
+            <div className="h-[60px] w-[60px] rounded-full bg-gradient-to-br from-pink-300 via-fuchsia-300 to-orange-300" />
           )}
         </div>
-        <div className="flex-1 grid grid-cols-3 text-center">
+        <div className="flex-1 grid grid-cols-3 gap-x-1.5 text-center min-w-0">
           <Stat value={postsCount ?? 0} label="Posts" />
           <Stat value={followersCount ?? 0} label="Followers" />
           <Stat value={followingCount ?? 0} label="Following" />
@@ -649,9 +649,9 @@ function ProfileHeader({
 
 function Stat({ value, label }: { value: string | number; label: string }) {
   return (
-    <div>
-      <div className="font-semibold text-[14px] leading-tight">{value}</div>
-      <div className="text-[11px] text-neutral-600">{label}</div>
+    <div className="min-w-0 overflow-hidden">
+      <div className="font-semibold text-[13px] leading-tight truncate">{value}</div>
+      <div className="text-[10px] text-neutral-600 truncate">{label}</div>
     </div>
   );
 }
