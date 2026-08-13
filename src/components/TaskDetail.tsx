@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -490,9 +490,12 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted, projectMemb
 
   return (
     <>
-    <Dialog open onOpenChange={() => onClose()}>
-      <DialogContent className="max-w-2xl h-[90vh] flex flex-col p-0 gap-0 overflow-hidden">
-        <DialogHeader className="px-6 pt-6 pb-3 border-b shrink-0 pr-14">
+    <Sheet open onOpenChange={() => onClose()}>
+      <SheetContent
+        side="right"
+        className="w-full sm:max-w-3xl h-full flex flex-col p-0 gap-0 overflow-hidden"
+      >
+        <SheetHeader className="px-8 pt-8 pb-5 border-b shrink-0 pr-14 text-left space-y-0">
           <div className="flex items-center justify-between gap-2">
             {editingTitle ? (
               <Input
@@ -501,15 +504,15 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted, projectMemb
                 onBlur={() => setEditingTitle(false)}
                 onKeyDown={(e) => e.key === "Enter" && setEditingTitle(false)}
                 autoFocus
-                className="text-lg font-semibold"
+                className="text-xl font-semibold h-auto py-1"
               />
             ) : (
-              <DialogTitle
-                className={canEdit ? "cursor-pointer hover:text-primary transition-colors" : ""}
+              <SheetTitle
+                className={`text-xl ${canEdit ? "cursor-pointer hover:text-primary transition-colors" : ""}`}
                 onClick={() => canEdit && setEditingTitle(true)}
               >
                 {editTitle || task.title}
-              </DialogTitle>
+              </SheetTitle>
             )}
             {canEdit && hasChanges && (
               <Button size="sm" onClick={saveTaskEdits} className="shrink-0"><Save className="h-3 w-3 mr-1" />Salvar</Button>
@@ -600,9 +603,9 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted, projectMemb
               </div>
             )}
           </div>
-        </DialogHeader>
-        <ScrollArea className="flex-1 min-h-0 px-6 py-4">
-          <div className="space-y-6">
+        </SheetHeader>
+        <ScrollArea className="flex-1 min-h-0 px-8 py-6">
+          <div className="space-y-8">
             {/* Description */}
             <div className="space-y-1.5">
               <Label className="text-xs text-muted-foreground">Descrição</Label>
@@ -1015,8 +1018,8 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted, projectMemb
             </AlertDialog>
           </div>
         )}
-      </DialogContent>
-    </Dialog>
+      </SheetContent>
+    </Sheet>
     {viewingSubtaskId && (
       <TaskDetail
         taskId={viewingSubtaskId}
