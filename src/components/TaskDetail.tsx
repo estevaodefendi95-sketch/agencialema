@@ -458,7 +458,7 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted, projectMemb
   };
 
   const assignedProfile = editAssignedTo
-    ? projectMembers.find((m) => m.user_id === editAssignedTo)?.profiles || null
+    ? companyAccessProfiles.find((p) => p.id === editAssignedTo) || null
     : null;
   const assigneeDisplayName = assignedProfile
     ? (assignedProfile as any).nickname?.trim() || assignedProfile.full_name || (assignedProfile as any).email || "Usuário"
