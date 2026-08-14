@@ -32,7 +32,7 @@ import { CalendarColorToggle } from "@/components/CalendarColorToggle";
 import { useCalendarColorMode } from "@/hooks/useCalendarColorMode";
 import { getEntityColor, TEAM_COLOR_PALETTE } from "@/lib/colorPalette";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter, SheetTrigger } from "@/components/ui/sheet";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -1655,11 +1655,13 @@ export default function KanbanBoard() {
       )}
 
       {/* New Task Dialog */}
-      <Dialog open={newTaskOpen} onOpenChange={setNewTaskOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh]">
-          <DialogHeader><DialogTitle>Nova Tarefa</DialogTitle></DialogHeader>
-          <ScrollArea className="max-h-[72vh] pr-4">
-            <div className="space-y-4">
+      <Sheet open={newTaskOpen} onOpenChange={setNewTaskOpen}>
+        <SheetContent side="right" className="w-full sm:max-w-3xl h-full flex flex-col p-0 gap-0 overflow-hidden">
+          <SheetHeader className="px-8 pt-8 pb-5 border-b shrink-0 pr-14 text-left">
+            <SheetTitle className="text-xl">Nova Tarefa</SheetTitle>
+          </SheetHeader>
+          <ScrollArea className="flex-1 min-h-0 px-8 py-6">
+            <div className="space-y-6">
               <div className="space-y-1.5">
                 <Label className="text-sm">Título</Label>
                 <Input
@@ -1839,12 +1841,12 @@ export default function KanbanBoard() {
               </div>
             </div>
           </ScrollArea>
-          <DialogFooter>
+          <SheetFooter className="px-8 py-5 border-t shrink-0">
             <Button variant="outline" onClick={() => setNewTaskOpen(false)}>Cancelar</Button>
             <Button onClick={createTask} disabled={!newTitle}>Criar</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
 
       {selectedTask && (
         <TaskDetail
