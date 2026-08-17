@@ -14,7 +14,7 @@ import { DragDropContext, Droppable, Draggable, type DropResult } from "@hello-p
 import { Plus, GripVertical, Trash2, Image as ImageIcon, Type, Smartphone, ListOrdered, Eye, ExternalLink, Copy, Heading, Upload, Play, X, Rocket, History as HistoryIcon, LayoutTemplate, ListChecks, Hash, Grid3x3, Palette, RefreshCw, ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
-import ImageCropper from "@/components/ImageCropper";
+import ImageCropper, { processInstagramFile, uploadProcessedImage } from "@/components/ImageCropper";
 import { detectMediaType, getGalleryItems, getPostMediaItems, isLegacyPostMedia, type MediaItem, type PostMediaRow } from "./mediaUtils";
 import PresentationView from "./PresentationView";
 import { THEME_FIELDS, normalizeTheme, DEFAULT_THEME } from "./theme";
@@ -833,6 +833,25 @@ function BlockEditor({ block, onChange, posts, postMedia, onAddPost, onPatchPost
     }
   }
 
+  async function handleApplyToRemaining(mode: string) {
+    const filesToProcess = [current, ...queue].filter((f): f is File => !!f);
+    setQueue([]);
+    setCurrent(null);
+    const newUrls: string[] = [];
+    for (const f of filesToProcess) {
+      try {
+        const blob = await processInstagramFile(f, mode);
+        const url = await uploadProcessedImage(blob, `presentations/media/${crypto.randomUUID()}.png`);
+        newUrls.push(url);
+      } catch (err) {
+        console.error("Falha ao processar imagem em lote", err);
+      }
+    }
+    if (newUrls.length > 0) {
+      onChange({ ...block.data, images: [...(block.data.images || []), ...newUrls] });
+    }
+  }
+
   function cancelCrop() {
     setCurrent(null);
     setQueue([]);
@@ -1078,6 +1097,8 @@ function BlockEditor({ block, onChange, posts, postMedia, onAddPost, onPatchPost
             onCropped={(url) => handleCropped(url, true)}
             aspect={aspect}
             instagramFit
+            remainingCount={queue.length}
+            onApplyToRemaining={handleApplyToRemaining}
             uploadPath={`presentations/media/${crypto.randomUUID()}.png`}
           />
         )}
@@ -1257,6 +1278,21 @@ function PostEditor({
     }
   }
 
+  async function handleApplyToRemaining(mode: string) {
+    const filesToProcess = [croppingFile, ...imageQueue].filter((f): f is File => !!f);
+    setImageQueue([]);
+    setCroppingFile(null);
+    for (const f of filesToProcess) {
+      try {
+        const blob = await processInstagramFile(f, mode);
+        const url = await uploadProcessedImage(blob, `presentations/posts/${crypto.randomUUID()}.png`);
+        onAddMedia(post.id, url, "image");
+      } catch (err) {
+        console.error("Falha ao processar imagem em lote", err);
+      }
+    }
+  }
+
   function removeItem(item: PostMediaRow) {
     if (isLegacyPostMedia(item.id)) onPatch({ image_url: null });
     else onRemoveMedia(item.id);
@@ -1342,6 +1378,8 @@ function PostEditor({
             onCropped={handleCropped}
             aspect="choice"
             instagramFit
+            remainingCount={imageQueue.length}
+            onApplyToRemaining={handleApplyToRemaining}
             uploadPath={`presentations/posts/${crypto.randomUUID()}.png`}
           />
         )}

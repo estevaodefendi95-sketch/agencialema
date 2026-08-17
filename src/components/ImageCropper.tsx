@@ -18,6 +18,10 @@ interface Props {
   uploadPath: string;
   /** Quando true, troca o recorte manual por um modo "Instagram": a imagem inteira é sempre preservada (sem cortar conteúdo), ajustada dentro da proporção escolhida com um fundo desfocado preenchendo as sobras. Também libera a opção de manter o arquivo original, sem nenhum ajuste. */
   instagramFit?: boolean;
+  /** Quantos arquivos ainda restam na fila além deste (pra oferecer "aplicar a todos"). */
+  remainingCount?: number;
+  /** Chamado quando o usuário marca "aplicar a todos" — recebe o modo escolhido pra processar o resto da fila sem abrir o modal de novo. */
+  onApplyToRemaining?: (mode: string) => void;
 }
 
 function centerAspectCrop(mediaWidth: number, mediaHeight: number, aspect?: number) {
@@ -46,6 +50,61 @@ const INSTAGRAM_RATIOS: { label: string; value: string; ratio: number }[] = [
   { label: "Stories/Reels (9:16)", value: "9:16", ratio: 9 / 16 },
 ];
 
+function loadImageEl(file: File): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = reject;
+    img.src = URL.createObjectURL(file);
+  });
+}
+
+/** Processa um arquivo no modo Instagram (mesma lógica do modal) sem precisar abrir a UI. Usado pra aplicar a mesma escolha a vários arquivos de uma vez. */
+export async function processInstagramFile(file: File, mode: string): Promise<Blob> {
+  if (mode === "original") return file;
+  const ratio = INSTAGRAM_RATIOS.find((o) => o.value === mode)?.ratio || 1;
+  const image = await loadImageEl(file);
+  const iw = image.naturalWidth;
+  const ih = image.naturalHeight;
+
+  const canvas = document.createElement("canvas");
+  const canvasW = 1080;
+  const canvasH = Math.round(1080 / ratio);
+  canvas.width = canvasW;
+  canvas.height = canvasH;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("No ctx");
+
+  const coverScale = Math.max(canvasW / iw, canvasH / ih) * 1.15;
+  const bgW = iw * coverScale;
+  const bgH = ih * coverScale;
+  ctx.filter = "blur(24px)";
+  ctx.drawImage(image, (canvasW - bgW) / 2, (canvasH - bgH) / 2, bgW, bgH);
+  ctx.filter = "none";
+  ctx.fillStyle = "rgba(0, 0, 0, 0.35)";
+  ctx.fillRect(0, 0, canvasW, canvasH);
+
+  const containScale = Math.min(canvasW / iw, canvasH / ih);
+  const fgW = iw * containScale;
+  const fgH = ih * containScale;
+  ctx.drawImage(image, (canvasW - fgW) / 2, (canvasH - fgH) / 2, fgW, fgH);
+
+  return new Promise((resolve, reject) => {
+    canvas.toBlob((blob) => (blob ? resolve(blob) : reject("Blob failed")), "image/png", 0.95);
+  });
+}
+
+/** Envia um blob/arquivo já processado e devolve a URL pública. */
+export async function uploadProcessedImage(blob: Blob, uploadPath: string): Promise<string> {
+  const { error } = await supabase.storage.from("attachments").upload(uploadPath, blob, {
+    contentType: blob.type || "image/png",
+    upsert: true,
+  });
+  if (error) throw error;
+  const { data } = supabase.storage.from("attachments").getPublicUrl(uploadPath);
+  return data.publicUrl + "?t=" + Date.now();
+}
+
 export default function ImageCropper({
   file,
   open,
@@ -55,10 +114,13 @@ export default function ImageCropper({
   aspect = 1,
   uploadPath,
   instagramFit = false,
+  remainingCount = 0,
+  onApplyToRemaining,
 }: Props) {
   const [crop, setCrop] = useState<Crop>();
   const [zoom, setZoom] = useState(100);
   const [uploading, setUploading] = useState(false);
+  const [applyToAll, setApplyToAll] = useState(false);
   const imgRef = useRef<HTMLImageElement>(null);
   const [imgSrc] = useState(() => URL.createObjectURL(file));
   const [instaMode, setInstaMode] = useState<string>("1:1");
@@ -191,6 +253,13 @@ export default function ImageCropper({
   const handleCrop = async () => {
     setUploading(true);
     try {
+      if (instagramFit && applyToAll && remainingCount > 0 && onApplyToRemaining) {
+        // Deixa o componente pai processar este arquivo + o resto da fila juntos,
+        // pra não disputar com o avanço normal (um-a-um) da fila.
+        onApplyToRemaining(instaMode);
+        onClose();
+        return;
+      }
       if (instagramFit && instaMode === "original") {
         await upload(file);
       } else if (instagramFit) {
@@ -234,6 +303,13 @@ export default function ImageCropper({
               ? "A imagem vai ser enviada sem nenhum ajuste."
               : "A foto inteira é preservada, sem cortes — o espaço ao redor é preenchido com um fundo desfocado."}
           </p>
+
+          {remainingCount > 0 && onApplyToRemaining && (
+            <label className="flex items-center gap-2 text-xs bg-muted/40 rounded p-2 cursor-pointer">
+              <input type="checkbox" checked={applyToAll} onChange={(e) => setApplyToAll(e.target.checked)} className="h-3.5 w-3.5" />
+              Aplicar essa mesma opção às outras {remainingCount} imagens selecionadas
+            </label>
+          )}
 
           <div className="flex justify-center bg-muted/30 rounded p-2 max-h-[60vh] overflow-auto">
             {instaMode === "original" ? (
