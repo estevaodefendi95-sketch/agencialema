@@ -107,6 +107,7 @@ const BLOCK_META = {
   posts_plan: { label: "Planejamento de Posts", icon: ListOrdered },
 };
 
+const ADDABLE_BLOCK_TYPES: Block["block_type"][] = ["canvas", "instagram_preview", "posts_plan"];
 
 function slugify(s: string) {
   return s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
@@ -647,9 +648,9 @@ export default function PresentationBuilder({ projectId, projectName }: { projec
       {canEdit && (
         <Card className="border-dashed">
           <CardContent className="p-4">
-            <p className="text-sm font-medium mb-2">Adicionar bloco</p>
+            <p className="text-sm font-medium mb-2">Adicionar página</p>
             <div className="flex flex-wrap gap-2">
-              {(Object.keys(BLOCK_META) as Block["block_type"][]).map((k) => {
+              {ADDABLE_BLOCK_TYPES.map((k) => {
                 const Icon = BLOCK_META[k].icon;
                 return (
                   <Button key={k} variant="outline" size="sm" onClick={() => addBlock(k)}>
@@ -658,6 +659,10 @@ export default function PresentationBuilder({ projectId, projectName }: { projec
                 );
               })}
             </div>
+            <p className="text-[11px] text-muted-foreground mt-2">
+              "Página livre" é onde você monta o layout (texto, imagens, cores) do jeito que quiser.
+              "Preview Instagram" e "Planejamento de Posts" são as páginas fixas de visualização pro cliente.
+            </p>
           </CardContent>
         </Card>
       )}

@@ -2,7 +2,6 @@ import { useRef, useState } from "react";
 import { Rnd } from "react-rnd";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
 import { Slider } from "@/components/ui/slider";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { cn } from "@/lib/utils";
@@ -53,6 +52,7 @@ export default function CanvasEditor({
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const elements = data.elements || [];
   const selected = elements.find((e) => e.id === selectedId) || null;
 
@@ -69,6 +69,7 @@ export default function CanvasEditor({
         : { id, type, x: 10, y: 10, width: 35, height: 35, zIndex: maxZ + 1, url };
     updateElements([...elements, el]);
     setSelectedId(id);
+    if (type === "text") setEditingId(id);
   }
 
   function patchElement(id: string, patch: Partial<CanvasElement>) {
@@ -78,6 +79,7 @@ export default function CanvasEditor({
   function removeElement(id: string) {
     updateElements(elements.filter((e) => e.id !== id));
     if (selectedId === id) setSelectedId(null);
+    if (editingId === id) setEditingId(null);
   }
 
   async function handleImagePick(e: React.ChangeEvent<HTMLInputElement>) {
@@ -98,6 +100,14 @@ export default function CanvasEditor({
 
   const px = (pct: number, total: number) => (pct / 100) * total;
   const toPct = (val: number, total: number) => (total > 0 ? (val / total) * 100 : 0);
+
+  const textStyle = (el: CanvasElement): React.CSSProperties => ({
+    fontSize: `${el.fontSize || 4}cqw`,
+    color: el.color || "#141414",
+    fontWeight: el.bold ? 700 : 400,
+    textAlign: el.align || "left",
+    lineHeight: 1.15,
+  });
 
   return (
     <div className="space-y-3">
@@ -138,20 +148,28 @@ export default function CanvasEditor({
             ? `center/cover no-repeat url(${data.background_image_url})`
             : data.background_color || "#F6F4EF",
         }}
-        onClick={() => setSelectedId(null)}
+        onMouseDown={(e) => {
+          // Só desmarca se o clique foi direto no fundo, não em um filho.
+          if (e.target === e.currentTarget) {
+            setSelectedId(null);
+            setEditingId(null);
+          }
+        }}
       >
         {elements.map((el) => {
           const w = containerRef.current?.offsetWidth || 800;
           const h = containerRef.current?.offsetHeight || 450;
+          const isEditing = editingId === el.id;
           return (
             <Rnd
               key={el.id}
               size={{ width: px(el.width, w), height: px(el.height, h) }}
               position={{ x: px(el.x, w), y: px(el.y, h) }}
               bounds="parent"
-              disableDragging={disabled}
-              enableResizing={!disabled}
-              style={{ zIndex: el.zIndex }}
+              disableDragging={disabled || isEditing}
+              enableResizing={!disabled && !isEditing}
+              lockAspectRatio={false}
+              style={{ zIndex: isEditing ? 1000 : el.zIndex }}
               onDragStop={(_, d) => {
                 const cw = containerRef.current?.offsetWidth || w;
                 const ch = containerRef.current?.offsetHeight || h;
@@ -160,33 +178,54 @@ export default function CanvasEditor({
               onResizeStop={(_e, _dir, ref, _delta, pos) => {
                 const cw = containerRef.current?.offsetWidth || w;
                 const ch = containerRef.current?.offsetHeight || h;
-                patchElement(el.id, {
-                  width: toPct(ref.offsetWidth, cw),
-                  height: toPct(ref.offsetHeight, ch),
+                const newWidth = toPct(ref.offsetWidth, cw);
+                const newHeight = toPct(ref.offsetHeight, ch);
+                const patch: Partial<CanvasElement> = {
+                  width: newWidth,
+                  height: newHeight,
                   x: toPct(pos.x, cw),
                   y: toPct(pos.y, ch),
-                });
+                };
+                // Redimensionar a caixa de texto também escala a fonte,
+                // igual no Canva — usa a mudança de altura como referência.
+                if (el.type === "text" && el.height > 0) {
+                  const scale = newHeight / el.height;
+                  patch.fontSize = Math.max(1, Math.round((el.fontSize || 4) * scale * 10) / 10);
+                }
+                patchElement(el.id, patch);
               }}
               onMouseDown={(e: React.MouseEvent) => {
                 e.stopPropagation();
                 setSelectedId(el.id);
               }}
+              onDoubleClick={(e: React.MouseEvent) => {
+                e.stopPropagation();
+                if (el.type === "text") {
+                  setSelectedId(el.id);
+                  setEditingId(el.id);
+                }
+              }}
               className={cn(selectedId === el.id && !disabled && "ring-2 ring-primary")}
             >
               {el.type === "text" ? (
-                <div
-                  className="w-full h-full overflow-hidden px-1"
-                  style={{
-                    fontSize: `${el.fontSize || 4}cqw`,
-                    color: el.color || "#141414",
-                    fontWeight: el.bold ? 700 : 400,
-                    textAlign: el.align || "left",
-                    lineHeight: 1.15,
-                    whiteSpace: "pre-wrap",
-                  }}
-                >
-                  {el.content}
-                </div>
+                isEditing ? (
+                  <textarea
+                    autoFocus
+                    value={el.content || ""}
+                    onChange={(e) => patchElement(el.id, { content: e.target.value })}
+                    onBlur={() => setEditingId(null)}
+                    onMouseDown={(e) => e.stopPropagation()}
+                    className="w-full h-full resize-none border-none outline-none bg-transparent px-1"
+                    style={textStyle(el)}
+                  />
+                ) : (
+                  <div
+                    className="w-full h-full overflow-hidden px-1"
+                    style={{ ...textStyle(el), whiteSpace: "pre-wrap" }}
+                  >
+                    {el.content || <span className="opacity-40">Clique duas vezes pra editar</span>}
+                  </div>
+                )
               ) : (
                 <img src={el.url} alt="" className="w-full h-full object-cover pointer-events-none" />
               )}
@@ -204,62 +243,56 @@ export default function CanvasEditor({
         <div className="p-3 rounded-md border bg-background space-y-2">
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium text-muted-foreground">
-              {selected.type === "text" ? "Texto selecionado" : "Imagem selecionada"}
+              {selected.type === "text" ? "Texto selecionado — duplo clique no canvas pra digitar" : "Imagem selecionada"}
             </span>
             <Button variant="ghost" size="sm" className="h-7 text-xs text-destructive" onClick={() => removeElement(selected.id)}>
               <Trash2 className="h-3.5 w-3.5 mr-1" /> Excluir
             </Button>
           </div>
           {selected.type === "text" && (
-            <>
-              <Textarea
-                value={selected.content || ""}
-                onChange={(e) => patchElement(selected.id, { content: e.target.value })}
-                rows={2}
-              />
-              <div className="flex flex-wrap items-center gap-3">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-muted-foreground shrink-0">Tamanho</span>
-                  <Slider
-                    min={1.5}
-                    max={12}
-                    step={0.5}
-                    value={[selected.fontSize || 4]}
-                    onValueChange={([v]) => patchElement(selected.id, { fontSize: v })}
-                    className="w-28"
-                  />
-                </div>
-                <input
-                  type="color"
-                  value={selected.color || "#141414"}
-                  onChange={(e) => patchElement(selected.id, { color: e.target.value })}
-                  className="h-7 w-9 rounded border bg-background p-0.5"
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-muted-foreground shrink-0">Tamanho</span>
+                <Slider
+                  min={1.5}
+                  max={12}
+                  step={0.5}
+                  value={[selected.fontSize || 4]}
+                  onValueChange={([v]) => patchElement(selected.id, { fontSize: v })}
+                  className="w-28"
                 />
-                <ToggleGroup
-                  type="single"
-                  value={selected.align || "left"}
-                  onValueChange={(v) => v && patchElement(selected.id, { align: v as any })}
-                  size="sm"
-                >
-                  <ToggleGroupItem value="left" className="h-7 w-7 p-0"><AlignLeft className="h-3.5 w-3.5" /></ToggleGroupItem>
-                  <ToggleGroupItem value="center" className="h-7 w-7 p-0"><AlignCenter className="h-3.5 w-3.5" /></ToggleGroupItem>
-                  <ToggleGroupItem value="right" className="h-7 w-7 p-0"><AlignRight className="h-3.5 w-3.5" /></ToggleGroupItem>
-                </ToggleGroup>
-                <Button
-                  variant={selected.bold ? "default" : "outline"}
-                  size="sm"
-                  className="h-7 w-7 p-0"
-                  onClick={() => patchElement(selected.id, { bold: !selected.bold })}
-                >
-                  <Bold className="h-3.5 w-3.5" />
-                </Button>
+                <span className="text-[10px] text-muted-foreground w-8 tabular-nums">{(selected.fontSize || 4).toFixed(1)}</span>
               </div>
-            </>
+              <input
+                type="color"
+                value={selected.color || "#141414"}
+                onChange={(e) => patchElement(selected.id, { color: e.target.value })}
+                className="h-7 w-9 rounded border bg-background p-0.5"
+              />
+              <ToggleGroup
+                type="single"
+                value={selected.align || "left"}
+                onValueChange={(v) => v && patchElement(selected.id, { align: v as any })}
+                size="sm"
+              >
+                <ToggleGroupItem value="left" className="h-7 w-7 p-0"><AlignLeft className="h-3.5 w-3.5" /></ToggleGroupItem>
+                <ToggleGroupItem value="center" className="h-7 w-7 p-0"><AlignCenter className="h-3.5 w-3.5" /></ToggleGroupItem>
+                <ToggleGroupItem value="right" className="h-7 w-7 p-0"><AlignRight className="h-3.5 w-3.5" /></ToggleGroupItem>
+              </ToggleGroup>
+              <Button
+                variant={selected.bold ? "default" : "outline"}
+                size="sm"
+                className="h-7 w-7 p-0"
+                onClick={() => patchElement(selected.id, { bold: !selected.bold })}
+              >
+                <Bold className="h-3.5 w-3.5" />
+              </Button>
+            </div>
           )}
         </div>
       )}
       <p className="text-[10px] text-muted-foreground">
-        Arraste pra mover, puxe os cantos pra redimensionar. Clique num elemento pra editar texto/estilo.
+        Arraste pra mover, puxe os cantos pra redimensionar (a fonte acompanha). Duplo clique num texto pra digitar.
       </p>
     </div>
   );
