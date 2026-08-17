@@ -273,6 +273,14 @@ function blockSlides(b: Block, pres: PresentationData, posts: Post[], postMedia:
           ),
         },
       ];
+    case "canvas":
+      return [
+        {
+          id: b.id,
+          fullBleed: true,
+          node: <CanvasSlide data={b.data || { elements: [] }} />,
+        },
+      ];
     case "banner":
       if (!b.data?.url) return [];
       return [
@@ -425,6 +433,47 @@ function BannerSlide({ data }: { data: any }) {
           </div>
         </>
       )}
+    </div>
+  );
+}
+
+function CanvasSlide({ data }: { data: any }) {
+  const elements: any[] = data.elements || [];
+  return (
+    <div
+      className="absolute inset-0"
+      style={{
+        containerType: "inline-size",
+        background: data.background_image_url
+          ? `center/cover no-repeat url(${data.background_image_url})`
+          : data.background_color || "var(--pres-bg)",
+      } as React.CSSProperties}
+    >
+      {elements.map((el) => (
+        <div
+          key={el.id}
+          className="absolute"
+          style={{ left: `${el.x}%`, top: `${el.y}%`, width: `${el.width}%`, height: `${el.height}%`, zIndex: el.zIndex }}
+        >
+          {el.type === "text" ? (
+            <div
+              className="w-full h-full"
+              style={{
+                fontSize: `${el.fontSize || 4}cqw`,
+                color: el.color || undefined,
+                fontWeight: el.bold ? 700 : 400,
+                textAlign: el.align || "left",
+                lineHeight: 1.15,
+                whiteSpace: "pre-wrap",
+              }}
+            >
+              {el.content}
+            </div>
+          ) : (
+            el.url && <img src={el.url} alt="" className="w-full h-full object-cover" />
+          )}
+        </div>
+      ))}
     </div>
   );
 }

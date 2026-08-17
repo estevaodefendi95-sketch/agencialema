@@ -12,7 +12,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useToast } from "@/hooks/use-toast";
 import { DragDropContext, Droppable, Draggable, type DropResult } from "@hello-pangea/dnd";
-import { Plus, GripVertical, Trash2, Image as ImageIcon, Type, Smartphone, ListOrdered, Eye, ExternalLink, Copy, Heading, Upload, Play, X, Rocket, History as HistoryIcon, LayoutTemplate, ListChecks, Hash, Grid3x3, Palette, RefreshCw, ChevronLeft, ChevronRight, RectangleHorizontal } from "lucide-react";
+import { Plus, GripVertical, Trash2, Image as ImageIcon, Type, Smartphone, ListOrdered, Eye, ExternalLink, Copy, Heading, Upload, Play, X, Rocket, History as HistoryIcon, LayoutTemplate, ListChecks, Hash, Grid3x3, Palette, RefreshCw, ChevronLeft, ChevronRight, RectangleHorizontal, LayoutGrid } from "lucide-react";
+import CanvasEditor, { type CanvasData } from "./blocks/CanvasEditor";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import ImageCropper, { processInstagramFile, uploadProcessedImage } from "@/components/ImageCropper";
@@ -69,6 +70,7 @@ type Block = {
     | "feed_overview"
     | "header"
     | "banner"
+    | "canvas"
     | "text"
     | "image"
     | "gallery"
@@ -97,6 +99,7 @@ const BLOCK_META = {
   feed_overview: { label: "Visão geral do feed", icon: Grid3x3 },
   header: { label: "Cabeçalho", icon: Heading },
   banner: { label: "Banner", icon: RectangleHorizontal },
+  canvas: { label: "Página livre", icon: LayoutGrid },
   text: { label: "Texto", icon: Type },
   image: { label: "Imagem", icon: ImageIcon },
   gallery: { label: "Galeria", icon: ImageIcon },
@@ -346,6 +349,7 @@ export default function PresentationBuilder({ projectId, projectName }: { projec
       feed_overview: { title: "#seu feed, seu lema.", subtitle: "Visão geral", images: [] },
       header: { title: "", subtitle: "" },
       banner: { url: "", title: "", subtitle: "", text_position: "bottom" },
+      canvas: { background_color: "#F6F4EF", background_image_url: null, elements: [] },
       text: { content: "" },
       image: { url: "", caption: "" },
       gallery: { images: [] },
@@ -1088,6 +1092,15 @@ function BlockEditor({ block, onChange, posts, postMedia, onAddPost, onPatchPost
           />
         )}
       </div>
+    );
+  }
+  if (block.block_type === "canvas") {
+    return (
+      <CanvasEditor
+        data={block.data as CanvasData}
+        onChange={(d) => onChange(d)}
+        disabled={disabled}
+      />
     );
   }
   if (block.block_type === "header") {
