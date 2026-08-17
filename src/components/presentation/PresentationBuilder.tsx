@@ -11,13 +11,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { DragDropContext, Droppable, Draggable, type DropResult } from "@hello-pangea/dnd";
-import { Plus, GripVertical, Trash2, Image as ImageIcon, Type, Smartphone, ListOrdered, Eye, ExternalLink, Copy, Heading, Upload, Play, X, Rocket, History as HistoryIcon, LayoutTemplate, ListChecks, Hash, Grid3x3, Palette, RefreshCw, ChevronLeft, ChevronRight } from "lucide-react";
+import { Plus, GripVertical, Trash2, Image as ImageIcon, Type, Smartphone, ListOrdered, Eye, ExternalLink, Copy, Heading, Upload, Play, X, Rocket, History as HistoryIcon, LayoutTemplate, ListChecks, Hash, Grid3x3, Palette, RefreshCw, ChevronLeft, ChevronRight, RectangleHorizontal } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import ImageCropper, { processInstagramFile, uploadProcessedImage } from "@/components/ImageCropper";
 import { detectMediaType, getGalleryItems, getPostMediaItems, isLegacyPostMedia, type MediaItem, type PostMediaRow } from "./mediaUtils";
 import PresentationView from "./PresentationView";
-import { THEME_FIELDS, normalizeTheme, DEFAULT_THEME } from "./theme";
+import { THEME_FIELDS, normalizeTheme, DEFAULT_THEME, FONT_OPTIONS } from "./theme";
 
 
 const MAX_MEDIA_MB = 50;
@@ -67,6 +67,7 @@ type Block = {
     | "themes"
     | "feed_overview"
     | "header"
+    | "banner"
     | "text"
     | "image"
     | "gallery"
@@ -94,6 +95,7 @@ const BLOCK_META = {
   themes: { label: "Temas do mês", icon: Hash },
   feed_overview: { label: "Visão geral do feed", icon: Grid3x3 },
   header: { label: "Cabeçalho", icon: Heading },
+  banner: { label: "Banner", icon: RectangleHorizontal },
   text: { label: "Texto", icon: Type },
   image: { label: "Imagem", icon: ImageIcon },
   gallery: { label: "Galeria", icon: ImageIcon },
@@ -342,6 +344,7 @@ export default function PresentationBuilder({ projectId, projectName }: { projec
       themes: { title: "Temas do mês", items: [""] },
       feed_overview: { title: "#seu feed, seu lema.", subtitle: "Visão geral", images: [] },
       header: { title: "", subtitle: "" },
+      banner: { url: "", title: "", subtitle: "", text_position: "bottom" },
       text: { content: "" },
       image: { url: "", caption: "" },
       gallery: { images: [] },
@@ -539,6 +542,25 @@ export default function PresentationBuilder({ projectId, projectName }: { projec
             <p className="text-sm font-medium">Tema da apresentação</p>
           </div>
           <div className="flex flex-wrap gap-4">
+            <div className="space-y-1.5">
+              <Label className="text-xs">Fonte</Label>
+              <Select
+                value={normalizeTheme(pres.theme).font}
+                onValueChange={(v) => patchPres({ theme: { ...normalizeTheme(pres.theme), font: v } })}
+                disabled={!canEdit}
+              >
+                <SelectTrigger className="h-8 w-[190px] text-xs" style={{ fontFamily: `"${normalizeTheme(pres.theme).font}"` }}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {FONT_OPTIONS.map((f) => (
+                    <SelectItem key={f.value} value={f.value} style={{ fontFamily: `"${f.sample}"` }}>
+                      {f.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
             {THEME_FIELDS.map((f) => {
               const theme = normalizeTheme(pres.theme);
               return (
@@ -764,6 +786,51 @@ function LogoField({ label, value, onChange, disabled, folder }: { label: string
   );
 }
 
+function BackgroundImageField({ value, onChange, disabled }: { value: string | null; onChange: (url: string | null) => void; disabled?: boolean }) {
+  const [uploading, setUploading] = useState(false);
+  const inputId = useRef(`bg-${crypto.randomUUID()}`).current;
+  const { toast } = useToast();
+
+  async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setUploading(true);
+    const { url, error } = await uploadRawMedia(file, "presentations/backgrounds");
+    setUploading(false);
+    if (error) {
+      toast({ title: "Erro ao enviar imagem", description: error, variant: "destructive" });
+      return;
+    }
+    if (url) onChange(url);
+  }
+
+  return (
+    <div className="pt-2 mt-2 border-t space-y-1.5">
+      <Label className="text-xs text-muted-foreground">Imagem de fundo da página (opcional)</Label>
+      {value ? (
+        <div className="flex items-center gap-2">
+          <img src={value} alt="" className="h-12 w-20 object-cover rounded border" />
+          {!disabled && (
+            <Button variant="ghost" size="sm" className="text-xs h-7" onClick={() => onChange(null)}>
+              <Trash2 className="h-3 w-3 mr-1" /> Remover
+            </Button>
+          )}
+        </div>
+      ) : (
+        !disabled && (
+          <label className="cursor-pointer inline-block">
+            <Input id={inputId} type="file" accept="image/*" className="hidden" onChange={handleFile} />
+            <Button asChild variant="outline" size="sm" disabled={uploading}>
+              <span><ImageIcon className="h-3.5 w-3.5 mr-1.5" />{uploading ? "Enviando..." : "Adicionar imagem de fundo"}</span>
+            </Button>
+          </label>
+        )
+      )}
+    </div>
+  );
+}
+
 function BlockEditor({ block, onChange, posts, postMedia, onAddPost, onPatchPost, onRemovePost, onAddPostMedia, onRemovePostMedia, onReorderPostMedia, disabled }: any) {
   const { toast } = useToast();
   const [queue, setQueue] = useState<File[]>([]);
@@ -867,11 +934,18 @@ function BlockEditor({ block, onChange, posts, postMedia, onAddPost, onPatchPost
 
   if (block.block_type === "cover") {
     return (
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-        <Input placeholder="Tagline (#tudo começa pelo seu lema.)" value={block.data.tagline || ""} onChange={(e) => onChange({ ...block.data, tagline: e.target.value })} disabled={disabled} />
-        <Input placeholder="Rótulo (PLANEJAMENTO)" value={block.data.label || ""} onChange={(e) => onChange({ ...block.data, label: e.target.value })} disabled={disabled} />
-        <Input placeholder="Mês (ex.: OUTUBRO)" value={block.data.month || ""} onChange={(e) => onChange({ ...block.data, month: e.target.value })} disabled={disabled} />
-        <Input placeholder="Ano" value={block.data.year || ""} onChange={(e) => onChange({ ...block.data, year: e.target.value })} disabled={disabled} />
+      <div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+          <Input placeholder="Tagline (#tudo começa pelo seu lema.)" value={block.data.tagline || ""} onChange={(e) => onChange({ ...block.data, tagline: e.target.value })} disabled={disabled} />
+          <Input placeholder="Rótulo (PLANEJAMENTO)" value={block.data.label || ""} onChange={(e) => onChange({ ...block.data, label: e.target.value })} disabled={disabled} />
+          <Input placeholder="Mês (ex.: OUTUBRO)" value={block.data.month || ""} onChange={(e) => onChange({ ...block.data, month: e.target.value })} disabled={disabled} />
+          <Input placeholder="Ano" value={block.data.year || ""} onChange={(e) => onChange({ ...block.data, year: e.target.value })} disabled={disabled} />
+        </div>
+        <BackgroundImageField
+          value={block.data.background_image_url || null}
+          onChange={(url) => onChange({ ...block.data, background_image_url: url })}
+          disabled={disabled}
+        />
       </div>
     );
   }
@@ -905,6 +979,11 @@ function BlockEditor({ block, onChange, posts, postMedia, onAddPost, onPatchPost
             <Plus className="h-3.5 w-3.5 mr-1.5" /> Adicionar item
           </Button>
         )}
+        <BackgroundImageField
+          value={block.data.background_image_url || null}
+          onChange={(url) => onChange({ ...block.data, background_image_url: url })}
+          disabled={disabled}
+        />
       </div>
     );
   }
@@ -946,6 +1025,67 @@ function BlockEditor({ block, onChange, posts, postMedia, onAddPost, onPatchPost
             uploadPath={`presentations/media/${crypto.randomUUID()}.png`}
           />
         )}
+        <BackgroundImageField
+          value={block.data.background_image_url || null}
+          onChange={(url) => onChange({ ...block.data, background_image_url: url })}
+          disabled={disabled}
+        />
+      </div>
+    );
+  }
+  if (block.block_type === "banner") {
+    return (
+      <div className="space-y-2">
+        {block.data.url ? (
+          <div className="relative">
+            <img src={block.data.url} alt="" className="w-full max-h-64 object-cover rounded border" />
+            {!disabled && (
+              <Button
+                variant="secondary"
+                size="sm"
+                className="absolute top-2 right-2 text-xs h-7"
+                onClick={() => onChange({ ...block.data, url: "" })}
+              >
+                Trocar imagem
+              </Button>
+            )}
+          </div>
+        ) : (
+          <div className="h-40 border-2 border-dashed rounded flex items-center justify-center text-muted-foreground text-sm">
+            Nenhuma imagem — o banner ocupa a página inteira
+          </div>
+        )}
+        {!disabled && !block.data.url && (
+          <label className="cursor-pointer inline-block">
+            <Input type="file" accept="image/*" className="hidden" onChange={handleFiles} />
+            <Button asChild variant="outline" size="sm"><span><Upload className="h-3.5 w-3.5 mr-1.5" />Enviar imagem do banner</span></Button>
+          </label>
+        )}
+        <Input placeholder="Título (opcional, aparece sobre a imagem)" value={block.data.title || ""} onChange={(e) => onChange({ ...block.data, title: e.target.value })} disabled={disabled} />
+        <Input placeholder="Subtítulo (opcional)" value={block.data.subtitle || ""} onChange={(e) => onChange({ ...block.data, subtitle: e.target.value })} disabled={disabled} />
+        <div className="flex items-center gap-2">
+          <Label className="text-xs text-muted-foreground">Posição do texto:</Label>
+          <ToggleGroup
+            type="single"
+            value={block.data.text_position || "bottom"}
+            onValueChange={(v) => v && onChange({ ...block.data, text_position: v })}
+            size="sm"
+          >
+            <ToggleGroupItem value="top" className="text-xs h-7 px-2">Topo</ToggleGroupItem>
+            <ToggleGroupItem value="center" className="text-xs h-7 px-2">Centro</ToggleGroupItem>
+            <ToggleGroupItem value="bottom" className="text-xs h-7 px-2">Base</ToggleGroupItem>
+          </ToggleGroup>
+        </div>
+        {current && (
+          <ImageCropper
+            file={current}
+            open
+            onClose={cancelCrop}
+            onCropped={(url) => handleCropped(url, false)}
+            aspect="free"
+            uploadPath={`presentations/media/${crypto.randomUUID()}.png`}
+          />
+        )}
       </div>
     );
   }
@@ -954,13 +1094,25 @@ function BlockEditor({ block, onChange, posts, postMedia, onAddPost, onPatchPost
       <div className="space-y-2">
         <Input placeholder="Título" value={block.data.title || ""} onChange={(e) => onChange({ ...block.data, title: e.target.value })} disabled={disabled} />
         <Input placeholder="Subtítulo" value={block.data.subtitle || ""} onChange={(e) => onChange({ ...block.data, subtitle: e.target.value })} disabled={disabled} />
+        <BackgroundImageField
+          value={block.data.background_image_url || null}
+          onChange={(url) => onChange({ ...block.data, background_image_url: url })}
+          disabled={disabled}
+        />
       </div>
     );
   }
 
   if (block.block_type === "text") {
     return (
-      <Textarea placeholder="Escreva aqui..." value={block.data.content || ""} onChange={(e) => onChange({ ...block.data, content: e.target.value })} rows={6} disabled={disabled} />
+      <div>
+        <Textarea placeholder="Escreva aqui..." value={block.data.content || ""} onChange={(e) => onChange({ ...block.data, content: e.target.value })} rows={6} disabled={disabled} />
+        <BackgroundImageField
+          value={block.data.background_image_url || null}
+          onChange={(url) => onChange({ ...block.data, background_image_url: url })}
+          disabled={disabled}
+        />
+      </div>
     );
   }
   if (isSingleImage) {

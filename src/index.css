@@ -109,7 +109,7 @@
 
 /* Apresentação ao cliente (deck) */
 .pres-display {
-  font-family: "Archivo", ui-sans-serif, system-ui, sans-serif;
+  font-family: var(--pres-font, "Archivo", ui-sans-serif, system-ui, sans-serif);
   font-feature-settings: "ss01";
 }
 .pres-root .scrollbar-none::-webkit-scrollbar {

@@ -36,7 +36,7 @@ export type Post = {
   copy: string | null;
 };
 
-type SlideDef = { id: string; invert?: boolean; node: React.ReactNode };
+type SlideDef = { id: string; invert?: boolean; backgroundImage?: string | null; fullBleed?: boolean; node: React.ReactNode };
 
 export default function PresentationView({
   pres,
@@ -80,14 +80,26 @@ export default function PresentationView({
         {deckMode && current ? (
           <div className="min-h-screen flex flex-col items-center justify-center gap-4 p-6">
             <div
-              className="w-full max-w-[1400px] aspect-[16/9] overflow-hidden shadow-2xl"
+              className="relative w-full max-w-[1400px] aspect-[16/9] overflow-hidden shadow-2xl"
               style={
                 current.invert
                   ? { background: "var(--pres-invert-bg)", color: "var(--pres-invert-fg)" }
                   : { background: "var(--pres-bg)", color: "var(--pres-fg)" }
               }
             >
-              <div className="w-full h-full px-6 md:px-16 py-10 md:py-14 overflow-auto">
+              {current.backgroundImage && !current.fullBleed && (
+                <>
+                  <div
+                    className="absolute inset-0 bg-cover bg-center"
+                    style={{ backgroundImage: `url(${current.backgroundImage})` }}
+                  />
+                  <div
+                    className="absolute inset-0"
+                    style={{ background: current.invert ? "color-mix(in srgb, var(--pres-invert-bg) 55%, transparent)" : "color-mix(in srgb, var(--pres-bg) 65%, transparent)" }}
+                  />
+                </>
+              )}
+              <div className={cn("relative w-full h-full overflow-auto", current.fullBleed ? "p-0" : "px-6 md:px-16 py-10 md:py-14")}>
                 {current.node}
               </div>
             </div>
@@ -124,14 +136,29 @@ export default function PresentationView({
             {slides.map((s) => (
               <section
                 key={s.id}
-                className="w-full h-[85vh] md:h-screen overflow-y-auto flex [align-items:safe_center] px-6 md:px-16 py-14 md:py-20 animate-fade-in"
+                className={cn(
+                  "relative w-full h-[85vh] md:h-screen overflow-y-auto flex [align-items:safe_center] animate-fade-in",
+                  s.fullBleed ? "p-0" : "px-6 md:px-16 py-14 md:py-20",
+                )}
                 style={
                   s.invert
                     ? { background: "var(--pres-invert-bg)", color: "var(--pres-invert-fg)" }
                     : undefined
                 }
               >
-                <div className="w-full max-w-6xl mx-auto">{s.node}</div>
+                {s.backgroundImage && !s.fullBleed && (
+                  <>
+                    <div
+                      className="absolute inset-0 bg-cover bg-center"
+                      style={{ backgroundImage: `url(${s.backgroundImage})` }}
+                    />
+                    <div
+                      className="absolute inset-0"
+                      style={{ background: s.invert ? "color-mix(in srgb, var(--pres-invert-bg) 55%, transparent)" : "color-mix(in srgb, var(--pres-bg) 65%, transparent)" }}
+                    />
+                  </>
+                )}
+                <div className={cn("relative w-full", !s.fullBleed && "max-w-6xl mx-auto")}>{s.node}</div>
               </section>
             ))}
 
@@ -207,6 +234,7 @@ function blockSlides(b: Block, pres: PresentationData, posts: Post[], postMedia:
         {
           id: b.id,
           invert,
+          backgroundImage: b.data?.background_image_url || null,
           node: <CoverSlide data={b.data || {}} clientLogo={pres.client_logo_url} agencyLogo={pres.agency_logo_url} />,
         },
       ];
@@ -215,18 +243,20 @@ function blockSlides(b: Block, pres: PresentationData, posts: Post[], postMedia:
         {
           id: b.id,
           invert: b.data?.invert !== false,
+          backgroundImage: b.data?.background_image_url || null,
           node: <RulesSlide data={b.data || {}} agencyLogo={pres.agency_logo_url} />,
         },
       ];
     case "themes":
-      return [{ id: b.id, node: <ThemesSlide data={b.data || {}} /> }];
+      return [{ id: b.id, backgroundImage: b.data?.background_image_url || null, node: <ThemesSlide data={b.data || {}} /> }];
     case "feed_overview":
-      return [{ id: b.id, node: <FeedOverviewSlide data={b.data || {}} /> }];
+      return [{ id: b.id, backgroundImage: b.data?.background_image_url || null, node: <FeedOverviewSlide data={b.data || {}} /> }];
     case "header":
       return [
         {
           id: b.id,
           invert,
+          backgroundImage: b.data?.background_image_url || null,
           node: (
             <div className={cn(b.data?.align === "center" && "text-center")}>
               {b.data?.title && (
@@ -243,11 +273,21 @@ function blockSlides(b: Block, pres: PresentationData, posts: Post[], postMedia:
           ),
         },
       ];
+    case "banner":
+      if (!b.data?.url) return [];
+      return [
+        {
+          id: b.id,
+          fullBleed: true,
+          node: <BannerSlide data={b.data} />,
+        },
+      ];
     case "text":
       return [
         {
           id: b.id,
           invert,
+          backgroundImage: b.data?.background_image_url || null,
           node: (
             <p
               className={cn(
@@ -343,6 +383,48 @@ function HeroSlide({ pres }: { pres: PresentationData }) {
           </p>
         )}
       </div>
+    </div>
+  );
+}
+
+function BannerSlide({ data }: { data: any }) {
+  const position: "top" | "center" | "bottom" = data.text_position || "bottom";
+  const hasText = !!(data.title || data.subtitle);
+
+  return (
+    <div className="relative w-full h-full min-h-[85vh] md:min-h-screen">
+      <img src={data.url} alt={data.title || ""} className="absolute inset-0 w-full h-full object-cover" />
+      {hasText && (
+        <>
+          <div
+            className={cn(
+              "absolute inset-x-0 bg-gradient-to-b from-black/60 via-black/10 to-transparent",
+              position === "top" && "top-0 h-1/2",
+              position === "center" && "inset-0 bg-gradient-to-b from-black/10 via-black/40 to-black/10",
+              position === "bottom" && "bottom-0 top-1/2 bg-gradient-to-t from-black/70 via-black/20 to-transparent",
+            )}
+          />
+          <div
+            className={cn(
+              "absolute inset-x-0 px-6 md:px-16 flex flex-col",
+              position === "top" && "top-10 md:top-16 items-start text-left",
+              position === "center" && "inset-y-0 items-center justify-center text-center",
+              position === "bottom" && "bottom-10 md:bottom-16 items-start text-left",
+            )}
+          >
+            {data.title && (
+              <h2 className="pres-display text-3xl md:text-6xl font-bold tracking-tight text-white leading-[1.05] max-w-4xl">
+                {data.title}
+              </h2>
+            )}
+            {data.subtitle && (
+              <p className="text-base md:text-xl text-white/90 mt-3 max-w-2xl whitespace-pre-line">
+                {data.subtitle}
+              </p>
+            )}
+          </div>
+        </>
+      )}
     </div>
   );
 }

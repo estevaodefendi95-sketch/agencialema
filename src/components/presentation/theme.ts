@@ -7,6 +7,7 @@ export type PresentationTheme = {
   accent: string;
   invert_bg: string;
   invert_fg: string;
+  font: string;
 };
 
 export const DEFAULT_THEME: PresentationTheme = {
@@ -15,7 +16,18 @@ export const DEFAULT_THEME: PresentationTheme = {
   accent: "#1B1BC7",
   invert_bg: "#1B1BC7",
   invert_fg: "#FFFFFF",
+  font: "Archivo",
 };
+
+export const FONT_OPTIONS: { label: string; value: string; sample: string }[] = [
+  { label: "Archivo (padrão)", value: "Archivo", sample: "Archivo" },
+  { label: "Poppins", value: "Poppins", sample: "Poppins" },
+  { label: "Playfair Display", value: "Playfair Display", sample: "Playfair Display" },
+  { label: "DM Sans", value: "DM Sans", sample: "DM Sans" },
+  { label: "Space Grotesk", value: "Space Grotesk", sample: "Space Grotesk" },
+  { label: "Fraunces", value: "Fraunces", sample: "Fraunces" },
+  { label: "Sora", value: "Sora", sample: "Sora" },
+];
 
 export function normalizeTheme(raw: any): PresentationTheme {
   if (!raw || typeof raw !== "object") return DEFAULT_THEME;
@@ -25,6 +37,7 @@ export function normalizeTheme(raw: any): PresentationTheme {
     accent: typeof raw.accent === "string" && raw.accent ? raw.accent : DEFAULT_THEME.accent,
     invert_bg: typeof raw.invert_bg === "string" && raw.invert_bg ? raw.invert_bg : DEFAULT_THEME.invert_bg,
     invert_fg: typeof raw.invert_fg === "string" && raw.invert_fg ? raw.invert_fg : DEFAULT_THEME.invert_fg,
+    font: typeof raw.font === "string" && raw.font ? raw.font : DEFAULT_THEME.font,
   };
 }
 
@@ -35,6 +48,7 @@ export function themeVars(theme: PresentationTheme): React.CSSProperties {
     ["--pres-accent" as any]: theme.accent,
     ["--pres-invert-bg" as any]: theme.invert_bg,
     ["--pres-invert-fg" as any]: theme.invert_fg,
+    ["--pres-font" as any]: `"${theme.font}", ui-sans-serif, system-ui, sans-serif`,
   };
 }
 
