@@ -57,6 +57,7 @@ type Presentation = {
   agency_logo_url: string | null;
   hero_title: string | null;
   hero_description: string | null;
+  hero_image_url: string | null;
   theme?: any;
 };
 
@@ -299,6 +300,7 @@ export default function PresentationBuilder({ projectId, projectName }: { projec
         agency_logo_url: pres.agency_logo_url,
         hero_title: pres.hero_title,
         hero_description: pres.hero_description,
+        hero_image_url: pres.hero_image_url,
       },
       blocks,
       posts,
@@ -536,6 +538,15 @@ export default function PresentationBuilder({ projectId, projectName }: { projec
             <Label className="text-xs">Descrição da campanha</Label>
             <Textarea value={pres.hero_description || ""} onChange={(e) => patchPres({ hero_description: e.target.value })} disabled={!canEdit} rows={3} />
             <p className="text-[10px] text-muted-foreground text-right">{(pres.hero_description || "").length}/200 recomendado</p>
+          </div>
+          <div className="md:col-span-2">
+            <Label className="text-xs">Banner de capa (opcional)</Label>
+            <p className="text-[10px] text-muted-foreground mb-1">Se enviar uma imagem aqui, a capa da apresentação vira um banner em tela cheia com o título/descrição por cima, em vez do fundo liso padrão.</p>
+            <BackgroundImageField
+              value={pres.hero_image_url}
+              onChange={(url) => patchPres({ hero_image_url: url })}
+              disabled={!canEdit}
+            />
           </div>
         </CardContent>
       </Card>

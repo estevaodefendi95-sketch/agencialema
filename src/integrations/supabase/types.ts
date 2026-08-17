@@ -579,6 +579,7 @@ export type Database = {
           client_logo_url: string | null
           created_at: string
           hero_description: string | null
+          hero_image_url: string | null
           hero_title: string | null
           id: string
           project_id: string
@@ -593,6 +594,7 @@ export type Database = {
           client_logo_url?: string | null
           created_at?: string
           hero_description?: string | null
+          hero_image_url?: string | null
           hero_title?: string | null
           id?: string
           project_id: string
@@ -607,6 +609,7 @@ export type Database = {
           client_logo_url?: string | null
           created_at?: string
           hero_description?: string | null
+          hero_image_url?: string | null
           hero_title?: string | null
           id?: string
           project_id?: string

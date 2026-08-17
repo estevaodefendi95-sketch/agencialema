@@ -21,6 +21,7 @@ export type PresentationData = {
   agency_logo_url: string | null;
   hero_title: string | null;
   hero_description: string | null;
+  hero_image_url?: string | null;
   theme?: any;
 };
 
@@ -210,6 +211,7 @@ function buildSlides({
   if (!hasCover) {
     slides.push({
       id: "hero",
+      fullBleed: !!pres.hero_image_url,
       node: <HeroSlide pres={pres} />,
     });
   }
@@ -364,6 +366,40 @@ function postSlides(posts: Post[], postMedia: PostMediaRow[]): SlideDef[] {
 }
 
 function HeroSlide({ pres }: { pres: PresentationData }) {
+  if (pres.hero_image_url) {
+    return (
+      <div className="relative w-full h-full min-h-[85vh] md:min-h-screen">
+        <img src={pres.hero_image_url} alt="" className="absolute inset-0 w-full h-full object-cover" />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/25 to-black/40" />
+        <div className="absolute inset-x-0 top-8 md:top-12 px-6 md:px-16 flex items-center justify-center gap-10">
+          {pres.client_logo_url && (
+            <div className="h-12 md:h-16 flex items-center justify-center bg-white/90 rounded px-4 py-2">
+              <img src={pres.client_logo_url} alt="Logo do cliente" className="max-h-full max-w-full object-contain" />
+            </div>
+          )}
+          {pres.agency_logo_url && (
+            <div className="h-10 md:h-14 flex items-center justify-center bg-white/90 rounded px-4 py-2">
+              <img src={pres.agency_logo_url} alt="" className="max-h-full max-w-full object-contain" />
+            </div>
+          )}
+        </div>
+        <div className="absolute inset-x-0 bottom-12 md:bottom-20 px-6 md:px-16 text-center">
+          <span className="pres-display block text-xs md:text-sm uppercase tracking-[0.2em] text-white/80 mb-3">
+            Apresentação de conteúdo
+          </span>
+          <h1 className="pres-display text-4xl md:text-7xl font-bold tracking-tight leading-[1.05] text-white mb-4">
+            {pres.hero_title || "Apresentação"}
+          </h1>
+          {pres.hero_description && (
+            <p className="text-base md:text-xl max-w-3xl mx-auto leading-relaxed font-light text-white/90 whitespace-pre-line">
+              {pres.hero_description}
+            </p>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div>
       <div className="flex items-center justify-center gap-16 pb-8 mb-10 border-b border-current/15">
@@ -452,7 +488,7 @@ function CanvasSlide({ data }: { data: any }) {
       {elements.map((el) => (
         <div
           key={el.id}
-          className="absolute"
+          className="absolute overflow-hidden"
           style={{ left: `${el.x}%`, top: `${el.y}%`, width: `${el.width}%`, height: `${el.height}%`, zIndex: el.zIndex }}
         >
           {el.type === "text" ? (
@@ -460,6 +496,7 @@ function CanvasSlide({ data }: { data: any }) {
               className="w-full h-full"
               style={{
                 fontSize: `${el.fontSize || 4}cqw`,
+                fontFamily: `"${el.fontFamily || "Archivo"}", ui-sans-serif, system-ui, sans-serif`,
                 color: el.color || undefined,
                 fontWeight: el.bold ? 700 : 400,
                 textAlign: el.align || "left",
@@ -470,7 +507,18 @@ function CanvasSlide({ data }: { data: any }) {
               {el.content}
             </div>
           ) : (
-            el.url && <img src={el.url} alt="" className="w-full h-full object-cover" />
+            el.url && (
+              <img
+                src={el.url}
+                alt=""
+                className="w-full h-full object-cover"
+                style={{
+                  objectPosition: `${el.imgX ?? 50}% ${el.imgY ?? 50}%`,
+                  transform: `scale(${el.imgScale ?? 1})`,
+                  transformOrigin: "center",
+                }}
+              />
+            )
           )}
         </div>
       ))}
