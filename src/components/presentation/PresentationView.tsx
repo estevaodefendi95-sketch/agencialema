@@ -37,7 +37,7 @@ export type Post = {
   copy: string | null;
 };
 
-type SlideDef = { id: string; invert?: boolean; backgroundImage?: string | null; fullBleed?: boolean; node: React.ReactNode };
+type SlideDef = { id: string; invert?: boolean; backgroundImage?: string | null; fullBleed?: boolean; fillHeight?: boolean; node: React.ReactNode };
 
 export default function PresentationView({
   pres,
@@ -101,7 +101,7 @@ export default function PresentationView({
                 </>
               )}
               <div className={cn("relative w-full h-full overflow-auto", current.fullBleed ? "p-0" : "px-6 md:px-16 py-10 md:py-14")}>
-                {current.node}
+                <div className={cn(current.fillHeight && "h-full")}>{current.node}</div>
               </div>
             </div>
             <div className="flex items-center gap-4">
@@ -159,7 +159,7 @@ export default function PresentationView({
                     />
                   </>
                 )}
-                <div className={cn("relative w-full", !s.fullBleed && "max-w-6xl mx-auto")}>{s.node}</div>
+                <div className={cn("relative w-full", !s.fullBleed && "max-w-6xl mx-auto", s.fillHeight && "h-full")}>{s.node}</div>
               </section>
             ))}
 
@@ -350,7 +350,7 @@ function blockSlides(b: Block, pres: PresentationData, posts: Post[], postMedia:
       ];
     }
     case "instagram_preview":
-      return [{ id: b.id, invert, node: <InstagramPreview data={b.data || {}} /> }];
+      return [{ id: b.id, invert, fillHeight: true, node: <InstagramPreview data={b.data || {}} /> }];
     case "posts_plan":
       return postSlides(posts, postMedia);
     default:
@@ -639,15 +639,17 @@ function InstagramPreview({ data }: { data: any }) {
   const highlights: { id: string; title: string; cover_url: string }[] = data?.highlights || [];
 
   return (
-    <section className="animate-fade-in">
-      <h2 className="pres-display text-3xl md:text-4xl font-bold text-center mb-1 tracking-tight">
-        {isFull ? "Preview do Perfil" : "Preview do Feed"}
-      </h2>
-      <p className="text-center opacity-70 mb-4">
-        {isFull ? "Como ficará o perfil completo do cliente" : "Como ficará o Instagram do cliente"}
-      </p>
-      <div className="flex justify-center">
-        <div className="relative py-2 px-3">
+    <section className="animate-fade-in w-full h-full flex flex-col items-center">
+      <div className="shrink-0 text-center">
+        <h2 className="pres-display text-3xl md:text-4xl font-bold tracking-tight">
+          {isFull ? "Preview do Perfil" : "Preview do Feed"}
+        </h2>
+        <p className="opacity-70 mb-2 md:mb-3">
+          {isFull ? "Como ficará o perfil completo do cliente" : "Como ficará o Instagram do cliente"}
+        </p>
+      </div>
+      <div className="flex-1 min-h-0 w-full flex justify-center">
+        <div className="relative h-full py-1 px-3">
           {/* Side buttons (drawn outside the frame) */}
           {/* Left: silent switch + volume up + volume down */}
           <div className="absolute left-[1px] top-[120px] w-[4px] h-[24px] bg-neutral-900 rounded-l-md" />
@@ -656,9 +658,9 @@ function InstagramPreview({ data }: { data: any }) {
           {/* Right: power button */}
           <div className="absolute right-[1px] top-[180px] w-[4px] h-[68px] bg-neutral-900 rounded-r-md" />
 
-          {/* iPhone outer frame — proportional to a real device (~9:19.5) */}
+          {/* iPhone outer frame — proportional to a real device (~9:19.5), sempre preenchendo a altura disponível */}
           <div
-            className="relative h-[68vh] md:h-[78vh] max-h-[760px] min-h-[480px] w-auto bg-white border-[3px] border-neutral-900 rounded-[44px] p-[6px] shadow-[0_25px_60px_-15px_rgba(0,0,0,0.35)]"
+            className="relative h-full w-auto bg-white border-[3px] border-neutral-900 rounded-[44px] p-[6px] shadow-[0_25px_60px_-15px_rgba(0,0,0,0.35)]"
             style={{ aspectRatio: "9 / 19" }}
           >
             {/* Inner screen */}
