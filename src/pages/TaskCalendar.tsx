@@ -30,7 +30,8 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { CalendarDays, Building2, FolderKanban, X, MessageSquare, ChevronLeft, ChevronRight, Plus, Clock, CornerDownRight, User } from "lucide-react";
+import { CalendarDays, Building2, FolderKanban, X, MessageSquare, ChevronLeft, ChevronRight, Plus, Clock, CornerDownRight, User, Check } from "lucide-react";
+import TaskDetail from "@/components/TaskDetail";
 import { Switch } from "@/components/ui/switch";
 import { REMINDER_OPTIONS, formatDueTime } from "@/lib/taskReminders";
 import { AssigneeAvatar } from "@/components/AssigneeAvatar";
@@ -94,6 +95,7 @@ export default function TaskCalendar() {
   const { avatarUrl, user, canEdit } = useAuth();
   const { toast } = useToast();
   const [tasks, setTasks] = useState<TaskWithRelations[]>([]);
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
   const [cursor, setCursor] = useState<Date>(new Date());
   const [viewMode, setViewMode] = useState<ViewMode>(() => {
@@ -103,6 +105,10 @@ export default function TaskCalendar() {
   const [loading, setLoading] = useState(true);
   const [companyFilter, setCompanyFilter] = useState<string>("all");
   const [projectFilter, setProjectFilter] = useState<string>("all");
+  const selectedProjectLogo = useMemo(() => {
+    if (projectFilter === "all") return null;
+    return tasks.find((t) => t.project_id === projectFilter)?.projects?.companies?.logo_url || null;
+  }, [projectFilter, tasks]);
   const [assigneeFilter, setAssigneeFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [companyAccessUserIds, setCompanyAccessUserIds] = useState<string[]>([]);
@@ -340,6 +346,18 @@ export default function TaskCalendar() {
     setLoading(false);
   }
 
+  async function toggleTaskDone(task: TaskWithRelations, e?: React.MouseEvent) {
+    e?.stopPropagation();
+    const nextStatus = task.status === "concluido" ? "a_fazer" : "concluido";
+    const previous = tasks;
+    setTasks((prev) => prev.map((t) => (t.id === task.id ? { ...t, status: nextStatus } : t)));
+    const { error } = await supabase.from("tasks").update({ status: nextStatus }).eq("id", task.id);
+    if (error) {
+      setTasks(previous);
+      toast({ title: "Não foi possível atualizar a tarefa", description: error.message, variant: "destructive" });
+    }
+  }
+
   const companyOptions = useMemo(() => {
     const map = new Map<string, string>();
     tasks.forEach((t) => {
@@ -522,13 +540,25 @@ export default function TaskCalendar() {
   const TaskPill = ({ task }: { task: TaskWithRelations }) => {
     const color = getTaskColor(task);
     const assigneeName = (task.assignee as any)?.nickname?.trim() || task.assignee?.full_name || task.assignee_name || null;
+    const done = task.status === "concluido";
     return (
       <button
-        onClick={(e) => { e.stopPropagation(); navigate(`/projetos/${task.project_id}`); }}
-        className="w-full text-left px-1.5 py-0.5 rounded text-xs flex items-center gap-1 border-l-4 truncate"
+        onClick={(e) => { e.stopPropagation(); setSelectedTaskId(task.id); }}
+        className="w-full text-left px-1.5 py-0.5 rounded text-xs flex items-center gap-1 border-l-4 truncate group/pill"
         style={{ borderLeftColor: color, backgroundColor: `${color}15` }}
         title={task.title}
       >
+        <span
+          role="button"
+          onClick={(e) => toggleTaskDone(task, e)}
+          className={cn(
+            "h-3.5 w-3.5 rounded-sm border shrink-0 flex items-center justify-center transition-colors",
+            done ? "bg-primary border-primary" : "border-muted-foreground/40 hover:border-primary",
+          )}
+          title={done ? "Marcar como não concluída" : "Marcar como concluída"}
+        >
+          {done && <Check className="h-2.5 w-2.5 text-primary-foreground" strokeWidth={3} />}
+        </span>
         <span className={cn("h-1.5 w-1.5 rounded-full shrink-0", priorityColor[task.priority])} />
         {colorMode === "responsavel" && (task.assigned_to || task.assignee_name) && (
           <AssigneeAvatar url={task.assignee?.avatar_url} name={assigneeName} className="h-5 w-5 shrink-0" />
@@ -536,7 +566,10 @@ export default function TaskCalendar() {
         {task.parent_task_id && (
           <span title="Subtarefa"><CornerDownRight className="h-3 w-3 shrink-0" /></span>
         )}
-        <span className="truncate">{task.title}</span>
+        <span className={cn("truncate", done && "line-through opacity-60")}>{task.title}</span>
+        {task.due_time && (
+          <span className="text-[10px] text-muted-foreground shrink-0 ml-auto">{formatDueTime(task.due_time)}</span>
+        )}
       </button>
     );
   };
@@ -623,24 +656,43 @@ export default function TaskCalendar() {
                 <div className="space-y-2">
                   {dayTasks.map((task) => {
                     const color = getTaskColor(task);
+                    const done = task.status === "concluido";
                     return (
                     <button
                       key={task.id}
-                      onClick={() => navigate(`/projetos/${task.project_id}`)}
+                      onClick={() => setSelectedTaskId(task.id)}
                       className="w-full text-left p-3 rounded-lg border border-l-4 transition-colors"
                       style={{ borderLeftColor: color, backgroundColor: `${color}15` }}
                     >
                       <div className="flex items-start justify-between gap-2 mb-2">
-                        <h3 className="font-medium text-sm flex items-center gap-1">
+                        <h3 className="font-medium text-sm flex items-center gap-1.5">
+                          <span
+                            role="button"
+                            onClick={(e) => toggleTaskDone(task, e)}
+                            className={cn(
+                              "h-4 w-4 rounded-sm border shrink-0 flex items-center justify-center transition-colors",
+                              done ? "bg-primary border-primary" : "border-muted-foreground/40 hover:border-primary",
+                            )}
+                            title={done ? "Marcar como não concluída" : "Marcar como concluída"}
+                          >
+                            {done && <Check className="h-3 w-3 text-primary-foreground" strokeWidth={3} />}
+                          </span>
                           {task.parent_task_id && (
                             <span title="Subtarefa"><CornerDownRight className="h-3 w-3 text-muted-foreground shrink-0" /></span>
                           )}
-                          <span className="truncate">{task.title}</span>
+                          <span className={cn("truncate", done && "line-through opacity-60")}>{task.title}</span>
                         </h3>
-                        <Badge variant="outline" className="shrink-0">
-                          <span className={cn("h-2 w-2 rounded-full mr-1.5", priorityColor[task.priority])} />
-                          {priorityLabel[task.priority]}
-                        </Badge>
+                        <div className="flex items-center gap-2 shrink-0">
+                          {task.due_time && (
+                            <span className="text-xs text-muted-foreground flex items-center gap-1">
+                              <Clock className="h-3 w-3" /> {formatDueTime(task.due_time)}
+                            </span>
+                          )}
+                          <Badge variant="outline" className="shrink-0">
+                            <span className={cn("h-2 w-2 rounded-full mr-1.5", priorityColor[task.priority])} />
+                            {priorityLabel[task.priority]}
+                          </Badge>
+                        </div>
                       </div>
                       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
                         {task.projects && (
@@ -704,15 +756,18 @@ export default function TaskCalendar() {
   };
 
   return (
-    <div className="container mx-auto p-6 space-y-4">
+    <div className="w-full max-w-[1600px] mx-auto p-6 space-y-4">
       <div className="flex items-center gap-3">
         <CalendarDays className="h-7 w-7 text-primary" />
-        <div>
+        <div className="flex-1">
           <h1 className="text-2xl font-bold">Calendário de Tarefas</h1>
           <p className="text-sm text-muted-foreground">
             Visualize todas as tarefas com prazo das empresas que você tem acesso
           </p>
         </div>
+        {projectFilter !== "all" && selectedProjectLogo && (
+          <img src={selectedProjectLogo} alt="" className="h-10 w-10 rounded-full object-cover border shrink-0" />
+        )}
       </div>
 
       {/* Filters */}
@@ -1001,6 +1056,14 @@ export default function TaskCalendar() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {selectedTaskId && (
+        <TaskDetail
+          taskId={selectedTaskId}
+          onClose={() => { setSelectedTaskId(null); loadTasks(); }}
+          onTaskDeleted={() => { setSelectedTaskId(null); loadTasks(); }}
+        />
+      )}
     </div>
   );
 }
