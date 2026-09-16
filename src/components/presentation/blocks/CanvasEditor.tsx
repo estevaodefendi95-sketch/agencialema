@@ -232,7 +232,7 @@ export default function CanvasEditor({
                 }
                 patchElement(el.id, patch);
               }}
-              onMouseDown={(e: React.MouseEvent) => {
+              onMouseDown={(e: MouseEvent) => {
                 e.stopPropagation();
                 setSelectedId(el.id);
               }}
