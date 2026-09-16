@@ -7,6 +7,7 @@ import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import { AppLayout } from "@/components/AppLayout";
 import { ClientPortalLayout } from "@/components/ClientPortalLayout";
+import { InstallAppPrompt } from "@/components/InstallAppPrompt";
 import Login from "@/pages/Login";
 import PendingApproval from "@/pages/PendingApproval";
 import Dashboard from "@/pages/Dashboard";
@@ -120,6 +121,7 @@ const App = () => (
           <BrowserRouter>
             <AppRoutes />
           </BrowserRouter>
+          <InstallAppPrompt />
         </TooltipProvider>
       </AuthProvider>
     </ThemeProvider>
