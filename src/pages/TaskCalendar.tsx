@@ -541,19 +541,20 @@ export default function TaskCalendar() {
     const color = getTaskColor(task);
     const assigneeName = (task.assignee as any)?.nickname?.trim() || task.assignee?.full_name || task.assignee_name || null;
     const done = task.status === "concluido";
+    const companyLogo = task.projects?.companies?.logo_url;
     return (
       <button
         onClick={(e) => { e.stopPropagation(); setSelectedTaskId(task.id); }}
-        className="w-full text-left px-1.5 py-0.5 rounded text-xs flex items-center gap-1 border-l-4 truncate group/pill"
-        style={{ borderLeftColor: color, backgroundColor: `${color}15` }}
+        className="w-full text-left px-2 py-1 rounded-md text-xs flex items-center gap-1.5 overflow-hidden group/pill"
+        style={{ backgroundColor: `${color}30`, boxShadow: `inset 3px 0 0 0 ${color}` }}
         title={task.title}
       >
         <span
           role="button"
           onClick={(e) => toggleTaskDone(task, e)}
           className={cn(
-            "h-3.5 w-3.5 rounded-sm border shrink-0 flex items-center justify-center transition-colors",
-            done ? "bg-primary border-primary" : "border-muted-foreground/40 hover:border-primary",
+            "h-3.5 w-3.5 rounded-sm border shrink-0 flex items-center justify-center transition-colors bg-background/70",
+            done ? "bg-primary border-primary" : "border-muted-foreground/50 hover:border-primary",
           )}
           title={done ? "Marcar como não concluída" : "Marcar como concluída"}
         >
@@ -563,12 +564,15 @@ export default function TaskCalendar() {
         {colorMode === "responsavel" && (task.assigned_to || task.assignee_name) && (
           <AssigneeAvatar url={task.assignee?.avatar_url} name={assigneeName} className="h-5 w-5 shrink-0" />
         )}
-        {task.parent_task_id && (
-          <span title="Subtarefa"><CornerDownRight className="h-3 w-3 shrink-0" /></span>
+        {colorMode === "projeto" && companyLogo && (
+          <img src={companyLogo} alt="" className="h-5 w-5 rounded-full object-cover shrink-0 border border-background/60" />
         )}
-        <span className={cn("truncate", done && "line-through opacity-60")}>{task.title}</span>
+        {task.parent_task_id && (
+          <span title="Subtarefa" className="shrink-0"><CornerDownRight className="h-3 w-3" /></span>
+        )}
+        <span className={cn("truncate min-w-0 flex-1", done && "line-through opacity-60")}>{task.title}</span>
         {task.due_time && (
-          <span className="text-[10px] text-muted-foreground shrink-0 ml-auto">{formatDueTime(task.due_time)}</span>
+          <span className="text-[10px] text-muted-foreground shrink-0">{formatDueTime(task.due_time)}</span>
         )}
       </button>
     );
