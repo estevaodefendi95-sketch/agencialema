@@ -83,6 +83,8 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted, projectMemb
   const [editDueTime, setEditDueTime] = useState("");
   const [editReminderMinutes, setEditReminderMinutes] = useState("none");
   const [editAssignedTo, setEditAssignedTo] = useState("");
+  const [extraAssigneeIds, setExtraAssigneeIds] = useState<string[]>([]);
+  const [extraAssigneePopoverOpen, setExtraAssigneePopoverOpen] = useState(false);
   const [editAssigneeName, setEditAssigneeName] = useState("");
   const [freeNameInput, setFreeNameInput] = useState("");
   const [assigneePopoverOpen, setAssigneePopoverOpen] = useState(false);
@@ -177,6 +179,9 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted, projectMemb
       .eq("parent_task_id", taskId)
       .order("created_at", { ascending: true });
     setSubtasks(st || []);
+
+    const { data: ta } = await (supabase.from as any)("task_assignees").select("user_id").eq("task_id", taskId);
+    setExtraAssigneeIds(((ta || []) as any[]).map((r) => r.user_id));
   };
 
   useEffect(() => { load(); }, [taskId]);
@@ -479,6 +484,27 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted, projectMemb
     setHasChanges(true);
     setAssigneePopoverOpen(false);
   };
+
+  const addExtraAssignee = async (userId: string) => {
+    setExtraAssigneePopoverOpen(false);
+    if (extraAssigneeIds.includes(userId) || userId === editAssignedTo) return;
+    setExtraAssigneeIds((prev) => [...prev, userId]);
+    const { error } = await (supabase.from as any)("task_assignees").insert({ task_id: taskId, user_id: userId, added_by: user?.id });
+    if (error) {
+      setExtraAssigneeIds((prev) => prev.filter((id) => id !== userId));
+      toast({ title: "Erro ao adicionar responsável", description: error.message, variant: "destructive" });
+    }
+  };
+
+  const removeExtraAssignee = async (userId: string) => {
+    const previous = extraAssigneeIds;
+    setExtraAssigneeIds((prev) => prev.filter((id) => id !== userId));
+    const { error } = await (supabase.from as any)("task_assignees").delete().eq("task_id", taskId).eq("user_id", userId);
+    if (error) {
+      setExtraAssigneeIds(previous);
+      toast({ title: "Erro ao remover responsável", description: error.message, variant: "destructive" });
+    }
+  };
   const applyFreeName = () => {
     const name = freeNameInput.trim();
     if (!name) return;
@@ -601,6 +627,68 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted, projectMemb
                   {assigneeDisplayName || "Sem responsável"}
                 </span>
               </div>
+            )}
+          </div>
+
+          {/* Responsáveis adicionais */}
+          <div className="flex items-center gap-2 mt-2 flex-wrap">
+            <span className="text-xs text-muted-foreground">Também responsável:</span>
+            {extraAssigneeIds.map((id) => {
+              const p = companyAccessProfiles.find((cp) => cp.id === id);
+              const name = p?.nickname?.trim() || p?.full_name || p?.email || "Usuário";
+              return (
+                <span key={id} className="flex items-center gap-1.5 pl-1 pr-1.5 py-0.5 rounded-full bg-accent text-xs">
+                  <Avatar className="h-5 w-5">
+                    {p?.avatar_url && <AvatarImage src={p.avatar_url} />}
+                    <AvatarFallback className="text-[9px]">{name.charAt(0).toUpperCase()}</AvatarFallback>
+                  </Avatar>
+                  <span className="truncate max-w-[120px]">{name}</span>
+                  {canEdit && (
+                    <button type="button" onClick={() => removeExtraAssignee(id)} className="hover:text-destructive">
+                      <X className="h-3 w-3" />
+                    </button>
+                  )}
+                </span>
+              );
+            })}
+            {canEdit && (
+              <Popover open={extraAssigneePopoverOpen} onOpenChange={setExtraAssigneePopoverOpen}>
+                <PopoverTrigger asChild>
+                  <button
+                    type="button"
+                    className="h-6 w-6 rounded-full border border-dashed border-muted-foreground/40 flex items-center justify-center hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
+                    title="Adicionar outro responsável"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent align="start" className="w-64 p-2">
+                  <div className="space-y-1 max-h-56 overflow-y-auto">
+                    {companyAccessProfiles
+                      .filter((p) => p.id !== editAssignedTo && !extraAssigneeIds.includes(p.id))
+                      .map((p) => {
+                        const name = p.nickname?.trim() || p.full_name || p.email || "Sem nome";
+                        return (
+                          <button
+                            key={p.id}
+                            type="button"
+                            onClick={() => addExtraAssignee(p.id)}
+                            className="w-full flex items-center gap-2 px-2 py-1.5 rounded text-sm hover:bg-accent text-left"
+                          >
+                            <Avatar className="h-6 w-6">
+                              {p.avatar_url && <AvatarImage src={p.avatar_url} />}
+                              <AvatarFallback className="text-[10px]">{name.charAt(0).toUpperCase()}</AvatarFallback>
+                            </Avatar>
+                            <span className="truncate">{name}</span>
+                          </button>
+                        );
+                      })}
+                    {companyAccessProfiles.filter((p) => p.id !== editAssignedTo && !extraAssigneeIds.includes(p.id)).length === 0 && (
+                      <p className="text-xs text-muted-foreground px-2 py-1.5">Ninguém mais disponível pra adicionar.</p>
+                    )}
+                  </div>
+                </PopoverContent>
+              </Popover>
             )}
           </div>
         </SheetHeader>

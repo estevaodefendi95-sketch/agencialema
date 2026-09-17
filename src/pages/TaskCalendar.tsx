@@ -172,20 +172,28 @@ export default function TaskCalendar() {
   }, [ntProject]);
 
   async function loadProjectMembers(projectId: string) {
-    const { data } = await supabase
-      .from("project_members")
-      .select("user_id, status, profiles(id, full_name, nickname, avatar_url)")
-      .eq("project_id", projectId)
-      .eq("status", "ativo");
-    const list: Profile[] = ((data || []) as any[])
-      .filter((m) => m.user_id && m.profiles)
-      .map((m) => ({
-        id: m.user_id,
-        full_name: m.profiles.full_name,
-        nickname: m.profiles.nickname,
-        avatar_url: m.profiles.avatar_url,
-      }));
-    setProjectMembers(list);
+    const { data: proj } = await supabase.from("projects").select("company_id").eq("id", projectId).maybeSingle();
+    if (!(proj as any)?.company_id) {
+      setProjectMembers([]);
+      return;
+    }
+    const [{ data: accessRows }, { data: adminProfiles }] = await Promise.all([
+      (supabase.from as any)("user_company_access")
+        .select("user_id, profiles(id, full_name, nickname, avatar_url, status)")
+        .eq("company_id", (proj as any).company_id),
+      (supabase.rpc as any)("get_admin_profiles"),
+    ]);
+    const byId: Record<string, Profile> = {};
+    (accessRows || []).forEach((r: any) => {
+      const p = r.profiles;
+      if (p && p.status === "aprovado") {
+        byId[p.id] = { id: p.id, full_name: p.full_name, nickname: p.nickname, avatar_url: p.avatar_url };
+      }
+    });
+    (adminProfiles || []).forEach((p: any) => {
+      byId[p.id] = { id: p.id, full_name: p.full_name, nickname: p.nickname, avatar_url: p.avatar_url };
+    });
+    setProjectMembers(Object.values(byId));
   }
 
   function openNewTaskDialog(date: Date, personal?: boolean) {

@@ -191,20 +191,28 @@ export default function MyTasks() {
   }
 
   async function loadProjectMembers(projectId: string) {
-    const { data } = await supabase
-      .from("project_members")
-      .select("user_id, status, profiles(id, full_name, nickname, avatar_url)")
-      .eq("project_id", projectId)
-      .eq("status", "ativo");
-    const list: Profile[] = ((data || []) as any[])
-      .filter((m) => m.user_id && m.profiles)
-      .map((m) => ({
-        id: m.user_id,
-        full_name: m.profiles.full_name,
-        nickname: m.profiles.nickname,
-        avatar_url: m.profiles.avatar_url,
-      }));
-    setProjectMembers(list);
+    const { data: proj } = await supabase.from("projects").select("company_id").eq("id", projectId).maybeSingle();
+    if (!(proj as any)?.company_id) {
+      setProjectMembers([]);
+      return;
+    }
+    const [{ data: accessRows }, { data: adminProfiles }] = await Promise.all([
+      (supabase.from as any)("user_company_access")
+        .select("user_id, profiles(id, full_name, nickname, avatar_url, status)")
+        .eq("company_id", (proj as any).company_id),
+      (supabase.rpc as any)("get_admin_profiles"),
+    ]);
+    const byId: Record<string, Profile> = {};
+    (accessRows || []).forEach((r: any) => {
+      const p = r.profiles;
+      if (p && p.status === "aprovado") {
+        byId[p.id] = { id: p.id, full_name: p.full_name, nickname: p.nickname, avatar_url: p.avatar_url };
+      }
+    });
+    (adminProfiles || []).forEach((p: any) => {
+      byId[p.id] = { id: p.id, full_name: p.full_name, nickname: p.nickname, avatar_url: p.avatar_url };
+    });
+    setProjectMembers(Object.values(byId));
   }
 
   async function createTask() {
@@ -327,6 +335,20 @@ export default function MyTasks() {
       toast({ title: "Erro ao carregar tarefas", variant: "destructive" });
     }
 
+    // Tarefas onde o usuário é responsável adicional (não o principal).
+    let extraTasks: Task[] = [];
+    const { data: extraIds } = await (supabase.from as any)("task_assignees").select("task_id").eq("user_id", uid);
+    const extraTaskIds = ((extraIds || []) as any[]).map((r) => r.task_id);
+    if (extraTaskIds.length > 0) {
+      const { data: extraData, error: extraError } = await supabase
+        .from("tasks")
+        .select("id, title, description, status, priority, due_date, due_time, assigned_to, created_by, parent_task_id, project_id, position, color, projects(name, company_id, color, companies(name))")
+        .in("id", extraTaskIds)
+        .not("project_id", "is", null);
+      if (extraError) console.error(extraError);
+      extraTasks = (extraData || []) as any as Task[];
+    }
+
     // Tarefas pessoais (sem projeto) só existem e são visíveis para quem criou,
     // então só entram na lista quando o próprio usuário logado está sendo exibido.
     let personalTasks: Task[] = [];
@@ -341,7 +363,9 @@ export default function MyTasks() {
       personalTasks = ((personalData || []) as any[]).map((t) => ({ ...t, projects: null })) as Task[];
     }
 
-    const taskList = [...((data || []) as any as Task[]), ...personalTasks].sort((a, b) => {
+    const byId = new Map<string, Task>();
+    [...((data || []) as any as Task[]), ...extraTasks, ...personalTasks].forEach((t) => byId.set(t.id, t));
+    const taskList = Array.from(byId.values()).sort((a, b) => {
       if (!a.due_date && !b.due_date) return 0;
       if (!a.due_date) return 1;
       if (!b.due_date) return -1;
