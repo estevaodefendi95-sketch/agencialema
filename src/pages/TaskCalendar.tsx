@@ -961,6 +961,23 @@ export default function TaskCalendar() {
             <DialogTitle>{isPersonal ? "Nova Tarefa Pessoal" : "Nova Tarefa"}</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
+            <ToggleGroup
+              type="single"
+              value={isPersonal ? "pessoal" : "projeto"}
+              onValueChange={(v) => {
+                if (!v) return;
+                setIsPersonal(v === "pessoal");
+                if (v === "pessoal") setNtProject("");
+              }}
+              className="justify-start"
+            >
+              <ToggleGroupItem value="projeto" className="gap-1.5 text-xs h-8 px-3">
+                <FolderKanban className="h-3.5 w-3.5" /> Tarefa de projeto
+              </ToggleGroupItem>
+              <ToggleGroupItem value="pessoal" className="gap-1.5 text-xs h-8 px-3">
+                <User className="h-3.5 w-3.5" /> Tarefa pessoal
+              </ToggleGroupItem>
+            </ToggleGroup>
             {!isPersonal && (
               <div className="space-y-1.5">
                 <Label className="text-sm">Projeto *</Label>
