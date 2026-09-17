@@ -16,8 +16,11 @@ export function ClientPortalLayout() {
   const { app_name, logo_url } = useAppSettings();
 
   return (
-    <div className="min-h-screen flex flex-col bg-muted/20">
-      <header className="h-14 flex items-center justify-between border-b bg-background px-4 sm:px-6 shrink-0">
+    <div className="flex flex-col bg-muted/20" style={{ minHeight: "100dvh" }}>
+      <header
+        className="flex items-center justify-between border-b bg-background px-4 sm:px-6 shrink-0"
+        style={{ paddingTop: "env(safe-area-inset-top)", height: "calc(3.5rem + env(safe-area-inset-top))" }}
+      >
         <div className="flex items-center gap-2">
           <div className="flex items-center justify-center shrink-0 overflow-hidden rounded-md bg-muted h-8 w-8">
             {logo_url ? (
@@ -40,13 +43,13 @@ export function ClientPortalLayout() {
         </div>
       </header>
       <nav className="border-b bg-background px-4 sm:px-6 shrink-0">
-        <div className="flex items-center gap-1 -mb-px">
+        <div className="flex items-center gap-1 -mb-px overflow-x-auto">
           {PORTAL_TABS.map((tab) => (
             <NavLink
               key={tab.to}
               to={tab.to}
               end={tab.end}
-              className="flex items-center gap-2 px-3 py-2.5 text-sm font-medium text-muted-foreground border-b-2 border-transparent hover:text-foreground transition-colors"
+              className="flex items-center gap-2 px-3 py-2.5 text-sm font-medium text-muted-foreground border-b-2 border-transparent hover:text-foreground transition-colors whitespace-nowrap shrink-0"
               activeClassName="text-primary border-primary"
             >
               <tab.icon className="h-4 w-4" />
@@ -55,7 +58,7 @@ export function ClientPortalLayout() {
           ))}
         </div>
       </nav>
-      <main className="flex-1 p-4 sm:p-6">
+      <main className="flex-1 p-4 sm:p-6" style={{ paddingBottom: "max(1rem, env(safe-area-inset-bottom))" }}>
         <Outlet />
       </main>
     </div>
