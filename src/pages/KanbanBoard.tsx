@@ -27,7 +27,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useToast } from "@/hooks/use-toast";
 import { DragDropContext, Droppable, Draggable, type DropResult } from "@hello-pangea/dnd";
-import { Plus, GripVertical, Calendar, CalendarDays, ThumbsUp, RotateCcw, ImageIcon, Play, LayoutGrid, List, ArrowUpDown, Pencil, Check, X, Trash2, Palette, History, Undo2, Users, User, FileText, CheckSquare, Upload, Printer, MessageSquare, Eye, EyeOff, Clock, ChevronLeft, ChevronRight, ClipboardList, CornerDownRight } from "lucide-react";
+import { Plus, GripVertical, Calendar, CalendarDays, ThumbsUp, RotateCcw, ImageIcon, Play, LayoutGrid, List, ArrowUpDown, Pencil, Check, X, Trash2, Palette, History, Undo2, Users, User, FileText, CheckSquare, Upload, Printer, MessageSquare, Eye, EyeOff, Clock, ChevronLeft, ChevronRight, ClipboardList, CornerDownRight, FolderKanban } from "lucide-react";
 import { CalendarColorToggle } from "@/components/CalendarColorToggle";
 import { useCalendarColorMode } from "@/hooks/useCalendarColorMode";
 import { getEntityColor, TEAM_COLOR_PALETTE } from "@/lib/colorPalette";
@@ -46,8 +46,11 @@ import PresentationBuilder from "@/components/presentation/PresentationBuilder";
 import { PresentationsTab } from "@/components/presentation/PresentationsTab";
 import { useAppSettings } from "@/hooks/useAppSettings";
 import { AssigneeAvatar } from "@/components/AssigneeAvatar";
+import { AssigneeMultiSelect } from "@/components/AssigneeMultiSelect";
 import { TaskCardMini } from "@/components/TaskCardMini";
 import { CalendarMonthGrid, CalendarWeekGrid, CalendarDayList } from "@/components/CalendarMonthWeekDay";
+
+const WEEKDAY_LABELS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 
 const COLOR_PALETTE = [
   "#94a3b8", "#3B82F6", "#22c55e", "#eab308",
@@ -177,7 +180,10 @@ export default function KanbanBoard() {
   const [newDueTime, setNewDueTime] = useState("");
   const [newReminderMinutes, setNewReminderMinutes] = useState("none");
   const [newStatus, setNewStatus] = useState<string>("a_fazer");
-  const [newAssignedTo, setNewAssignedTo] = useState("");
+  const [newAssignedTo, setNewAssignedTo] = useState<string[]>([]);
+  const [isPersonal, setIsPersonal] = useState(false);
+  const [newRecurrence, setNewRecurrence] = useState<"none" | "daily" | "weekly" | "monthly">("none");
+  const [newRecurrenceDays, setNewRecurrenceDays] = useState<number[]>([]);
   const [newColor, setNewColor] = useState<string | null>(null);
   const [newCheckItems, setNewCheckItems] = useState<string[]>([]);
   const [newCheckInput, setNewCheckInput] = useState("");
@@ -350,6 +356,9 @@ export default function KanbanBoard() {
   useEffect(() => { load(); }, [load]);
   useEffect(() => { loadColumns(); }, [loadColumns]);
   useEffect(() => { loadMembers(); }, [loadMembers]);
+  useEffect(() => {
+    if (newTaskOpen) setNewAssignedTo(user ? [user.id] : []);
+  }, [newTaskOpen]);
 
   // Quem já tem acesso liberado à empresa deste projeto — usado no select de
   // Responsável e na aba "Equipe do Projeto". Combina duas fontes: quem tem
@@ -459,23 +468,34 @@ export default function KanbanBoard() {
   };
 
   const createTask = async () => {
-    if (!projectId) return;
+    if (!projectId || !user) return;
     const colTasks = tasks.filter((t) => t.status === newStatus);
     const maxPos = colTasks.reduce((max, t) => Math.max(max, t.position), -1);
-    const { data: created } = await (supabase.from("tasks") as any).insert({
-      project_id: projectId,
+    const primaryAssignee = isPersonal ? user.id : (newAssignedTo[0] || user.id);
+    const extraAssignees = isPersonal ? [] : newAssignedTo.slice(1).filter((id) => id !== primaryAssignee);
+    const { data: created, error } = await (supabase.from("tasks") as any).insert({
+      project_id: isPersonal ? null : projectId,
       title: newTitle,
       description: newDesc || null,
-      priority: newPriority,
+      priority: isPersonal ? "media" : newPriority,
       due_date: newDueDate || null,
       due_time: newHasDueTime && newDueTime ? newDueTime : null,
       reminder_minutes_before: newHasDueTime && newDueTime && newReminderMinutes !== "none" ? parseInt(newReminderMinutes, 10) : null,
-      status: newStatus,
-      position: maxPos + 1,
-      created_by: user?.id,
-      assigned_to: newAssignedTo && newAssignedTo !== "none" ? newAssignedTo : user?.id,
+      status: isPersonal ? "a_fazer" : newStatus,
+      position: isPersonal ? 0 : maxPos + 1,
+      created_by: user.id,
+      assigned_to: primaryAssignee,
       color: newColor,
+      ...(isPersonal ? {
+        recurrence_type: newRecurrence,
+        recurrence_days: newRecurrence === "weekly" ? newRecurrenceDays : null,
+      } : {}),
     }).select().single();
+
+    if (error) {
+      toast({ title: "Erro ao criar tarefa", description: error.message, variant: "destructive" });
+      return;
+    }
 
     if (created) {
       await (supabase.from as any)("task_history").insert({
@@ -483,6 +503,14 @@ export default function KanbanBoard() {
         user_id: user?.id,
         action: "Criou tarefa",
       });
+      if (extraAssignees.length > 0) {
+        const { error: extraError } = await (supabase.from as any)("task_assignees").insert(
+          extraAssignees.map((uid) => ({ task_id: created.id, user_id: uid, added_by: user.id })),
+        );
+        if (extraError) {
+          toast({ title: "Tarefa criada, mas houve erro ao adicionar responsáveis extras", description: extraError.message, variant: "destructive" });
+        }
+      }
       // Create checklist items
       if (newCheckItems.length > 0) {
         const items = newCheckItems.map((title, i) => ({ task_id: created.id, title, position: i }));
@@ -495,8 +523,8 @@ export default function KanbanBoard() {
         const docExts = ["pdf", "doc", "docx", "ppt", "pptx", "xls", "xlsx", "txt", "csv"];
         const fileType = videoExts.includes(ext) ? "video" : docExts.includes(ext) ? "document" : "image";
         const path = `task-media/${created.id}/${Date.now()}-${file.name}`;
-        const { error } = await supabase.storage.from("attachments").upload(path, file);
-        if (!error) {
+        const { error: uploadError } = await supabase.storage.from("attachments").upload(path, file);
+        if (!uploadError) {
           const { data: urlData } = supabase.storage.from("attachments").getPublicUrl(path);
           await supabase.from("task_media").insert({ task_id: created.id, file_url: urlData.publicUrl, file_name: file.name, file_type: fileType });
         }
@@ -506,8 +534,9 @@ export default function KanbanBoard() {
     setNewTaskOpen(false);
     setNewTitle(""); setNewDesc(""); setNewPriority("media"); setNewDueDate(""); setNewStatus("a_fazer");
     setNewHasDueTime(false); setNewDueTime(""); setNewReminderMinutes("none");
-    setNewAssignedTo(""); setNewColor(null); setNewCheckItems([]); setNewCheckInput(""); setNewFiles([]);
-    toast({ title: "Tarefa criada" });
+    setNewAssignedTo([]); setNewColor(null); setNewCheckItems([]); setNewCheckInput(""); setNewFiles([]);
+    setIsPersonal(false); setNewRecurrence("none"); setNewRecurrenceDays([]);
+    toast({ title: isPersonal ? "Tarefa pessoal criada" : "Tarefa criada" });
     load();
   };
 
@@ -1662,6 +1691,19 @@ export default function KanbanBoard() {
           </SheetHeader>
           <ScrollArea className="flex-1 min-h-0 px-8 py-6">
             <div className="space-y-6">
+              <ToggleGroup
+                type="single"
+                value={isPersonal ? "pessoal" : "projeto"}
+                onValueChange={(v) => { if (v) setIsPersonal(v === "pessoal"); }}
+                className="justify-start"
+              >
+                <ToggleGroupItem value="projeto" className="gap-1.5 text-xs h-8 px-3">
+                  <FolderKanban className="h-3.5 w-3.5" /> Tarefa de projeto
+                </ToggleGroupItem>
+                <ToggleGroupItem value="pessoal" className="gap-1.5 text-xs h-8 px-3">
+                  <User className="h-3.5 w-3.5" /> Tarefa pessoal
+                </ToggleGroupItem>
+              </ToggleGroup>
               <div className="space-y-1.5">
                 <Label className="text-sm">Título</Label>
                 <Input
@@ -1675,29 +1717,31 @@ export default function KanbanBoard() {
                 <Label>Descrição</Label>
                 <Textarea value={newDesc} onChange={(e) => setNewDesc(e.target.value)} />
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Prioridade</Label>
-                  <Select value={newPriority} onValueChange={setNewPriority}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="baixa">Baixa</SelectItem>
-                      <SelectItem value="media">Média</SelectItem>
-                      <SelectItem value="alta">Alta</SelectItem>
-                      <SelectItem value="urgente">Urgente</SelectItem>
-                    </SelectContent>
-                  </Select>
+              {!isPersonal && (
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Prioridade</Label>
+                    <Select value={newPriority} onValueChange={setNewPriority}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="baixa">Baixa</SelectItem>
+                        <SelectItem value="media">Média</SelectItem>
+                        <SelectItem value="alta">Alta</SelectItem>
+                        <SelectItem value="urgente">Urgente</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Coluna</Label>
+                    <Select value={newStatus} onValueChange={setNewStatus}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {columns.map((c) => <SelectItem key={c.slug} value={c.slug}>{c.label}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <Label>Coluna</Label>
-                  <Select value={newStatus} onValueChange={setNewStatus}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {columns.map((c) => <SelectItem key={c.slug} value={c.slug}>{c.label}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
+              )}
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Prazo</Label>
@@ -1719,6 +1763,43 @@ export default function KanbanBoard() {
                   </div>
                 </div>
               </div>
+              {isPersonal && (
+                <div className="space-y-2">
+                  <Label>Recorrência</Label>
+                  <Select
+                    value={newRecurrence}
+                    onValueChange={(v) => {
+                      setNewRecurrence(v as typeof newRecurrence);
+                      if (v !== "weekly") setNewRecurrenceDays([]);
+                    }}
+                  >
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Não repetir</SelectItem>
+                      <SelectItem value="daily">Diariamente</SelectItem>
+                      <SelectItem value="weekly">Semanalmente</SelectItem>
+                      <SelectItem value="monthly">Mensalmente</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+              {isPersonal && newRecurrence === "weekly" && (
+                <div className="space-y-2">
+                  <Label>Repetir nos dias</Label>
+                  <div className="flex gap-1.5 flex-wrap">
+                    {WEEKDAY_LABELS.map((label, idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => setNewRecurrenceDays((prev) => prev.includes(idx) ? prev.filter((d) => d !== idx) : [...prev, idx])}
+                        className={`h-8 w-8 rounded-full text-xs font-medium border transition-colors ${newRecurrenceDays.includes(idx) ? "bg-primary text-primary-foreground border-primary" : "border-input hover:bg-accent"}`}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
               {newHasDueTime && newDueTime && (
                 <div className="space-y-2">
                   <Label>Notificar</Label>
@@ -1732,28 +1813,22 @@ export default function KanbanBoard() {
                   </Select>
                 </div>
               )}
-              <div className="space-y-2">
-                <Label>Responsável</Label>
-                <Select value={newAssignedTo} onValueChange={setNewAssignedTo}>
-                  <SelectTrigger><SelectValue placeholder="Selecione um responsável..." /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">Nenhum</SelectItem>
-                    {companyAccessProfiles.map((p) => (
-                      <SelectItem key={p.id} value={p.id}>
-                        <div className="flex items-center gap-2">
-                          <AssigneeAvatar url={p.avatar_url} name={p.nickname?.trim() || p.full_name} className="h-5 w-5" />
-                          <span>{p.nickname?.trim() || p.full_name || p.email || "Sem nome"}</span>
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {companyAccessProfiles.length === 0 && (
-                  <p className="text-xs text-muted-foreground">
-                    Nenhum membro ativo. Adicione membros à equipe do projeto.
-                  </p>
-                )}
-              </div>
+              {!isPersonal && (
+                <div className="space-y-2">
+                  <Label>Responsáveis</Label>
+                  <AssigneeMultiSelect
+                    profiles={companyAccessProfiles}
+                    selected={newAssignedTo}
+                    onChange={setNewAssignedTo}
+                    currentUserId={user?.id}
+                  />
+                  {companyAccessProfiles.length === 0 && (
+                    <p className="text-xs text-muted-foreground">
+                      Nenhum membro ativo. Adicione membros à equipe do projeto.
+                    </p>
+                  )}
+                </div>
+              )}
 
               {/* Color */}
               <div className="space-y-2">

@@ -19,6 +19,7 @@ import { LayoutGrid, List, CalendarDays, FolderKanban, ChevronLeft, ChevronRight
 import { Switch } from "@/components/ui/switch";
 import { REMINDER_OPTIONS, formatDueTime } from "@/lib/taskReminders";
 import { AssigneeAvatar } from "@/components/AssigneeAvatar";
+import { AssigneeMultiSelect } from "@/components/AssigneeMultiSelect";
 import { TaskCardMini } from "@/components/TaskCardMini";
 import { ColorSwatchPicker } from "@/components/ColorSwatchPicker";
 import { CalendarColorToggle } from "@/components/CalendarColorToggle";
@@ -132,7 +133,7 @@ export default function MyTasks() {
   const [ntHasDueTime, setNtHasDueTime] = useState(false);
   const [ntDueTime, setNtDueTime] = useState("");
   const [ntReminderMinutes, setNtReminderMinutes] = useState("none");
-  const [ntAssignee, setNtAssignee] = useState<string>("");
+  const [ntAssignees, setNtAssignees] = useState<string[]>([]);
   const [ntStatus, setNtStatus] = useState<string | null>(null);
   const [isPersonal, setIsPersonal] = useState(false);
   const [ntRecurrence, setNtRecurrence] = useState<"none" | "daily" | "weekly" | "monthly">("none");
@@ -236,7 +237,10 @@ export default function MyTasks() {
       }
     }
 
-    const { error } = await supabase.from("tasks").insert({
+    const primaryAssignee = isPersonal ? user.id : (ntAssignees[0] || user.id);
+    const extraAssignees = isPersonal ? [] : ntAssignees.slice(1).filter((id) => id !== primaryAssignee);
+
+    const { data: created, error } = await supabase.from("tasks").insert({
       project_id: isPersonal ? null : ntProject,
       title: ntTitle.trim(),
       description: ntDesc.trim() || null,
@@ -244,7 +248,7 @@ export default function MyTasks() {
       due_date: ntDue || null,
       due_time: ntHasDueTime && ntDueTime ? ntDueTime : null,
       reminder_minutes_before: ntHasDueTime && ntDueTime && ntReminderMinutes !== "none" ? parseInt(ntReminderMinutes, 10) : null,
-      assigned_to: isPersonal ? user.id : (ntAssignee || user.id),
+      assigned_to: primaryAssignee,
       status: initialStatus,
       created_by: user.id,
       position: 0,
@@ -252,18 +256,29 @@ export default function MyTasks() {
         recurrence_type: ntRecurrence,
         recurrence_days: ntRecurrence === "weekly" ? ntRecurrenceDays : null,
       } : {}),
-    } as any);
+    } as any).select().single();
 
-    setCreating(false);
     if (error) {
+      setCreating(false);
       toast({ title: "Erro ao criar tarefa", description: error.message, variant: "destructive" });
       return;
     }
+
+    if (created && extraAssignees.length > 0) {
+      const { error: extraError } = await (supabase.from as any)("task_assignees").insert(
+        extraAssignees.map((uid) => ({ task_id: created.id, user_id: uid, added_by: user.id })),
+      );
+      if (extraError) {
+        toast({ title: "Tarefa criada, mas houve erro ao adicionar responsáveis extras", description: extraError.message, variant: "destructive" });
+      }
+    }
+
+    setCreating(false);
     toast({ title: isPersonal ? "Tarefa pessoal criada" : "Tarefa criada" });
     setOpenNewTask(false);
     setNtCompany(""); setNtProject(""); setNtTitle(""); setNtDesc(""); setNtPriority("media");
     setNtDue(""); setNtHasDueTime(false); setNtDueTime(""); setNtReminderMinutes("none");
-    setNtAssignee(""); setNtStatus(null); setIsPersonal(false);
+    setNtAssignees([]); setNtStatus(null); setIsPersonal(false);
     setNtRecurrence("none"); setNtRecurrenceDays([]);
     if (selectedUser) loadTasks(selectedUser);
   }
@@ -273,7 +288,8 @@ export default function MyTasks() {
     else setNtDue("");
     setNtStatus(statusSlug ?? null);
     setIsPersonal(!!personal);
-    if (personal) { setNtCompany(""); setNtProject(""); setNtAssignee(""); }
+    setNtAssignees(user ? [user.id] : []);
+    if (personal) { setNtCompany(""); setNtProject(""); }
     setNtRecurrence("none"); setNtRecurrenceDays([]);
     setOpenNewTask(true);
   }
@@ -918,7 +934,7 @@ export default function MyTasks() {
               <>
                 <div className="space-y-1.5">
                   <Label className="text-sm">Empresa *</Label>
-                  <Select value={ntCompany} onValueChange={(v) => { setNtCompany(v); setNtProject(""); setNtAssignee(""); }}>
+                  <Select value={ntCompany} onValueChange={(v) => { setNtCompany(v); setNtProject(""); setNtAssignees(user ? [user.id] : []); }}>
                     <SelectTrigger><SelectValue placeholder="Selecione uma empresa..." /></SelectTrigger>
                     <SelectContent>
                       {allCompanies.map((c) => (
@@ -929,7 +945,7 @@ export default function MyTasks() {
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-sm">Projeto *</Label>
-                  <Select value={ntProject} onValueChange={(v) => { setNtProject(v); setNtAssignee(""); }} disabled={!ntCompany}>
+                  <Select value={ntProject} onValueChange={(v) => { setNtProject(v); setNtAssignees(user ? [user.id] : []); }} disabled={!ntCompany}>
                     <SelectTrigger><SelectValue placeholder={ntCompany ? "Selecione um projeto..." : "Escolha uma empresa primeiro"} /></SelectTrigger>
                     <SelectContent>
                       {allProjects.filter((p) => p.company_id === ntCompany).map((p) => (
@@ -1038,30 +1054,15 @@ export default function MyTasks() {
             )}
             {!isPersonal && (
               <div className="space-y-1.5">
-                <Label className="text-sm">Responsável</Label>
-                <Select value={ntAssignee || (user?.id ?? "")} onValueChange={setNtAssignee} disabled={!ntProject}>
-                  <SelectTrigger>
-                    <SelectValue placeholder={ntProject ? "Selecione" : "Escolha um projeto primeiro"} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {user && (
-                      <SelectItem value={user.id}>
-                        <span className="flex items-center gap-2">
-                          <AssigneeAvatar name="Eu" />
-                          Eu mesmo
-                        </span>
-                      </SelectItem>
-                    )}
-                    {projectMembers.filter((m) => m.id !== user?.id).map((m) => (
-                      <SelectItem key={m.id} value={m.id}>
-                        <span className="flex items-center gap-2">
-                          <AssigneeAvatar url={m.avatar_url} name={m.nickname || m.full_name} />
-                          {m.nickname || m.full_name || m.id.slice(0, 8)}
-                        </span>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Label className="text-sm">Responsáveis</Label>
+                <AssigneeMultiSelect
+                  profiles={projectMembers}
+                  selected={ntAssignees}
+                  onChange={setNtAssignees}
+                  currentUserId={user?.id}
+                  disabled={!ntProject}
+                  placeholder={ntProject ? "Selecione um ou mais responsáveis..." : "Escolha um projeto primeiro"}
+                />
               </div>
             )}
           </div>
