@@ -603,7 +603,7 @@ export default function KanbanBoard() {
         {task.parent_task_id && (
           <span title="Subtarefa"><CornerDownRight className="h-3 w-3 shrink-0" /></span>
         )}
-        <span className="truncate">{task.title}</span>
+        <span className="line-clamp-2 min-w-0 flex-1 leading-snug break-words">{task.title}</span>
       </button>
     );
   };
@@ -618,14 +618,14 @@ export default function KanbanBoard() {
         style={{ borderLeftColor: color, backgroundColor: `${color}15` }}
       >
         <div className="flex items-start justify-between gap-2 mb-1">
-          <div className="flex items-center gap-2 min-w-0">
+          <div className="flex items-start gap-2 min-w-0">
             {colorMode === "responsavel" && (task.assigned_to || task.assignee_name) && (
-              <AssigneeAvatar url={assignee.avatarUrl} name={assignee.name} className="h-5 w-5 shrink-0" />
+              <AssigneeAvatar url={assignee.avatarUrl} name={assignee.name} className="h-5 w-5 shrink-0 mt-0.5" />
             )}
             {task.parent_task_id && (
-              <span title="Subtarefa"><CornerDownRight className="h-3 w-3 text-muted-foreground shrink-0" /></span>
+              <span title="Subtarefa" className="mt-0.5"><CornerDownRight className="h-3 w-3 text-muted-foreground shrink-0" /></span>
             )}
-            <h3 className="font-medium text-sm truncate">{task.title}</h3>
+            <h3 className="font-medium text-sm line-clamp-2 leading-snug break-words min-w-0 flex-1">{task.title}</h3>
           </div>
           <Badge className={`text-[10px] shrink-0 ${PRIORITY_COLORS[task.priority] || ""}`} variant="secondary">
             {PRIORITY_LABEL[task.priority] || task.priority}
@@ -1201,13 +1201,13 @@ export default function KanbanBoard() {
                                     </Popover>
                                   )}
                                   <p
-                                    className="flex-1 text-sm font-medium truncate hover:text-primary min-w-0 flex items-center gap-1"
+                                    className="flex-1 text-sm font-medium hover:text-primary min-w-0 flex items-start gap-1"
                                     onClick={() => setSelectedTask(task.id)}
                                   >
                                     {task.parent_task_id && (
-                                      <span title="Subtarefa"><CornerDownRight className="h-3 w-3 text-muted-foreground shrink-0" /></span>
+                                      <span title="Subtarefa" className="mt-0.5"><CornerDownRight className="h-3 w-3 text-muted-foreground shrink-0" /></span>
                                     )}
-                                    <span className="truncate">{task.title}</span>
+                                    <span className="line-clamp-2 leading-snug break-words">{task.title}</span>
                                   </p>
                                   {task.description && (
                                     <span className="hidden md:block text-xs text-muted-foreground truncate max-w-[200px] shrink-0">

@@ -15,11 +15,13 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
 import { DragDropContext, Droppable, Draggable, type DropResult } from "@hello-pangea/dnd";
-import { LayoutGrid, List, CalendarDays, FolderKanban, ChevronLeft, ChevronRight, Filter, CheckSquare, User, Plus, GripVertical, Clock, CornerDownRight } from "lucide-react";
+import { LayoutGrid, List, CalendarDays, FolderKanban, ChevronLeft, ChevronRight, Filter, CheckSquare, User, Plus, GripVertical, Clock, CornerDownRight, Check } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { REMINDER_OPTIONS, formatDueTime } from "@/lib/taskReminders";
 import { AssigneeAvatar } from "@/components/AssigneeAvatar";
 import { AssigneeMultiSelect } from "@/components/AssigneeMultiSelect";
+import TaskDetail from "@/components/TaskDetail";
+import { CalendarTaskPill } from "@/components/CalendarTaskPill";
 import { TaskCardMini } from "@/components/TaskCardMini";
 import { ColorSwatchPicker } from "@/components/ColorSwatchPicker";
 import { CalendarColorToggle } from "@/components/CalendarColorToggle";
@@ -109,6 +111,7 @@ export default function MyTasks() {
   const { colorMode, setColorMode, getTaskColor: getTaskColorForMode } = useCalendarColorMode();
 
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [statusColumns, setStatusColumns] = useState<StatusColumn[]>(DEFAULT_STATUS_COLUMNS);
   const [loading, setLoading] = useState(true);
   const [members, setMembers] = useState<Profile[]>([]);
@@ -392,6 +395,18 @@ export default function MyTasks() {
     setLoading(false);
   }
 
+  async function toggleTaskDone(task: Task, e?: React.MouseEvent) {
+    e?.stopPropagation();
+    const nextStatus = task.status === "concluido" ? "a_fazer" : "concluido";
+    const previous = tasks;
+    setTasks((prev) => prev.map((t) => (t.id === task.id ? { ...t, status: nextStatus } : t)));
+    const { error } = await supabase.from("tasks").update({ status: nextStatus }).eq("id", task.id);
+    if (error) {
+      setTasks(previous);
+      toast({ title: "Não foi possível atualizar a tarefa", description: error.message, variant: "destructive" });
+    }
+  }
+
   // Colunas reais dos projetos das tarefas carregadas (cada projeto tem as suas em project_columns,
   // que podem divergir do conjunto padrão do Kanban — inclusive colunas personalizadas).
   async function loadStatusColumns(taskList: Task[]) {
@@ -530,34 +545,16 @@ export default function MyTasks() {
       assignedTo: task.assigned_to,
     });
 
-  const TaskMini = ({ task }: { task: Task }) => {
-    const color = getTaskColor(task);
-    const assigneeProfile: { avatar_url: string | null; nickname?: string | null; full_name?: string | null; name?: string } | undefined =
-      task.assigned_to === user?.id
-        ? { avatar_url: avatarUrl, name: "Eu" }
-        : members.find((m) => m.id === task.assigned_to);
-    return (
-      <button
-        onClick={(e) => { e.stopPropagation(); if (task.project_id) navigate(`/projetos/${task.project_id}`); }}
-        className="w-full text-left px-1.5 py-0.5 rounded text-xs flex items-center gap-1 border-l-4 truncate"
-        style={{ borderLeftColor: color, backgroundColor: `${color}15` }}
-        title={task.title}
-      >
-        <span className={cn("h-1.5 w-1.5 rounded-full shrink-0", PRIORITY_COLOR[task.priority])} />
-        {colorMode === "responsavel" && assigneeProfile && (
-          <AssigneeAvatar
-            url={assigneeProfile.avatar_url}
-            name={assigneeProfile.nickname || assigneeProfile.full_name || assigneeProfile.name}
-            className="h-4 w-4 shrink-0"
-          />
-        )}
-        {task.parent_task_id && (
-          <span title="Subtarefa"><CornerDownRight className="h-3 w-3 shrink-0" /></span>
-        )}
-        <span className="truncate min-w-0 flex-1">{task.title}</span>
-      </button>
-    );
-  };
+  const TaskMini = ({ task }: { task: Task }) => (
+    <CalendarTaskPill
+      task={task as any}
+      color={getTaskColor(task)}
+      colorMode={colorMode}
+      priorityColor={PRIORITY_COLOR}
+      onOpen={(t) => setSelectedTaskId(t.id)}
+      onToggleDone={toggleTaskDone}
+    />
+  );
 
   const selectedMember = members.find((m) => m.id === selectedUser);
   const selectedLabel = selectedUser === user?.id
@@ -708,7 +705,7 @@ export default function MyTasks() {
                                             title={t.title}
                                             isSubtask={!!t.parent_task_id}
                                             completed={t.status === "concluido"}
-                                            onTitleClick={t.project_id ? () => navigate(`/projetos/${t.project_id}`) : undefined}
+                                            onTitleClick={() => setSelectedTaskId(t.id)}
                                             description={t.description}
                                             badgesRow={
                                               <>
@@ -788,8 +785,8 @@ export default function MyTasks() {
                   ) : filteredTasks.map((t) => (
                     <div
                       key={t.id}
-                      onClick={() => { if (t.project_id) navigate(`/projetos/${t.project_id}`); }}
-                      className={cn("grid grid-cols-[auto_2fr_1fr_110px_130px_150px] gap-3 px-4 py-2.5 items-center hover:bg-accent/40 text-sm", t.project_id && "cursor-pointer")}
+                      onClick={() => setSelectedTaskId(t.id)}
+                      className="grid grid-cols-[auto_2fr_1fr_110px_130px_150px] gap-3 px-4 py-2.5 items-center hover:bg-accent/40 text-sm cursor-pointer"
                     >
                       <Checkbox
                         checked={t.status === "concluido"}
@@ -885,27 +882,50 @@ export default function MyTasks() {
                       <div className="space-y-2">
                         {getDayTasks(cursor).map((t) => {
                           const color = getTaskColor(t);
+                          const done = t.status === "concluido";
                           return (
-                          <div key={t.id} onClick={() => { if (t.project_id) navigate(`/projetos/${t.project_id}`); }}
-                            className={cn("p-3 border rounded-lg hover:bg-accent/50 border-l-4", t.project_id && "cursor-pointer")}
-                            style={{ borderLeftColor: color, backgroundColor: `${color}15` }}>
-                            <div className="flex items-center gap-2">
-                              <Checkbox checked={t.status === "concluido"} onClick={(e) => e.stopPropagation()} onCheckedChange={(v) => toggleComplete(t, !!v)} />
-                              {colorMode === "responsavel" && (
-                                <AssigneeAvatar url={viewedAvatarUrl} name={viewedName} className="h-5 w-5 shrink-0" />
-                              )}
-                              {t.parent_task_id && (
-                                <span title="Subtarefa"><CornerDownRight className="h-3 w-3 text-muted-foreground shrink-0" /></span>
-                              )}
-                              <span className={cn("font-medium text-sm flex-1", t.status === "concluido" && "line-through text-muted-foreground")}>{t.title}</span>
-                              <Badge variant="outline">{PRIORITY_LABEL[t.priority]}</Badge>
+                          <button
+                            key={t.id}
+                            onClick={() => setSelectedTaskId(t.id)}
+                            className="w-full text-left p-3 rounded-lg border border-l-4 transition-colors"
+                            style={{ borderLeftColor: color, backgroundColor: `${color}15` }}
+                          >
+                            <div className="flex items-start justify-between gap-2 mb-2">
+                              <h3 className="font-medium text-sm flex items-center gap-1.5">
+                                <span
+                                  role="button"
+                                  onClick={(e) => toggleTaskDone(t, e)}
+                                  className={cn(
+                                    "h-4 w-4 rounded-sm border shrink-0 flex items-center justify-center transition-colors",
+                                    done ? "bg-primary border-primary" : "border-muted-foreground/40 hover:border-primary",
+                                  )}
+                                  title={done ? "Marcar como não concluída" : "Marcar como concluída"}
+                                >
+                                  {done && <Check className="h-3 w-3 text-primary-foreground" strokeWidth={3} />}
+                                </span>
+                                {t.parent_task_id && (
+                                  <span title="Subtarefa"><CornerDownRight className="h-3 w-3 text-muted-foreground shrink-0" /></span>
+                                )}
+                                <span className={cn("line-clamp-2 leading-snug break-words", done && "line-through opacity-60")}>{t.title}</span>
+                              </h3>
+                              <div className="flex items-center gap-2 shrink-0">
+                                {t.due_time && (
+                                  <span className="text-xs text-muted-foreground flex items-center gap-1">
+                                    <Clock className="h-3 w-3" /> {formatDueTime(t.due_time)}
+                                  </span>
+                                )}
+                                <Badge variant="outline" className="shrink-0">
+                                  <span className={cn("h-2 w-2 rounded-full mr-1.5", PRIORITY_COLOR[t.priority])} />
+                                  {PRIORITY_LABEL[t.priority]}
+                                </Badge>
+                              </div>
                             </div>
                             {t.project_id ? (
-                              t.projects?.name && <p className="text-xs text-muted-foreground mt-1 ml-6">{t.projects.name}</p>
+                              t.projects?.name && <p className="text-xs text-muted-foreground ml-6">{t.projects.name}</p>
                             ) : (
-                              <Badge variant="outline" className="text-[10px] ml-6 mt-1">Pessoal</Badge>
+                              <Badge variant="outline" className="text-[10px] ml-6">Pessoal</Badge>
                             )}
-                          </div>
+                          </button>
                           );
                         })}
                       </div>
@@ -1077,6 +1097,14 @@ export default function MyTasks() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {selectedTaskId && (
+        <TaskDetail
+          taskId={selectedTaskId}
+          onClose={() => { setSelectedTaskId(null); if (selectedUser) loadTasks(selectedUser); }}
+          onTaskDeleted={() => { setSelectedTaskId(null); if (selectedUser) loadTasks(selectedUser); }}
+        />
+      )}
     </div>
   );
 }

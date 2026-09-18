@@ -46,16 +46,16 @@ export function TaskCardMini({
       <div className="flex items-start gap-1.5">
         <p
           className={cn(
-            "font-medium text-sm truncate flex-1 flex items-center gap-1",
+            "font-medium text-sm flex-1 flex items-start gap-1",
             completed && "line-through text-muted-foreground",
             onTitleClick && "cursor-pointer hover:text-primary",
           )}
           onClick={onTitleClick}
         >
           {isSubtask && (
-            <span title="Subtarefa"><CornerDownRight className="h-3 w-3 text-muted-foreground shrink-0" /></span>
+            <span title="Subtarefa" className="mt-0.5"><CornerDownRight className="h-3 w-3 text-muted-foreground shrink-0" /></span>
           )}
-          <span className="truncate">{title}</span>
+          <span className="line-clamp-2 leading-snug break-words">{title}</span>
         </p>
         {titleTrailingSlot}
       </div>
