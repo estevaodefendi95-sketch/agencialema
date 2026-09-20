@@ -54,6 +54,7 @@ type Task = {
   position: number;
   color: string | null;
   projects: { name: string; company_id: string; color: string | null; companies: { name: string } | null } | null;
+  assignee?: { full_name: string | null; nickname: string | null; avatar_url: string | null; color: string | null } | null;
 };
 
 type Profile = { id: string; full_name: string | null; nickname: string | null; avatar_url: string | null };
@@ -393,12 +394,26 @@ export default function MyTasks() {
 
     const byId = new Map<string, Task>();
     [...((data || []) as any as Task[]), ...extraTasks, ...personalTasks].forEach((t) => byId.set(t.id, t));
-    const taskList = Array.from(byId.values()).sort((a, b) => {
+    let taskList = Array.from(byId.values()).sort((a, b) => {
       if (!a.due_date && !b.due_date) return 0;
       if (!a.due_date) return 1;
       if (!b.due_date) return -1;
       return a.due_date.localeCompare(b.due_date);
     });
+
+    const assigneeIds = Array.from(new Set(taskList.map((t) => t.assigned_to).filter(Boolean))) as string[];
+    if (assigneeIds.length > 0) {
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("id, full_name, nickname, avatar_url, color")
+        .in("id", assigneeIds);
+      const assigneeMap: Record<string, { full_name: string | null; nickname: string | null; avatar_url: string | null; color: string | null }> = {};
+      (profiles || []).forEach((p: any) => {
+        assigneeMap[p.id] = { full_name: p.full_name, nickname: p.nickname, avatar_url: p.avatar_url, color: p.color };
+      });
+      taskList = taskList.map((t) => ({ ...t, assignee: t.assigned_to ? assigneeMap[t.assigned_to] || null : null }));
+    }
+
     setTasks(taskList);
     await loadStatusColumns(taskList);
     setLoading(false);
