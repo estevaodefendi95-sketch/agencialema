@@ -16,7 +16,7 @@ import { Switch } from "@/components/ui/switch";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useToast } from "@/hooks/use-toast";
-import { Send, Plus, CheckSquare, History, Image, Upload, X, Trash2, Pencil, Save, FileText, Download, ChevronDown, ChevronUp, User, Check, Clock, ListTree } from "lucide-react";
+import { Send, Plus, CheckSquare, History, Image, Upload, X, Trash2, Pencil, Save, FileText, Download, ChevronDown, ChevronUp, User, Check, Clock, ListTree, Loader2 } from "lucide-react";
 import { REMINDER_OPTIONS } from "@/lib/taskReminders";
 import { AssigneeAvatar } from "@/components/AssigneeAvatar";
 
@@ -111,10 +111,19 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted, projectMemb
   const [newSubtaskDue, setNewSubtaskDue] = useState("");
   const [savingSubtask, setSavingSubtask] = useState(false);
   const [viewingSubtaskId, setViewingSubtaskId] = useState<string | null>(null);
+  const [loadingTask, setLoadingTask] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const load = async () => {
-    const { data: t } = await supabase.from("tasks").select("*").eq("id", taskId).single();
+    setLoadingTask(true);
+    setLoadError(null);
+    const { data: t, error: taskErr } = await supabase.from("tasks").select("*").eq("id", taskId).single();
     setTask(t);
+    if (taskErr) {
+      setLoadError(taskErr.message);
+      setLoadingTask(false);
+      return;
+    }
     if (t) {
       setEditTitle(t.title);
       setEditDesc(t.description || "");
@@ -182,6 +191,7 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted, projectMemb
 
     const { data: ta } = await (supabase.from as any)("task_assignees").select("user_id").eq("task_id", taskId);
     setExtraAssigneeIds(((ta || []) as any[]).map((r) => r.user_id));
+    setLoadingTask(false);
   };
 
   useEffect(() => { load(); }, [taskId]);
@@ -437,7 +447,28 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted, projectMemb
     load();
   };
 
-  if (!task) return null;
+  if (!task) {
+    return (
+      <Sheet open onOpenChange={() => onClose()}>
+        <SheetContent side="right" className="w-full sm:max-w-3xl h-full flex flex-col items-center justify-center gap-3 text-center px-8">
+          {loadingTask ? (
+            <>
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              <p className="text-sm text-muted-foreground">Carregando tarefa...</p>
+            </>
+          ) : (
+            <>
+              <p className="font-medium">Não foi possível abrir esta tarefa</p>
+              <p className="text-sm text-muted-foreground max-w-sm">
+                {loadError || "A tarefa não existe mais, ou você não tem permissão para vê-la."}
+              </p>
+              <Button variant="outline" size="sm" onClick={() => onClose()}>Fechar</Button>
+            </>
+          )}
+        </SheetContent>
+      </Sheet>
+    );
+  }
 
   const completedCount = checklist.filter((c) => c.completed).length;
   const priorityLabels: Record<string, string> = { baixa: "Baixa", media: "Média", alta: "Alta", urgente: "Urgente" };
