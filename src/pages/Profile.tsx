@@ -11,7 +11,10 @@ import { UserCircle, Save, Camera, Trash2, Bell, BellRing } from "lucide-react";
 import ImageCropper from "@/components/ImageCropper";
 import { getExistingPushSubscription, getPushSupportState, subscribeToPush, type PushSupportState } from "@/lib/webPush";
 
-const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY as string | undefined;
+// Fallback embutido: o app publicado no Lovable não recebe VITE_VAPID_PUBLIC_KEY
+// (variável de build não configurável lá), então a chave pública (não é segredo)
+// também fica hardcoded aqui.
+const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY || "<COLE_AQUI_A_CHAVE_PUBLICA>";
 
 export default function Profile() {
   const { user } = useAuth();
