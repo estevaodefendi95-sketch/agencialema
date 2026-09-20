@@ -43,6 +43,7 @@ Crie um arquivo `.env.local` na raiz com as credenciais do seu projeto Supabase:
 ```sh
 VITE_SUPABASE_URL=https://seu-projeto.supabase.co
 VITE_SUPABASE_PUBLISHABLE_KEY=sua-chave-publica
+VITE_VAPID_PUBLIC_KEY=sua-chave-publica-vapid # opcional, ativa notificações push no PWA
 ```
 
 As migrations do banco (tabelas, RLS, views) ficam em `supabase/migrations`.

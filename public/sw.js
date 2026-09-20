@@ -32,3 +32,33 @@ self.addEventListener("fetch", (event) => {
     caches.match(req).then((cached) => cached || fetch(req))
   );
 });
+
+self.addEventListener("push", (event) => {
+  let data = {};
+  try { data = event.data ? event.data.json() : {}; } catch { data = {}; }
+  const title = data.title || "AgênciaLema";
+  const link = data.link || "/";
+  event.waitUntil(
+    self.registration.showNotification(title, {
+      body: data.message || "",
+      icon: "/icons/icon-192.png",
+      badge: "/icons/icon-192.png",
+      data: { link },
+    })
+  );
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const link = (event.notification.data && event.notification.data.link) || "/";
+  const targetUrl = new URL(link, self.location.origin).href;
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clientsArr) => {
+      const existing = clientsArr.find((c) => c.url === targetUrl);
+      if (existing) return existing.focus();
+      const sameOrigin = clientsArr.find((c) => c.url.startsWith(self.location.origin));
+      if (sameOrigin) return sameOrigin.navigate(targetUrl).then(() => sameOrigin.focus());
+      return self.clients.openWindow(targetUrl);
+    })
+  );
+});

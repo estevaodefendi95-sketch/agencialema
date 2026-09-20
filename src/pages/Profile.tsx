@@ -7,8 +7,11 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useToast } from "@/hooks/use-toast";
-import { UserCircle, Save, Camera, Trash2 } from "lucide-react";
+import { UserCircle, Save, Camera, Trash2, Bell, BellRing } from "lucide-react";
 import ImageCropper from "@/components/ImageCropper";
+import { getExistingPushSubscription, getPushSupportState, subscribeToPush, type PushSupportState } from "@/lib/webPush";
+
+const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY as string | undefined;
 
 export default function Profile() {
   const { user } = useAuth();
@@ -21,6 +24,8 @@ export default function Profile() {
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [pushState, setPushState] = useState<PushSupportState>("unsupported");
+  const [pushLoading, setPushLoading] = useState(false);
 
   useEffect(() => {
     if (!user) return;
@@ -39,6 +44,42 @@ export default function Profile() {
       setLoading(false);
     })();
   }, [user]);
+
+  useEffect(() => {
+    (async () => {
+      const state = getPushSupportState();
+      if (state !== "idle") { setPushState(state); return; }
+      const existing = await getExistingPushSubscription();
+      setPushState(existing ? "active" : "idle");
+    })();
+  }, []);
+
+  const activatePush = async () => {
+    if (!user || !VAPID_PUBLIC_KEY) return;
+    setPushLoading(true);
+    try {
+      const subscription = await subscribeToPush(VAPID_PUBLIC_KEY);
+      const json = subscription.toJSON();
+      const { error } = await (supabase.from as any)("push_subscriptions").upsert(
+        {
+          user_id: user.id,
+          endpoint: json.endpoint,
+          p256dh: json.keys?.p256dh,
+          auth: json.keys?.auth,
+          user_agent: navigator.userAgent,
+        },
+        { onConflict: "endpoint" },
+      );
+      if (error) throw error;
+      setPushState("active");
+      toast({ title: "Notificações ativadas" });
+    } catch (err: any) {
+      setPushState(getPushSupportState());
+      toast({ title: "Não foi possível ativar as notificações", description: err.message, variant: "destructive" });
+    } finally {
+      setPushLoading(false);
+    }
+  };
 
   const save = async () => {
     if (!user) return;
@@ -190,6 +231,40 @@ export default function Profile() {
               {saving ? "Salvando..." : "Salvar"}
             </Button>
           </div>
+        </CardContent>
+      </Card>
+
+      <Card className="mt-6">
+        <CardHeader>
+          <CardTitle className="text-lg">Notificações push</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {pushState === "unsupported" && (
+            <p className="text-sm text-muted-foreground">
+              Notificações push não são suportadas neste navegador.
+            </p>
+          )}
+          {pushState === "denied" && (
+            <p className="text-sm text-muted-foreground">
+              Notificações bloqueadas nas configurações do navegador. Ative lá e recarregue esta página.
+            </p>
+          )}
+          {pushState === "active" && (
+            <p className="text-sm flex items-center gap-2">
+              <BellRing className="h-4 w-4 text-primary" /> Notificações ativadas neste dispositivo.
+            </p>
+          )}
+          {pushState === "idle" && (
+            <div className="space-y-2">
+              <Button onClick={activatePush} disabled={pushLoading || !VAPID_PUBLIC_KEY} className="gap-2">
+                <Bell className="h-4 w-4" />
+                {pushLoading ? "Ativando..." : "Ativar notificações"}
+              </Button>
+              {!VAPID_PUBLIC_KEY && (
+                <p className="text-xs text-muted-foreground">Configuração pendente no servidor (chave VAPID).</p>
+              )}
+            </div>
+          )}
         </CardContent>
       </Card>
 
