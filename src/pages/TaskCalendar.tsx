@@ -282,12 +282,21 @@ export default function TaskCalendar() {
       return;
     }
 
-    if (created && extraAssignees.length > 0) {
-      const { error: extraError } = await (supabase.from as any)("task_assignees").insert(
-        extraAssignees.map((uid) => ({ task_id: created.id, user_id: uid, added_by: user.id })),
-      );
-      if (extraError) {
-        toast({ title: "Tarefa criada, mas houve erro ao adicionar responsáveis extras", description: extraError.message, variant: "destructive" });
+    if (created) {
+      if (isPersonal) {
+        const { error: assigneeError } = await (supabase.from as any)("task_assignees").insert({
+          task_id: created.id, user_id: user.id, added_by: user.id,
+        });
+        if (assigneeError) {
+          toast({ title: "Tarefa criada, mas houve erro ao registrar responsável", description: assigneeError.message, variant: "destructive" });
+        }
+      } else if (extraAssignees.length > 0) {
+        const { error: extraError } = await (supabase.from as any)("task_assignees").insert(
+          extraAssignees.map((uid) => ({ task_id: created.id, user_id: uid, added_by: user.id })),
+        );
+        if (extraError) {
+          toast({ title: "Tarefa criada, mas houve erro ao adicionar responsáveis extras", description: extraError.message, variant: "destructive" });
+        }
       }
     }
 

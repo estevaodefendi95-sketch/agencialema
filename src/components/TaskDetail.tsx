@@ -89,6 +89,9 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted, projectMemb
   const [freeNameInput, setFreeNameInput] = useState("");
   const [assigneePopoverOpen, setAssigneePopoverOpen] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
+  // Fallback quando o responsável atribuído não está em companyAccessProfiles
+  // (ex: TaskCalendar/MyTasks não passam essa prop) — busca o perfil direto.
+  const [resolvedAssigneeProfile, setResolvedAssigneeProfile] = useState<AccessProfile | null>(null);
 
   // Comment editing
   const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
@@ -199,6 +202,27 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted, projectMemb
   useEffect(() => {
     if (activityOpen) activityBottomRef.current?.scrollIntoView({ block: "end" });
   }, [activityOpen, comments.length, history.length]);
+
+  // Fallback: se o responsável não estiver em companyAccessProfiles (telas que
+  // não passam essa prop, como Calendário e Minhas Tarefas), busca o perfil
+  // direto pra exibição não depender de quem renderizou o TaskDetail.
+  useEffect(() => {
+    if (!editAssignedTo || companyAccessProfiles.some((p) => p.id === editAssignedTo)) {
+      setResolvedAssigneeProfile(null);
+      return;
+    }
+    if (resolvedAssigneeProfile?.id === editAssignedTo) return;
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase
+        .from("profiles")
+        .select("id, full_name, nickname, email, avatar_url")
+        .eq("id", editAssignedTo)
+        .single();
+      if (!cancelled && data) setResolvedAssigneeProfile(data as AccessProfile);
+    })();
+    return () => { cancelled = true; };
+  }, [editAssignedTo, companyAccessProfiles]);
 
   // Save task edits
   const saveTaskEdits = async () => {
@@ -494,7 +518,8 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted, projectMemb
   };
 
   const assignedProfile = editAssignedTo
-    ? companyAccessProfiles.find((p) => p.id === editAssignedTo) || null
+    ? companyAccessProfiles.find((p) => p.id === editAssignedTo)
+      || (resolvedAssigneeProfile?.id === editAssignedTo ? resolvedAssigneeProfile : null)
     : null;
   const assigneeDisplayName = assignedProfile
     ? (assignedProfile as any).nickname?.trim() || assignedProfile.full_name || (assignedProfile as any).email || "Usuário"
