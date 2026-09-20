@@ -1,5 +1,5 @@
 // Service worker mínimo: app shell offline básico, sem cache de API.
-const CACHE = "lema-shell-v1";
+const CACHE = "lema-shell-v2";
 const SHELL = ["/", "/manifest.webmanifest", "/icons/icon-192.png", "/icons/icon-512.png"];
 
 self.addEventListener("install", (event) => {
@@ -41,8 +41,8 @@ self.addEventListener("push", (event) => {
   event.waitUntil(
     self.registration.showNotification(title, {
       body: data.message || "",
-      icon: "/icons/icon-192.png",
-      badge: "/icons/icon-192.png",
+      icon: "/icons/icon-192.png?v=2",
+      badge: "/icons/badge-96.png?v=2",
       data: { link },
     })
   );
