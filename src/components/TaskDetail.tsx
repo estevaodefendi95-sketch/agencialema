@@ -261,9 +261,16 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted, projectMemb
   };
 
   const deleteTask = async () => {
-    // task_history tem ON DELETE CASCADE em task_id, então some junto com a
-    // tarefa — registra a exclusão em project_history (que sobrevive) pra
-    // aparecer no Histórico do Projeto mesmo depois que a tarefa não existe mais.
+    // task_checklists, task_comments, task_history, task_media e
+    // task_attachments têm ON DELETE CASCADE em task_id, então somem
+    // automaticamente junto com a tarefa — não precisa apagar cada um.
+    const { error } = await supabase.from("tasks").delete().eq("id", taskId);
+    if (error) {
+      toast({ title: "Erro ao excluir tarefa", description: error.message, variant: "destructive" });
+      return;
+    }
+    // Registra a exclusão em project_history (que sobrevive) pra aparecer no
+    // Histórico do Projeto mesmo depois que a tarefa não existe mais.
     if (task.project_id) {
       await (supabase.from as any)("project_history").insert({
         project_id: task.project_id,
@@ -272,12 +279,6 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted, projectMemb
         user_id: user?.id,
       });
     }
-    await supabase.from("task_checklists").delete().eq("task_id", taskId);
-    await supabase.from("task_comments").delete().eq("task_id", taskId);
-    await supabase.from("task_history").delete().eq("task_id", taskId);
-    await supabase.from("task_media").delete().eq("task_id", taskId);
-    await supabase.from("task_attachments").delete().eq("task_id", taskId);
-    await supabase.from("tasks").delete().eq("id", taskId);
     toast({ title: "Tarefa excluída" });
     onTaskDeleted?.();
     onClose();
@@ -381,6 +382,7 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted, projectMemb
     if (list.length === 0) return;
     setUploading(true);
 
+    let successCount = 0;
     for (const file of list) {
       const ext = file.name.split(".").pop()?.toLowerCase() || "";
       const videoExts = ["mp4", "webm", "mov"];
@@ -395,16 +397,22 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted, projectMemb
       }
 
       const { data: urlData } = supabase.storage.from("attachments").getPublicUrl(path);
-      await supabase.from("task_media").insert({
+      const { error: mediaError } = await supabase.from("task_media").insert({
         task_id: taskId,
         file_url: urlData.publicUrl,
         file_name: file.name,
         file_type: fileType,
       });
+      if (mediaError) {
+        await supabase.storage.from("attachments").remove([path]);
+        toast({ title: `Erro ao registrar ${file.name}`, description: mediaError.message, variant: "destructive" });
+        continue;
+      }
+      successCount++;
     }
 
     setUploading(false);
-    toast({ title: "Mídias enviadas" });
+    if (successCount > 0) toast({ title: "Mídias enviadas" });
     load();
   };
 

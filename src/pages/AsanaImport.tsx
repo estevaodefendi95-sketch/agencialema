@@ -185,8 +185,6 @@ export default function AsanaImport() {
     })();
   }, [isAdmin]);
 
-  if (!isAdmin) return <Navigate to="/" replace />;
-
   const projectsOfCompany = useMemo(
     () => allProjects.filter((p) => p.company_id === companyId),
     [allProjects, companyId],
@@ -267,6 +265,8 @@ export default function AsanaImport() {
     () => mappedRows.filter((r) => r.assigneeEmail && !profileEmails.has(r.assigneeEmail.toLowerCase())).length,
     [mappedRows, profileEmails],
   );
+
+  if (!isAdmin) return <Navigate to="/" replace />;
 
   const step2Valid = !!fieldMap.title && csvRows.length > 0;
 

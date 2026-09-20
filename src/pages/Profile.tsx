@@ -14,7 +14,9 @@ import { getExistingPushSubscription, getPushSupportState, subscribeToPush, type
 // Fallback embutido: o app publicado no Lovable não recebe VITE_VAPID_PUBLIC_KEY
 // (variável de build não configurável lá), então a chave pública (não é segredo)
 // também fica hardcoded aqui.
-const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY || "<COLE_AQUI_A_CHAVE_PUBLICA>";
+const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY || "<CHAVE_PUBLICA>";
+// Placeholder ainda não preenchido não conta como configurado.
+const VAPID_KEY_CONFIGURED = !!VAPID_PUBLIC_KEY && !VAPID_PUBLIC_KEY.startsWith("<");
 
 export default function Profile() {
   const { user } = useAuth();
@@ -58,7 +60,7 @@ export default function Profile() {
   }, []);
 
   const activatePush = async () => {
-    if (!user || !VAPID_PUBLIC_KEY) return;
+    if (!user || !VAPID_KEY_CONFIGURED) return;
     setPushLoading(true);
     try {
       const subscription = await subscribeToPush(VAPID_PUBLIC_KEY);
@@ -259,11 +261,11 @@ export default function Profile() {
           )}
           {pushState === "idle" && (
             <div className="space-y-2">
-              <Button onClick={activatePush} disabled={pushLoading || !VAPID_PUBLIC_KEY} className="gap-2">
+              <Button onClick={activatePush} disabled={pushLoading || !VAPID_KEY_CONFIGURED} className="gap-2">
                 <Bell className="h-4 w-4" />
                 {pushLoading ? "Ativando..." : "Ativar notificações"}
               </Button>
-              {!VAPID_PUBLIC_KEY && (
+              {!VAPID_KEY_CONFIGURED && (
                 <p className="text-xs text-muted-foreground">Configuração pendente no servidor (chave VAPID).</p>
               )}
             </div>

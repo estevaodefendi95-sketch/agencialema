@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -15,6 +16,7 @@ interface Notification {
 
 export default function Notifications() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [notifications, setNotifications] = useState<Notification[]>([]);
 
   const load = async () => {
@@ -32,11 +34,13 @@ export default function Notifications() {
     load();
   };
 
+  const openNotification = (n: Notification) => {
+    markRead(n.id);
+    if (n.link) navigate(n.link);
+  };
+
   const markAllRead = async () => {
-    const unread = notifications.filter((n) => !n.read).map((n) => n.id);
-    for (const id of unread) {
-      await supabase.from("notifications").update({ read: true }).eq("id", id);
-    }
+    await supabase.from("notifications").update({ read: true }).eq("read", false);
     load();
   };
 
@@ -56,7 +60,7 @@ export default function Notifications() {
             className={`flex items-start gap-3 p-4 rounded-lg border cursor-pointer transition-colors ${
               n.read ? "bg-card" : "bg-primary/5 border-primary/20"
             }`}
-            onClick={() => markRead(n.id)}
+            onClick={() => openNotification(n)}
           >
             <Bell className={`h-5 w-5 mt-0.5 ${n.read ? "text-muted-foreground" : "text-primary"}`} />
             <div className="flex-1">

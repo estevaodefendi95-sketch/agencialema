@@ -337,7 +337,7 @@ export default function CompanyDetail() {
                   {p.description && <p className="text-sm text-muted-foreground mb-2 line-clamp-2 break-words">{p.description}</p>}
                   {p.due_date && (
                     <div className="flex items-center gap-1 text-xs text-muted-foreground mb-2">
-                      <Calendar className="h-3 w-3" /> Prazo: {new Date(p.due_date).toLocaleDateString("pt-BR")}
+                      <Calendar className="h-3 w-3" /> Prazo: {new Date(p.due_date + "T00:00:00").toLocaleDateString("pt-BR")}
                     </div>
                   )}
                   {tasks.length === 0 ? (

@@ -28,7 +28,7 @@ import {
   Plus,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { formatDistanceToNow } from "date-fns";
+import { formatDistanceToNow, format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 
@@ -113,7 +113,7 @@ export default function Dashboard() {
 
   useEffect(() => {
     const load = async () => {
-      const today = new Date().toISOString().split("T")[0];
+      const today = format(new Date(), "yyyy-MM-dd");
 
       const [companies, projects, tasksCount, overdueCount, pendingUsersRes] = await Promise.all([
         supabase.from("companies").select("id", { count: "exact", head: true }),
@@ -144,7 +144,7 @@ export default function Dashboard() {
     if (!user) return;
 
     const loadPending = async () => {
-      const today = new Date().toISOString().split("T")[0];
+      const today = format(new Date(), "yyyy-MM-dd");
       const { data } = await supabase
         .from("tasks")
         .select("id, title, due_date, priority, status, project_id, projects(name)")
