@@ -51,12 +51,13 @@ export function CalendarTaskPill<T extends CalendarTaskLike>({
         role="button"
         onClick={(e) => onToggleDone(task, e)}
         className={cn(
-          "h-3.5 w-3.5 mt-0.5 rounded-sm border shrink-0 flex items-center justify-center transition-colors bg-background/70",
+          "relative h-5 w-5 md:h-3.5 md:w-3.5 mt-0.5 rounded-sm border shrink-0 flex items-center justify-center transition-colors bg-background/70",
+          "before:content-[''] before:absolute before:-inset-1.5 md:before:hidden",
           done ? "bg-primary border-primary" : "border-muted-foreground/50 hover:border-primary",
         )}
         title={done ? "Marcar como não concluída" : "Marcar como concluída"}
       >
-        {done && <Check className="h-2.5 w-2.5 text-primary-foreground" strokeWidth={3} />}
+        {done && <Check className="h-3.5 w-3.5 md:h-2.5 md:w-2.5 text-primary-foreground" strokeWidth={3} />}
       </span>
       <span className={cn("h-1.5 w-1.5 rounded-full shrink-0 mt-1.5", priorityColor[task.priority])} />
       {colorMode === "responsavel" && (task.assigned_to || task.assignee_name) && (

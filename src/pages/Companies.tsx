@@ -16,6 +16,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Plus, Building2, Pencil, Trash2, Upload, X, LayoutGrid, List, Globe, Camera, Crown, ClipboardList } from "lucide-react";
 import ImageCropper from "@/components/ImageCropper";
 import { CompanyDocuments } from "@/components/CompanyDocuments";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 interface Company {
   id: string;
@@ -47,6 +48,7 @@ export default function Companies() {
   const [planningLabel, setPlanningLabel] = useState("");
   const [cropFile, setCropFile] = useState<File | null>(null);
   const canManageDocs = isAdmin || isEditor;
+  const isMobile = useIsMobile();
   const [viewMode, setViewMode] = useState<"card" | "lista">(() =>
     (localStorage.getItem("view-mode-empresas") as "card" | "lista") || "card"
   );
@@ -135,7 +137,7 @@ export default function Companies() {
             <Button variant={viewMode === "card" ? "default" : "ghost"} size="sm" className="rounded-none gap-1.5" onClick={() => toggleViewMode("card")}>
               <LayoutGrid className="h-4 w-4" /> Card
             </Button>
-            <Button variant={viewMode === "lista" ? "default" : "ghost"} size="sm" className="rounded-none gap-1.5" onClick={() => toggleViewMode("lista")}>
+            <Button variant={viewMode === "lista" ? "default" : "ghost"} size="sm" className="rounded-none gap-1.5 hidden md:inline-flex" onClick={() => toggleViewMode("lista")}>
               <List className="h-4 w-4" /> Lista
             </Button>
           </div>
@@ -147,7 +149,7 @@ export default function Companies() {
         </div>
       </div>
 
-      {viewMode === "lista" ? (
+      {viewMode === "lista" && !isMobile ? (
         <div className="rounded-lg border">
           <Table>
             <TableHeader>

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Download, X, Share } from "lucide-react";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
@@ -10,6 +11,7 @@ interface BeforeInstallPromptEvent extends Event {
 const DISMISS_KEY = "install-prompt-dismissed";
 
 export function InstallAppPrompt() {
+  const isMobile = useIsMobile();
   const [deferred, setDeferred] = useState<BeforeInstallPromptEvent | null>(null);
   const [showIosHint, setShowIosHint] = useState(false);
   const [hidden, setHidden] = useState(() => localStorage.getItem(DISMISS_KEY) === "1");
@@ -52,7 +54,10 @@ export function InstallAppPrompt() {
   };
 
   return (
-    <div className="fixed bottom-4 left-4 right-4 z-50 mx-auto max-w-md rounded-xl border bg-card p-4 shadow-lg md:left-auto md:right-4">
+    <div
+      className="fixed left-4 right-4 z-50 mx-auto max-w-md rounded-xl border bg-card p-4 shadow-lg md:left-auto md:right-4"
+      style={{ bottom: isMobile ? "calc(4.5rem + env(safe-area-inset-bottom))" : "1rem" }}
+    >
       <button
         onClick={dismiss}
         aria-label="Fechar"

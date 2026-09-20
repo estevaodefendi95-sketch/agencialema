@@ -45,6 +45,7 @@ import PrintProjectView from "@/components/PrintProjectView";
 import PresentationBuilder from "@/components/presentation/PresentationBuilder";
 import { PresentationsTab } from "@/components/presentation/PresentationsTab";
 import { useAppSettings } from "@/hooks/useAppSettings";
+import { useScrollSnapIndex } from "@/hooks/useScrollSnapIndex";
 import { AssigneeAvatar } from "@/components/AssigneeAvatar";
 import { AssigneeMultiSelect } from "@/components/AssigneeMultiSelect";
 import { TaskCardMini } from "@/components/TaskCardMini";
@@ -154,6 +155,7 @@ export default function KanbanBoard() {
   const [printMediaByTask, setPrintMediaByTask] = useState<Record<string, { id: string; file_url: string; file_name: string; file_type: string }[]>>({});
   const [tasks, setTasks] = useState<Task[]>([]);
   const [columns, setColumns] = useState<Column[]>([]);
+  const { containerRef: boardScrollRef, activeIndex: activeColIndex, scrollToIndex: scrollToCol } = useScrollSnapIndex<HTMLDivElement>(columns.length);
   const [taskMedia, setTaskMedia] = useState<Record<string, MediaInfo>>({});
   const [commentCounts, setCommentCounts] = useState<Record<string, number>>({});
   const [projectName, setProjectName] = useState("");
@@ -958,7 +960,7 @@ export default function KanbanBoard() {
             <CalendarColorToggle colorMode={colorMode} onChange={setColorMode} />
           )}
           <Select value={assigneeFilter} onValueChange={setAssigneeFilter}>
-            <SelectTrigger className="h-8 w-[150px] text-xs gap-1.5">
+            <SelectTrigger className="h-8 w-full sm:w-[150px] text-xs gap-1.5">
               <SelectValue placeholder="Equipe" />
             </SelectTrigger>
             <SelectContent>
@@ -995,7 +997,7 @@ export default function KanbanBoard() {
                 <Users className="h-3.5 w-3.5" /> Equipe
               </Button>
             </SheetTrigger>
-            <SheetContent className="w-[400px] sm:w-[450px]">
+            <SheetContent className="w-full sm:w-[450px]">
               <SheetHeader>
                 <SheetTitle>Equipe do Projeto</SheetTitle>
               </SheetHeader>
@@ -1045,7 +1047,7 @@ export default function KanbanBoard() {
                 <History className="h-3.5 w-3.5" /> Histórico
               </Button>
             </SheetTrigger>
-            <SheetContent className="w-[400px] sm:w-[450px]">
+            <SheetContent className="w-full sm:w-[450px]">
               <SheetHeader>
                 <SheetTitle>Histórico do Projeto</SheetTitle>
               </SheetHeader>
@@ -1108,7 +1110,7 @@ export default function KanbanBoard() {
                 .filter((t) => t.status === col.slug && matchesAssignee(t))
                 .sort((a, b) => {
                   if (a.due_date && b.due_date) {
-                    const diff = new Date(a.due_date).getTime() - new Date(b.due_date).getTime();
+                    const diff = parseISO(a.due_date).getTime() - parseISO(b.due_date).getTime();
                     return sortPrazo === "asc" ? diff : -diff;
                   }
                   if (!a.due_date && !b.due_date) return a.position - b.position;
@@ -1243,7 +1245,7 @@ export default function KanbanBoard() {
                                   {task.due_date && (
                                     <span className="flex items-center gap-1 text-xs text-muted-foreground shrink-0" onClick={() => setSelectedTask(task.id)}>
                                       <Calendar className="h-3 w-3" />
-                                      {new Date(task.due_date).toLocaleDateString("pt-BR")}
+                                      {parseISO(task.due_date).toLocaleDateString("pt-BR")}
                                       {task.due_time && ` ${formatDueTime(task.due_time)}`}
                                     </span>
                                   )}
@@ -1324,7 +1326,7 @@ export default function KanbanBoard() {
               <ToggleGroupItem value="dia" className="h-8 px-3 text-xs data-[state=on]:bg-background">Dia</ToggleGroupItem>
             </ToggleGroup>
 
-            <div className="flex items-center justify-center gap-2">
+            <div className="flex items-center justify-center gap-2 w-full">
               <Button
                 variant="outline"
                 size="icon"
@@ -1335,7 +1337,7 @@ export default function KanbanBoard() {
               >
                 <ChevronLeft className="h-4 w-4" />
               </Button>
-              <span className="text-sm font-medium min-w-[160px] text-center lowercase">
+              <span className="text-sm font-medium flex-1 min-w-0 truncate text-center lowercase">
                 {calViewMode === "mes"
                   ? format(calCursor, "MMMM 'de' yyyy", { locale: ptBR })
                   : calViewMode === "semana"
@@ -1437,10 +1439,11 @@ export default function KanbanBoard() {
             }}
           >
             {(colProvided) => (
+          <>
           <div
-            ref={colProvided.innerRef}
+            ref={(el) => { colProvided.innerRef(el); boardScrollRef.current = el; }}
             {...colProvided.droppableProps}
-            className="flex gap-4 overflow-x-auto pb-4 snap-x snap-proximity scrollbar-hide px-1"
+            className="flex gap-4 overflow-x-auto pb-4 snap-x snap-mandatory md:snap-proximity scrollbar-hide px-1"
             style={{ WebkitOverflowScrolling: 'touch' }}
           >
             {columns.map((col, colIdx) => (
@@ -1450,7 +1453,7 @@ export default function KanbanBoard() {
                 ref={colDragProvided.innerRef}
                 {...colDragProvided.draggableProps}
                 className={cn(
-                  "group rounded-lg p-3 min-h-[200px] min-w-[280px] w-[280px] shrink-0 snap-start flex flex-col",
+                  "group rounded-lg p-3 min-h-[200px] min-w-[85vw] w-[85vw] md:min-w-[280px] md:w-[280px] shrink-0 snap-start flex flex-col",
                   colDragSnapshot.isDragging && "opacity-40",
                 )}
                 style={{ backgroundColor: `${col.color}10` }}>
@@ -1596,7 +1599,7 @@ export default function KanbanBoard() {
                                             {task.due_date && (
                                               <span className="flex items-center gap-1 text-xs text-muted-foreground">
                                                 <Calendar className="h-3 w-3" />
-                                                {new Date(task.due_date).toLocaleDateString("pt-BR")}
+                                                {parseISO(task.due_date).toLocaleDateString("pt-BR")}
                                                 {task.due_time && ` ${formatDueTime(task.due_time)}`}
                                               </span>
                                             )}
@@ -1685,6 +1688,20 @@ export default function KanbanBoard() {
               </div>
             )}
           </div>
+          {columns.length > 1 && (
+            <div className="flex md:hidden items-center justify-center gap-1.5 pt-1">
+              {columns.map((col, i) => (
+                <button
+                  key={col.slug}
+                  type="button"
+                  onClick={() => scrollToCol(i)}
+                  aria-label={col.label}
+                  className={cn("h-1.5 rounded-full transition-all", i === activeColIndex ? "w-4 bg-primary" : "w-1.5 bg-muted-foreground/30")}
+                />
+              ))}
+            </div>
+          )}
+          </>
             )}
           </Droppable>
         </DragDropContext>

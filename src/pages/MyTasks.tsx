@@ -32,6 +32,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { getEntityColor, PROJECT_COLOR_PALETTE } from "@/lib/colorPalette";
 import { useCalendarColorMode } from "@/hooks/useCalendarColorMode";
+import { useScrollSnapIndex } from "@/hooks/useScrollSnapIndex";
 import {
   format, isSameDay,
   startOfWeek, endOfWeek, addMonths, addWeeks, addDays,
@@ -114,6 +115,7 @@ export default function MyTasks() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [statusColumns, setStatusColumns] = useState<StatusColumn[]>(DEFAULT_STATUS_COLUMNS);
+  const { containerRef: boardScrollRef, activeIndex: activeColIndex, scrollToIndex: scrollToCol } = useScrollSnapIndex<HTMLDivElement>(statusColumns.length);
   const [loading, setLoading] = useState(true);
   const [members, setMembers] = useState<Profile[]>([]);
   const [selectedUser, setSelectedUser] = useState<string>(user?.id || "");
@@ -121,6 +123,7 @@ export default function MyTasks() {
   const [projectFilter, setProjectFilter] = useState<string>("all");
   const [priorityFilter, setPriorityFilter] = useState<string>("all");
   const [dueFilter, setDueFilter] = useState<string>("all");
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   // Nova tarefa
   const [allCompanies, setAllCompanies] = useState<{ id: string; name: string }[]>([]);
@@ -504,6 +507,8 @@ export default function MyTasks() {
     });
   }, [tasks, projectFilter, priorityFilter, dueFilter]);
 
+  const activeFilterCount = [projectFilter, priorityFilter, dueFilter].filter((f) => f !== "all").length;
+
   // Toggle complete
   async function toggleComplete(t: Task, done: boolean) {
     const newStatus = done ? "concluido" : "a_fazer";
@@ -603,11 +608,11 @@ export default function MyTasks() {
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 w-full sm:w-auto">
           {canEdit && <NewTaskMenu />}
           {isAdmin && (
           <Select value={selectedUser} onValueChange={setSelectedUser}>
-            <SelectTrigger className="w-[260px] gap-2">
+            <SelectTrigger className="w-full sm:w-[260px] gap-2">
               <SelectValue placeholder="Ver tarefas de..." />
             </SelectTrigger>
             <SelectContent>
@@ -640,39 +645,48 @@ export default function MyTasks() {
       {/* Toolbar */}
       <div className="flex flex-wrap items-center gap-3 p-3 border rounded-lg bg-card">
         <ToggleGroup type="single" value={view} onValueChange={(v) => changeView(v as ViewMode)} variant="outline" size="sm">
-          <ToggleGroupItem value="cards" className="gap-1.5"><LayoutGrid className="h-4 w-4" /> Cards</ToggleGroupItem>
-          <ToggleGroupItem value="lista" className="gap-1.5"><List className="h-4 w-4" /> Lista</ToggleGroupItem>
-          <ToggleGroupItem value="calendario" className="gap-1.5"><CalendarDays className="h-4 w-4" /> Calendário</ToggleGroupItem>
+          <ToggleGroupItem value="cards" className="gap-1.5"><LayoutGrid className="h-4 w-4" /> <span className="hidden sm:inline">Cards</span></ToggleGroupItem>
+          <ToggleGroupItem value="lista" className="gap-1.5"><List className="h-4 w-4" /> <span className="hidden sm:inline">Lista</span></ToggleGroupItem>
+          <ToggleGroupItem value="calendario" className="gap-1.5"><CalendarDays className="h-4 w-4" /> <span className="hidden sm:inline">Calendário</span></ToggleGroupItem>
         </ToggleGroup>
 
-        <div className="h-6 w-px bg-border" />
+        <div className="h-6 w-px bg-border hidden sm:block" />
 
-        <Select value={projectFilter} onValueChange={setProjectFilter}>
-          <SelectTrigger className="h-9 w-[170px] text-xs"><SelectValue placeholder="Projeto" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todos os projetos</SelectItem>
-            {projectOptions.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
-          </SelectContent>
-        </Select>
+        <Button variant="outline" size="sm" className="gap-2 sm:hidden" onClick={() => setFiltersOpen((v) => !v)}>
+          <Filter className="h-4 w-4" /> Filtros
+          {activeFilterCount > 0 && (
+            <Badge variant="secondary" className="h-5 min-w-5 px-1.5 text-[10px]">{activeFilterCount}</Badge>
+          )}
+        </Button>
 
-        <Select value={priorityFilter} onValueChange={setPriorityFilter}>
-          <SelectTrigger className="h-9 w-[140px] text-xs"><SelectValue placeholder="Prioridade" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todas prioridades</SelectItem>
-            {Object.entries(PRIORITY_LABEL).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
-          </SelectContent>
-        </Select>
+        <div className={cn("grid grid-cols-2 gap-2 sm:flex sm:gap-3 w-full sm:w-auto", filtersOpen ? "grid" : "hidden sm:flex")}>
+          <Select value={projectFilter} onValueChange={setProjectFilter}>
+            <SelectTrigger className="h-9 w-full sm:w-[170px] text-xs"><SelectValue placeholder="Projeto" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos os projetos</SelectItem>
+              {projectOptions.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+            </SelectContent>
+          </Select>
 
-        <Select value={dueFilter} onValueChange={setDueFilter}>
-          <SelectTrigger className="h-9 w-[150px] text-xs"><SelectValue placeholder="Prazo" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todos prazos</SelectItem>
-            <SelectItem value="today">Hoje</SelectItem>
-            <SelectItem value="week">Próximos 7 dias</SelectItem>
-            <SelectItem value="overdue">Atrasadas</SelectItem>
-            <SelectItem value="no_date">Sem data</SelectItem>
-          </SelectContent>
-        </Select>
+          <Select value={priorityFilter} onValueChange={setPriorityFilter}>
+            <SelectTrigger className="h-9 w-full sm:w-[140px] text-xs"><SelectValue placeholder="Prioridade" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todas prioridades</SelectItem>
+              {Object.entries(PRIORITY_LABEL).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
+            </SelectContent>
+          </Select>
+
+          <Select value={dueFilter} onValueChange={setDueFilter}>
+            <SelectTrigger className="h-9 w-full sm:w-[150px] text-xs"><SelectValue placeholder="Prazo" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos prazos</SelectItem>
+              <SelectItem value="today">Hoje</SelectItem>
+              <SelectItem value="week">Próximos 7 dias</SelectItem>
+              <SelectItem value="overdue">Atrasadas</SelectItem>
+              <SelectItem value="no_date">Sem data</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
       {loading ? (
@@ -682,11 +696,15 @@ export default function MyTasks() {
           {/* === CARDS / KANBAN === */}
           {view === "cards" && (
             <DragDropContext onDragEnd={onDragEnd}>
-              <div className="flex gap-4 overflow-x-auto pb-4 snap-x snap-proximity scrollbar-hide px-1" style={{ WebkitOverflowScrolling: 'touch' }}>
+              <div
+                ref={boardScrollRef}
+                className="flex gap-4 overflow-x-auto pb-4 snap-x snap-mandatory md:snap-proximity scrollbar-hide px-1"
+                style={{ WebkitOverflowScrolling: 'touch' }}
+              >
                 {statusColumns.map((col) => {
                   const colTasks = filteredTasks.filter((t) => t.status === col.slug);
                   return (
-                    <div key={col.slug} className="group rounded-lg p-3 min-h-[200px] min-w-[280px] w-[280px] shrink-0 snap-start flex flex-col" style={{ backgroundColor: `${col.color}10` }}>
+                    <div key={col.slug} className="group rounded-lg p-3 min-h-[200px] min-w-[85vw] w-[85vw] md:min-w-[280px] md:w-[280px] shrink-0 snap-start flex flex-col" style={{ backgroundColor: `${col.color}10` }}>
                       <div className="flex items-center justify-between mb-3">
                         <div className="flex items-center gap-2">
                           <span className="h-4 w-4 rounded-full shrink-0 border border-border" style={{ backgroundColor: col.color }} />
@@ -788,6 +806,19 @@ export default function MyTasks() {
                   );
                 })}
               </div>
+              {statusColumns.length > 1 && (
+                <div className="flex md:hidden items-center justify-center gap-1.5 pt-1">
+                  {statusColumns.map((col, i) => (
+                    <button
+                      key={col.slug}
+                      type="button"
+                      onClick={() => scrollToCol(i)}
+                      aria-label={col.label}
+                      className={cn("h-1.5 rounded-full transition-all", i === activeColIndex ? "w-4 bg-primary" : "w-1.5 bg-muted-foreground/30")}
+                    />
+                  ))}
+                </div>
+              )}
             </DragDropContext>
           )}
 
@@ -863,9 +894,9 @@ export default function MyTasks() {
                   <ToggleGroupItem value="dia">Dia</ToggleGroupItem>
                 </ToggleGroup>
                 <CalendarColorToggle colorMode={colorMode} onChange={setColorMode} />
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 w-full">
                   <Button variant="outline" size="icon" className="h-8 w-8" onClick={navPrev}><ChevronLeft className="h-4 w-4" /></Button>
-                  <span className="text-sm font-medium min-w-[180px] text-center lowercase">{periodLabel}</span>
+                  <span className="text-sm font-medium flex-1 min-w-0 truncate text-center lowercase">{periodLabel}</span>
                   <Button variant="outline" size="icon" className="h-8 w-8" onClick={navNext}><ChevronRight className="h-4 w-4" /></Button>
                   <Button variant="outline" size="sm" onClick={() => setCursor(new Date())}>Hoje</Button>
                   {canEdit && <NewTaskMenu />}
@@ -880,6 +911,7 @@ export default function MyTasks() {
                   getTaskKey={(t) => t.id}
                   onDayClick={(d) => { setCursor(d); changeCalMode("dia"); }}
                   onAddDay={canEdit ? (d: Date) => openNewTaskDialog(d) : undefined}
+                  getTaskColor={getTaskColor}
                 />
               )}
               {calMode === "semana" && (
@@ -890,6 +922,7 @@ export default function MyTasks() {
                   getTaskKey={(t) => t.id}
                   onDayClick={(d) => { setCursor(d); changeCalMode("dia"); }}
                   onAddDay={canEdit ? (d: Date) => openNewTaskDialog(d) : undefined}
+                  getTaskColor={getTaskColor}
                   renderDayFooterAction={canEdit ? (d) => <NewTaskMenu prefillDate={d} iconOnly /> : undefined}
                 />
               )}

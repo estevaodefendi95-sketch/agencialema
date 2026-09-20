@@ -30,7 +30,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { CalendarDays, Building2, FolderKanban, X, MessageSquare, ChevronLeft, ChevronRight, Plus, Clock, CornerDownRight, User, Check } from "lucide-react";
+import { CalendarDays, Building2, FolderKanban, X, MessageSquare, ChevronLeft, ChevronRight, Plus, Clock, CornerDownRight, User, Check, Filter } from "lucide-react";
 import TaskDetail from "@/components/TaskDetail";
 import { Switch } from "@/components/ui/switch";
 import { REMINDER_OPTIONS, formatDueTime } from "@/lib/taskReminders";
@@ -99,6 +99,7 @@ export default function TaskCalendar() {
   const navigate = useNavigate();
   const { avatarUrl, user, canEdit } = useAuth();
   const { toast } = useToast();
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [tasks, setTasks] = useState<TaskWithRelations[]>([]);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
@@ -513,6 +514,7 @@ export default function TaskCalendar() {
 
   const hasFilters =
     companyFilter !== "all" || projectFilter !== "all" || assigneeFilter !== "all" || statusFilter !== "all";
+  const activeFilterCount = [companyFilter, projectFilter, assigneeFilter, statusFilter].filter((f) => f !== "all").length;
 
   const getTaskColor = (task: TaskWithRelations): string =>
     getTaskColorForMode({
@@ -794,12 +796,12 @@ export default function TaskCalendar() {
   };
 
   return (
-    <div className="w-full max-w-[1600px] mx-auto p-6 space-y-4">
+    <div className="w-full max-w-[1600px] mx-auto p-0 md:p-6 space-y-4">
       <div className="flex items-center gap-3">
         <CalendarDays className="h-7 w-7 text-primary" />
         <div className="flex-1">
           <h1 className="text-2xl font-bold">Calendário de Tarefas</h1>
-          <p className="text-sm text-muted-foreground">
+          <p className="hidden sm:block text-sm text-muted-foreground">
             Visualize todas as tarefas com prazo das empresas que você tem acesso
           </p>
         </div>
@@ -809,7 +811,15 @@ export default function TaskCalendar() {
       </div>
 
       {/* Filters */}
-      <div className="flex flex-col lg:flex-row lg:flex-wrap gap-3 items-stretch lg:items-center">
+      <div className="md:hidden">
+        <Button variant="outline" size="sm" className="gap-2" onClick={() => setFiltersOpen((v) => !v)}>
+          <Filter className="h-4 w-4" /> Filtros
+          {activeFilterCount > 0 && (
+            <Badge variant="secondary" className="h-5 min-w-5 px-1.5 text-[10px]">{activeFilterCount}</Badge>
+          )}
+        </Button>
+      </div>
+      <div className={cn("flex-col lg:flex-row lg:flex-wrap gap-3 items-stretch lg:items-center", filtersOpen ? "flex" : "hidden md:flex")}>
         <Select value={companyFilter} onValueChange={handleCompanyChange}>
           <SelectTrigger className="w-full lg:w-[200px]">
             <SelectValue placeholder="Empresa" />
@@ -920,11 +930,11 @@ export default function TaskCalendar() {
           <ToggleGroupItem value="dia" className="h-8 px-3 text-xs data-[state=on]:bg-background">Dia</ToggleGroupItem>
         </ToggleGroup>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 w-full">
           <Button variant="outline" size="icon" className="h-8 w-8" onClick={navPrev}>
             <ChevronLeft className="h-4 w-4" />
           </Button>
-          <span className="text-sm font-medium min-w-[200px] text-center lowercase">{periodLabel}</span>
+          <span className="text-sm font-medium flex-1 min-w-0 truncate text-center lowercase">{periodLabel}</span>
           <Button variant="outline" size="icon" className="h-8 w-8" onClick={navNext}>
             <ChevronRight className="h-4 w-4" />
           </Button>
@@ -942,6 +952,7 @@ export default function TaskCalendar() {
           getTaskKey={(t) => t.id}
           onDayClick={openDayInDayView}
           onAddDay={canEdit ? openNewTaskDialog : undefined}
+          getTaskColor={getTaskColor}
           renderOverflow={(day, dayTasks, overflow) => (
             <Popover>
               <PopoverTrigger asChild>
@@ -972,6 +983,7 @@ export default function TaskCalendar() {
           getTaskKey={(t) => t.id}
           onDayClick={openDayInDayView}
           onAddDay={canEdit ? openNewTaskDialog : undefined}
+          getTaskColor={getTaskColor}
           renderDayFooterAction={canEdit ? (d) => <NewTaskMenu day={d} iconOnly /> : undefined}
         />
       )}

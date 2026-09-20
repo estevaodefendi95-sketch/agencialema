@@ -288,6 +288,67 @@ export default function AdminUsers() {
     </div>
   );
 
+  const renderCards = (rows: Profile[]) => (
+    <div className="space-y-3">
+      {rows.map((p) => (
+        <div key={p.id} className="rounded-lg border p-4 space-y-3">
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0">
+              <p className="font-medium truncate">{p.full_name || "—"}</p>
+              <p className="text-sm text-muted-foreground truncate">{p.email}</p>
+            </div>
+            {statusBadge(p.status)}
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge variant="outline" className="text-xs">
+              {ROLE_LABELS[getUserRole(p.id) || ""] || "Sem perfil"}
+            </Badge>
+            <span className="text-xs text-muted-foreground">
+              {getUserCompanies(p.id).length} empresa(s)
+            </span>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {p.status === "pendente" && (
+              <Button size="sm" onClick={() => openEdit(p)} className="gap-1">
+                <UserCheck className="h-3 w-3" /> Aprovar
+              </Button>
+            )}
+            <Button size="sm" variant="outline" onClick={() => openEdit(p)} className="gap-1">
+              <Shield className="h-3 w-3" /> Editar
+            </Button>
+            {p.status !== "bloqueado" && (
+              <Button size="sm" variant="outline" onClick={() => block(p.id)} className="gap-1 text-destructive">
+                <UserX className="h-3 w-3" /> Bloquear
+              </Button>
+            )}
+            {p.id !== user?.id && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setProfileToDelete(p)}
+                className="gap-1 text-destructive"
+              >
+                <Trash2 className="h-3 w-3" /> Excluir
+              </Button>
+            )}
+          </div>
+        </div>
+      ))}
+      {rows.length === 0 && (
+        <div className="text-center py-12 text-muted-foreground">
+          {tab === "pendentes" ? "Nenhum usuário pendente de aprovação" : "Nenhum usuário encontrado"}
+        </div>
+      )}
+    </div>
+  );
+
+  const renderRows = (rows: Profile[]) => (
+    <>
+      <div className="hidden md:block">{renderTable(rows)}</div>
+      <div className="md:hidden">{renderCards(rows)}</div>
+    </>
+  );
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -307,8 +368,8 @@ export default function AdminUsers() {
           </TabsTrigger>
           <TabsTrigger value="todos">Todos os usuários</TabsTrigger>
         </TabsList>
-        <TabsContent value="pendentes" className="mt-4">{renderTable(visible)}</TabsContent>
-        <TabsContent value="todos" className="mt-4">{renderTable(visible)}</TabsContent>
+        <TabsContent value="pendentes" className="mt-4">{renderRows(visible)}</TabsContent>
+        <TabsContent value="todos" className="mt-4">{renderRows(visible)}</TabsContent>
       </Tabs>
 
       {/* Edit user dialog */}

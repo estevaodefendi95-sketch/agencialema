@@ -1,6 +1,7 @@
-import type { ComponentType, ReactNode } from "react";
+import { useEffect, useState, type ComponentType, type ReactNode } from "react";
 import {
   format,
+  isSameDay,
   isSameMonth,
   isToday,
   startOfMonth,
@@ -12,6 +13,7 @@ import {
 import { ptBR } from "date-fns/locale";
 import { Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 // Grade mensal, grade semanal e lista do dia — a mesma lógica de
 // alternância Mês/Semana/Dia usada em todo calendário de tarefas do app
@@ -27,6 +29,8 @@ interface GridProps<T> {
   onDayClick: (day: Date) => void;
   onAddDay?: (day: Date) => void;
   maxVisible?: number;
+  /** Cor de cada tarefa, usada nos pontinhos da grade compacta no mobile. */
+  getTaskColor?: (task: T) => string;
   /** Substitui o "+N mais" padrão (texto simples) por algo customizado, ex: um Popover com a lista completa. */
   renderOverflow?: (day: Date, dayTasks: T[], overflowCount: number) => ReactNode;
   /**
@@ -39,6 +43,41 @@ interface GridProps<T> {
 }
 
 const WEEKDAYS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
+const DEFAULT_DOT_COLOR = "hsl(var(--muted-foreground))";
+
+function TaskDots<T>({ tasks, getTaskKey, getTaskColor }: { tasks: T[]; getTaskKey: (task: T) => string; getTaskColor?: (task: T) => string }) {
+  if (tasks.length === 0) return null;
+  return (
+    <div className="flex items-center gap-0.5">
+      {tasks.slice(0, 3).map((t) => (
+        <span
+          key={getTaskKey(t)}
+          className="h-1.5 w-1.5 rounded-full shrink-0"
+          style={{ backgroundColor: getTaskColor ? getTaskColor(t) : DEFAULT_DOT_COLOR }}
+        />
+      ))}
+    </div>
+  );
+}
+
+function MobileDayList<T>({ day, tasks, ItemComponent, getTaskKey }: { day: Date; tasks: T[]; ItemComponent: ComponentType<{ task: T }>; getTaskKey: (task: T) => string }) {
+  return (
+    <div className="border-t p-2 space-y-2">
+      <p className="text-xs font-medium text-muted-foreground px-1">
+        {format(day, "EEEE, d 'de' MMMM", { locale: ptBR })}
+      </p>
+      {tasks.length === 0 ? (
+        <p className="text-xs text-muted-foreground text-center py-4">Nenhuma tarefa neste dia</p>
+      ) : (
+        <div className="space-y-2">
+          {tasks.map((t) => (
+            <ItemComponent key={getTaskKey(t)} task={t} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export function CalendarMonthGrid<T>({
   cursor,
@@ -48,13 +87,20 @@ export function CalendarMonthGrid<T>({
   onDayClick,
   onAddDay,
   maxVisible = 3,
+  getTaskColor,
   renderOverflow,
 }: GridProps<T>) {
+  const isMobile = useIsMobile();
   const monthStart = startOfMonth(cursor);
   const monthEnd = endOfMonth(cursor);
   const gridStart = startOfWeek(monthStart, { weekStartsOn: 0 });
   const gridEnd = endOfWeek(monthEnd, { weekStartsOn: 0 });
   const days = eachDayOfInterval({ start: gridStart, end: gridEnd });
+
+  const [selectedDay, setSelectedDay] = useState<Date | null>(null);
+  useEffect(() => {
+    setSelectedDay(null);
+  }, [monthStart.getTime()]);
 
   return (
     <div className="border rounded-lg overflow-hidden bg-card">
@@ -68,6 +114,27 @@ export function CalendarMonthGrid<T>({
           const inMonth = isSameMonth(day, cursor);
           const today = isToday(day);
           const dayTasks = getDayTasks(day);
+
+          if (isMobile) {
+            const selected = !!selectedDay && isSameDay(day, selectedDay);
+            return (
+              <div
+                key={day.toISOString()}
+                onClick={() => setSelectedDay(day)}
+                className={cn(
+                  "min-h-[48px] border-r border-b last:border-r-0 p-1 flex flex-col items-center justify-center gap-1 cursor-pointer transition-colors",
+                  !inMonth && "text-muted-foreground",
+                  selected && "bg-accent",
+                )}
+              >
+                <span className={cn("text-xs font-medium h-5 w-5 flex items-center justify-center rounded-full", today && "bg-primary text-primary-foreground")}>
+                  {format(day, "d")}
+                </span>
+                <TaskDots tasks={dayTasks} getTaskKey={getTaskKey} getTaskColor={getTaskColor} />
+              </div>
+            );
+          }
+
           const visible = dayTasks.slice(0, maxVisible);
           const overflow = dayTasks.length - visible.length;
           return (
@@ -109,6 +176,9 @@ export function CalendarMonthGrid<T>({
           );
         })}
       </div>
+      {isMobile && selectedDay && (
+        <MobileDayList day={selectedDay} tasks={getDayTasks(selectedDay)} ItemComponent={ItemComponent} getTaskKey={getTaskKey} />
+      )}
     </div>
   );
 }
@@ -120,11 +190,50 @@ export function CalendarWeekGrid<T>({
   getTaskKey,
   onDayClick,
   onAddDay,
+  getTaskColor,
   renderDayFooterAction,
 }: GridProps<T>) {
+  const isMobile = useIsMobile();
   const ws = startOfWeek(cursor, { weekStartsOn: 0 });
   const we = endOfWeek(cursor, { weekStartsOn: 0 });
   const days = eachDayOfInterval({ start: ws, end: we });
+
+  const [selectedDay, setSelectedDay] = useState<Date>(() => days.find((d) => isToday(d)) ?? days[0]);
+  useEffect(() => {
+    setSelectedDay(days.find((d) => isToday(d)) ?? days[0]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ws.getTime()]);
+
+  if (isMobile) {
+    return (
+      <div className="border rounded-lg overflow-hidden bg-card">
+        <div className="grid grid-cols-7 border-b">
+          {days.map((day) => {
+            const today = isToday(day);
+            const selected = isSameDay(day, selectedDay);
+            const dayTasks = getDayTasks(day);
+            return (
+              <button
+                key={day.toISOString()}
+                onClick={() => setSelectedDay(day)}
+                className={cn(
+                  "min-h-[56px] flex flex-col items-center justify-center gap-1 py-2 border-r last:border-r-0 transition-colors",
+                  selected && "bg-accent",
+                )}
+              >
+                <span className="text-[10px] uppercase text-muted-foreground">{format(day, "EEEEE", { locale: ptBR })}</span>
+                <span className={cn("text-xs font-medium h-5 w-5 flex items-center justify-center rounded-full", today && "bg-primary text-primary-foreground")}>
+                  {format(day, "d")}
+                </span>
+                <TaskDots tasks={dayTasks} getTaskKey={getTaskKey} getTaskColor={getTaskColor} />
+              </button>
+            );
+          })}
+        </div>
+        <MobileDayList day={selectedDay} tasks={getDayTasks(selectedDay)} ItemComponent={ItemComponent} getTaskKey={getTaskKey} />
+      </div>
+    );
+  }
 
   return (
     <div className="border rounded-lg overflow-hidden bg-card">
@@ -190,7 +299,7 @@ export function CalendarDayList<T>({ tasks, ItemComponent, getTaskKey, emptyStat
     );
   }
   return (
-    <div className="space-y-2">
+    <div className="w-full space-y-2">
       {tasks.map((t) => (
         <ItemComponent key={getTaskKey(t)} task={t} />
       ))}

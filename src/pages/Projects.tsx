@@ -18,6 +18,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Plus, FolderKanban, Calendar, LayoutGrid, List, ArrowUpDown, Building2, MoreVertical, Pencil, Archive, ArchiveRestore, Trash2, Eye, EyeOff } from "lucide-react";
 import { ColorSwatchPicker } from "@/components/ColorSwatchPicker";
 import { getEntityColor, PROJECT_COLOR_PALETTE } from "@/lib/colorPalette";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 interface Project {
   id: string;
@@ -99,6 +100,7 @@ export default function Projects() {
   // Delete confirm
   const [deleteProjectId, setDeleteProjectId] = useState<string | null>(null);
 
+  const isMobile = useIsMobile();
   const [viewMode, setViewMode] = useState<"card" | "lista">(() =>
     (localStorage.getItem("view-mode-projetos") as "card" | "lista") || "card"
   );
@@ -192,8 +194,8 @@ export default function Projects() {
     Object.values(groups).forEach((group) => {
       if (sortField === "prazo") {
         group.projects.sort((a, b) => {
-          const da = a.due_date ? new Date(a.due_date).getTime() : Infinity;
-          const db = b.due_date ? new Date(b.due_date).getTime() : Infinity;
+          const da = a.due_date ? new Date(a.due_date + "T00:00:00").getTime() : Infinity;
+          const db = b.due_date ? new Date(b.due_date + "T00:00:00").getTime() : Infinity;
           return sortDir === "asc" ? da - db : db - da;
         });
       }
@@ -204,7 +206,7 @@ export default function Projects() {
         return sortDir === "asc" ? a.localeCompare(b) : b.localeCompare(a);
       }
       const earliest = (g: { projects: Project[] }) => {
-        const dates = g.projects.filter(p => p.due_date).map(p => new Date(p.due_date!).getTime());
+        const dates = g.projects.filter(p => p.due_date).map(p => new Date(p.due_date! + "T00:00:00").getTime());
         return dates.length ? Math.min(...dates) : Infinity;
       };
       return sortDir === "asc" ? earliest(groups[a]) - earliest(groups[b]) : earliest(groups[b]) - earliest(groups[a]);
@@ -386,7 +388,7 @@ export default function Projects() {
             <Button variant={viewMode === "card" ? "default" : "ghost"} size="sm" className="rounded-none gap-1.5" onClick={() => toggleViewMode("card")}>
               <LayoutGrid className="h-4 w-4" /> Card
             </Button>
-            <Button variant={viewMode === "lista" ? "default" : "ghost"} size="sm" className="rounded-none gap-1.5" onClick={() => toggleViewMode("lista")}>
+            <Button variant={viewMode === "lista" ? "default" : "ghost"} size="sm" className="rounded-none gap-1.5 hidden md:inline-flex" onClick={() => toggleViewMode("lista")}>
               <List className="h-4 w-4" /> Lista
             </Button>
           </div>
@@ -398,7 +400,7 @@ export default function Projects() {
         </div>
       </div>
 
-      {viewMode === "lista" ? (
+      {viewMode === "lista" && !isMobile ? (
         <div className="space-y-4">
           {groupedProjects.map((group) => (
             <div key={group.companyName} className="space-y-1">
@@ -445,7 +447,7 @@ export default function Projects() {
                             {p.due_date ? (
                               <span className="flex items-center gap-1 text-xs text-muted-foreground">
                                 <Calendar className="h-3 w-3" />
-                                {new Date(p.due_date).toLocaleDateString("pt-BR")}
+                                {new Date(p.due_date + "T00:00:00").toLocaleDateString("pt-BR")}
                               </span>
                             ) : (
                               <span className="text-xs text-muted-foreground">—</span>
@@ -526,7 +528,7 @@ export default function Projects() {
                       {p.description && <p className="text-sm text-muted-foreground mb-2 line-clamp-2">{p.description}</p>}
                       {p.due_date && (
                         <div className="flex items-center gap-1 text-xs text-muted-foreground mb-2">
-                          <Calendar className="h-3 w-3" /> Prazo: {new Date(p.due_date).toLocaleDateString("pt-BR")}
+                          <Calendar className="h-3 w-3" /> Prazo: {new Date(p.due_date + "T00:00:00").toLocaleDateString("pt-BR")}
                         </div>
                       )}
                       {(() => {
