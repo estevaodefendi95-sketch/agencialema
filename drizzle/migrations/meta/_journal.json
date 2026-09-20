@@ -15,6 +15,13 @@
       "when": 1789946115789,
       "tag": "0001_personal_tasks_rls_v2",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1789946880581,
+      "tag": "0002_create_push_subscriptions",
+      "breakpoints": true
     }
   ]
 }
