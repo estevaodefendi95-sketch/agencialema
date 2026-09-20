@@ -20,7 +20,6 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Calendar } from "@/components/ui/calendar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
@@ -36,6 +35,7 @@ import { Switch } from "@/components/ui/switch";
 import { REMINDER_OPTIONS, formatDueTime } from "@/lib/taskReminders";
 import { AssigneeAvatar } from "@/components/AssigneeAvatar";
 import { CalendarTaskPill } from "@/components/CalendarTaskPill";
+import { TaskAssigneeChip } from "@/components/TaskAssigneeChip";
 import { AssigneeMultiSelect } from "@/components/AssigneeMultiSelect";
 import { Textarea } from "@/components/ui/textarea";
 import { CalendarColorToggle } from "@/components/CalendarColorToggle";
@@ -756,17 +756,7 @@ export default function TaskCalendar() {
                           </span>
                         )}
                         {colorMode === "responsavel" && (task.assignee || task.assignee_name) && (
-                          <span className="flex items-center gap-1.5 ml-auto">
-                            <Avatar className="h-5 w-5">
-                              {task.assignee?.avatar_url && <AvatarImage src={task.assignee.avatar_url} />}
-                              <AvatarFallback className="text-[10px]">
-                                {(((task.assignee as any)?.nickname?.trim() || task.assignee?.full_name || task.assignee_name) || "?")[0]?.toUpperCase()}
-                              </AvatarFallback>
-                            </Avatar>
-                            <span>
-                              {(task.assignee as any)?.nickname?.trim() || task.assignee?.full_name || task.assignee_name}
-                            </span>
-                          </span>
+                          <TaskAssigneeChip assignee={task.assignee} assigneeName={task.assignee_name} className="ml-auto" />
                         )}
                         {(task.comment_count || 0) > 0 && (
                           <span

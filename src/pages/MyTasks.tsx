@@ -22,6 +22,7 @@ import { AssigneeAvatar } from "@/components/AssigneeAvatar";
 import { AssigneeMultiSelect } from "@/components/AssigneeMultiSelect";
 import TaskDetail from "@/components/TaskDetail";
 import { CalendarTaskPill } from "@/components/CalendarTaskPill";
+import { TaskAssigneeChip } from "@/components/TaskAssigneeChip";
 import { TaskCardMini } from "@/components/TaskCardMini";
 import { ColorSwatchPicker } from "@/components/ColorSwatchPicker";
 import { CalendarColorToggle } from "@/components/CalendarColorToggle";
@@ -894,12 +895,12 @@ export default function MyTasks() {
                   <ToggleGroupItem value="dia">Dia</ToggleGroupItem>
                 </ToggleGroup>
                 <CalendarColorToggle colorMode={colorMode} onChange={setColorMode} />
-                <div className="flex items-center gap-2 w-full">
+                <div className="flex flex-wrap items-center gap-2 w-full">
                   <Button variant="outline" size="icon" className="h-8 w-8" onClick={navPrev}><ChevronLeft className="h-4 w-4" /></Button>
-                  <span className="text-sm font-medium flex-1 min-w-0 truncate text-center lowercase">{periodLabel}</span>
+                  <span className="text-sm font-medium flex-1 min-w-0 text-center lowercase">{periodLabel}</span>
                   <Button variant="outline" size="icon" className="h-8 w-8" onClick={navNext}><ChevronRight className="h-4 w-4" /></Button>
-                  <Button variant="outline" size="sm" onClick={() => setCursor(new Date())}>Hoje</Button>
-                  {canEdit && <NewTaskMenu />}
+                  <Button variant="outline" size="sm" className="w-full md:w-auto" onClick={() => setCursor(new Date())}>Hoje</Button>
+                  {canEdit && <div className="hidden md:inline-flex"><NewTaskMenu /></div>}
                 </div>
               </div>
 
@@ -977,11 +978,16 @@ export default function MyTasks() {
                                 </Badge>
                               </div>
                             </div>
-                            {t.project_id ? (
-                              t.projects?.name && <p className="text-xs text-muted-foreground ml-6">{t.projects.name}</p>
-                            ) : (
-                              <Badge variant="outline" className="text-[10px] ml-6">Pessoal</Badge>
-                            )}
+                            <div className="flex flex-wrap items-center gap-2 ml-6">
+                              {t.project_id ? (
+                                t.projects?.name && <p className="text-xs text-muted-foreground">{t.projects.name}</p>
+                              ) : (
+                                <Badge variant="outline" className="text-[10px]">Pessoal</Badge>
+                              )}
+                              {colorMode === "responsavel" && t.assignee && (
+                                <TaskAssigneeChip assignee={t.assignee} className="ml-auto" />
+                              )}
+                            </div>
                           </button>
                           );
                         })}
