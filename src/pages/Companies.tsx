@@ -16,7 +16,35 @@ import { useToast } from "@/hooks/use-toast";
 import { Plus, Building2, Pencil, Trash2, Upload, X, LayoutGrid, List, Globe, Camera, Crown, ClipboardList } from "lucide-react";
 import ImageCropper from "@/components/ImageCropper";
 import { CompanyDocuments } from "@/components/CompanyDocuments";
+import { AssigneeMultiSelect } from "@/components/AssigneeMultiSelect";
+import { WORKFLOW_ROLES } from "@/lib/workflowRoles";
 import { useIsMobile } from "@/hooks/use-mobile";
+
+type WorkflowProfile = { id: string; full_name: string | null; nickname: string | null; avatar_url: string | null };
+type WorkflowRow = { company_id: string; role_key: string; user_id: string };
+
+const WORKFLOW_SHORT_LABEL: Record<string, string> = {
+  planejamento: "Planejamento",
+  copy: "Copy",
+  postagem_feed: "Feed",
+  postagem_story: "Story",
+};
+
+function formatWorkflowSummary(rows: WorkflowRow[], profileMap: Record<string, WorkflowProfile>): string {
+  const byRole = new Map<string, string[]>();
+  rows.forEach((r) => {
+    const p = profileMap[r.user_id];
+    const name = p?.nickname?.trim() || p?.full_name || "Usuário";
+    if (!byRole.has(r.role_key)) byRole.set(r.role_key, []);
+    byRole.get(r.role_key)!.push(name);
+  });
+  const parts: string[] = [];
+  WORKFLOW_ROLES.forEach((r) => {
+    const names = byRole.get(r.key);
+    if (names && names.length > 0) parts.push(`${WORKFLOW_SHORT_LABEL[r.key] || r.label}: ${names.join("/")}`);
+  });
+  return parts.join(" · ");
+}
 
 interface Company {
   id: string;
@@ -53,6 +81,15 @@ export default function Companies() {
     (localStorage.getItem("view-mode-empresas") as "card" | "lista") || "card"
   );
 
+  // Fluxo Operacional: linhas de todas as empresas (pro resumo no card/lista)
+  // e perfis resolvidos pra exibir apelido/nome.
+  const [workflowRows, setWorkflowRows] = useState<WorkflowRow[]>([]);
+  const [workflowProfiles, setWorkflowProfiles] = useState<Record<string, WorkflowProfile>>({});
+  // Fluxo Operacional dentro do diálogo Editar/Nova Empresa: quem tem acesso
+  // à empresa (pool de seleção) e a seleção atual por função.
+  const [workflowMembers, setWorkflowMembers] = useState<WorkflowProfile[]>([]);
+  const [workflowSelection, setWorkflowSelection] = useState<Record<string, string[]>>({});
+
   const load = async () => {
     const { data } = await supabase.from("companies").select("*").order("name");
     setCompanies(data || []);
@@ -67,9 +104,61 @@ export default function Companies() {
       (grouped[p.company_id] ||= []).push({ id: p.id, name: p.name });
     });
     setProjectsByCompany(grouped);
+
+    const { data: workflowData } = await (supabase.from as any)("company_workflow_roles")
+      .select("company_id, role_key, user_id");
+    const rows = (workflowData || []) as WorkflowRow[];
+    setWorkflowRows(rows);
+    const userIds = Array.from(new Set(rows.map((r) => r.user_id)));
+    if (userIds.length > 0) {
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("id, full_name, nickname, avatar_url")
+        .in("id", userIds);
+      const map: Record<string, WorkflowProfile> = {};
+      (profiles || []).forEach((p: any) => { map[p.id] = p; });
+      setWorkflowProfiles(map);
+    } else {
+      setWorkflowProfiles({});
+    }
   };
 
   useEffect(() => { load(); }, []);
+
+  // Quem tem acesso à empresa em edição (mesmo critério do NewTaskDialog:
+  // user_company_access aprovado, sem clientes, + admins) — pool de seleção
+  // do Fluxo Operacional. Vazio pra empresa nova (ainda sem acesso liberado).
+  useEffect(() => {
+    if (!editing) {
+      setWorkflowMembers([]);
+      return;
+    }
+    (async () => {
+      const [{ data: accessRows }, { data: adminProfiles }] = await Promise.all([
+        (supabase.from as any)("user_company_access")
+          .select("user_id, profiles(id, full_name, nickname, avatar_url, status)")
+          .eq("company_id", editing.id),
+        (supabase.rpc as any)("get_admin_profiles"),
+      ]);
+      const candidateIds = Array.from(new Set((accessRows || []).map((r: any) => r.user_id)));
+      let roleByUser: Record<string, string> = {};
+      if (candidateIds.length > 0) {
+        const { data: roleRows } = await (supabase.from as any)("user_roles").select("user_id, role").in("user_id", candidateIds);
+        (roleRows || []).forEach((r: any) => { roleByUser[r.user_id] = r.role; });
+      }
+      const byId: Record<string, WorkflowProfile> = {};
+      (accessRows || []).forEach((r: any) => {
+        const p = r.profiles;
+        if (p && p.status === "aprovado" && roleByUser[r.user_id] !== "cliente") {
+          byId[p.id] = { id: p.id, full_name: p.full_name, nickname: p.nickname, avatar_url: p.avatar_url };
+        }
+      });
+      (adminProfiles || []).forEach((p: any) => {
+        byId[p.id] = { id: p.id, full_name: p.full_name, nickname: p.nickname, avatar_url: p.avatar_url };
+      });
+      setWorkflowMembers(Object.values(byId));
+    })();
+  }, [editing]);
 
   const toggleViewMode = (mode: "card" | "lista") => {
     setViewMode(mode);
@@ -80,12 +169,18 @@ export default function Companies() {
     setEditing(null);
     setName(""); setDescription(""); setLogoUrl(null);
     setWebsiteUrl(""); setInstagramUrl(""); setPlanningLabel("");
+    setWorkflowSelection({});
     setOpen(true);
   };
   const openEdit = (c: Company) => {
     setEditing(c);
     setName(c.name); setDescription(c.description || ""); setLogoUrl(c.logo_url);
     setWebsiteUrl(c.website_url || ""); setInstagramUrl(c.instagram_url || ""); setPlanningLabel(c.planning_label || "");
+    const selection: Record<string, string[]> = {};
+    workflowRows.filter((r) => r.company_id === c.id).forEach((r) => {
+      (selection[r.role_key] ||= []).push(r.user_id);
+    });
+    setWorkflowSelection(selection);
     setOpen(true);
   };
 
@@ -93,6 +188,19 @@ export default function Companies() {
     const file = e.target.files?.[0];
     if (file) setCropFile(file);
     e.target.value = "";
+  };
+
+  // Sincroniza o Fluxo Operacional da empresa: apaga tudo que já existia e
+  // regrava a seleção atual — mais simples que diff, e só admin chega aqui.
+  const saveWorkflowRoles = async (companyId: string) => {
+    await (supabase.from as any)("company_workflow_roles").delete().eq("company_id", companyId);
+    const rows: { company_id: string; role_key: string; user_id: string }[] = [];
+    Object.entries(workflowSelection).forEach(([roleKey, userIds]) => {
+      userIds.forEach((uid) => rows.push({ company_id: companyId, role_key: roleKey, user_id: uid }));
+    });
+    if (rows.length > 0) {
+      await (supabase.from as any)("company_workflow_roles").insert(rows);
+    }
   };
 
   const save = async () => {
@@ -108,9 +216,11 @@ export default function Companies() {
     };
     if (editing) {
       await supabase.from("companies").update(fields).eq("id", editing.id);
+      await saveWorkflowRoles(editing.id);
       toast({ title: "Empresa atualizada" });
     } else {
-      await supabase.from("companies").insert(fields);
+      const { data: created } = await supabase.from("companies").insert(fields).select().single();
+      if (created) await saveWorkflowRoles(created.id);
       toast({ title: "Empresa criada" });
     }
     setOpen(false);
@@ -185,7 +295,17 @@ export default function Companies() {
                     </span>
                   </TableCell>
                   <TableCell className="text-muted-foreground text-sm">{c.slug}</TableCell>
-                  <TableCell className="text-muted-foreground text-sm max-w-[200px] truncate">{c.description || "—"}</TableCell>
+                  <TableCell className="text-muted-foreground text-sm max-w-[200px]">
+                    {(() => {
+                      const summary = formatWorkflowSummary(workflowRows.filter((r) => r.company_id === c.id), workflowProfiles);
+                      return (
+                        <>
+                          {summary && <p className="text-[11px] truncate">{summary}</p>}
+                          <p className="truncate">{c.description || (summary ? "" : "—")}</p>
+                        </>
+                      );
+                    })()}
+                  </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2">
                       {c.website_url && (
@@ -227,6 +347,7 @@ export default function Companies() {
             {companies.map((c) => {
               const companyProjects = projectsByCompany[c.id] || [];
               const planningLabel = c.planning_label || "Planejamento";
+              const workflowSummary = formatWorkflowSummary(workflowRows.filter((r) => r.company_id === c.id), workflowProfiles);
               return (
               <Card key={c.id}>
                 <CardHeader className="flex flex-row items-start justify-between">
@@ -260,8 +381,9 @@ export default function Companies() {
                     </div>
                   )}
                 </CardHeader>
-                {(c.description || c.website_url || c.instagram_url || companyProjects.length > 0) && (
+                {(c.description || workflowSummary || c.website_url || c.instagram_url || companyProjects.length > 0) && (
                   <CardContent className="space-y-3">
+                    {workflowSummary && <p className="text-xs text-muted-foreground truncate">{workflowSummary}</p>}
                     {c.description && <p className="text-sm text-muted-foreground line-clamp-2 break-words">{c.description}</p>}
                     {(c.website_url || c.instagram_url || companyProjects.length > 0) && (
                       <div className="flex items-center justify-between gap-2">
@@ -352,6 +474,27 @@ export default function Companies() {
             <div className="space-y-2">
               <Label>Nome</Label>
               <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nome da empresa" />
+            </div>
+            <div className="space-y-3">
+              <Label>Fluxo Operacional</Label>
+              {!editing && (
+                <p className="text-xs text-muted-foreground">
+                  Disponível depois de criar a empresa e liberar acesso pra alguém.
+                </p>
+              )}
+              {WORKFLOW_ROLES.map((role) => (
+                <div key={role.key} className="space-y-1.5">
+                  <Label className="text-xs font-normal text-muted-foreground">{role.label}</Label>
+                  <AssigneeMultiSelect
+                    profiles={workflowMembers}
+                    selected={workflowSelection[role.key] || []}
+                    onChange={(ids) => setWorkflowSelection((prev) => ({ ...prev, [role.key]: ids }))}
+                    disabled={!editing}
+                    placeholder={editing ? "Ninguém selecionado" : "—"}
+                    hidePrimaryNote
+                  />
+                </div>
+              ))}
             </div>
             <div className="space-y-2">
               <Label>Descrição</Label>
