@@ -22,7 +22,7 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { DragDropContext, Droppable, Draggable, type DropResult } from "@hello-pangea/dnd";
-import { ChevronLeft, ChevronRight, ChevronDown, Plus, Clock, CornerDownRight, Check } from "lucide-react";
+import { ChevronLeft, ChevronRight, ChevronDown, Plus, Clock, CornerDownRight, Check, CalendarClock } from "lucide-react";
 import { CalendarTaskPill, type CalendarTaskLike } from "@/components/CalendarTaskPill";
 import { CalendarColorToggle } from "@/components/CalendarColorToggle";
 import { CalendarMonthGrid, CalendarWeekGrid } from "@/components/CalendarMonthWeekDay";
@@ -245,6 +245,27 @@ export function TaskCalendarView<T extends CalendarViewTask>({
     onMoveTask(result);
   };
 
+  // Ação rápida do popover de calendário no card do dia: monta um DropResult
+  // sintético e passa pelo mesmo caminho do arrastar de verdade (handleDragEnd),
+  // assim reaproveita a mesma lógica de reordenar/mover e o mesmo onMoveTask.
+  const quickMoveTask = (task: T, newDate: Date) => {
+    const destDay = format(newDate, "yyyy-MM-dd");
+    if (destDay === task.due_date) return;
+    const sourceList = tasksByDay.get(task.due_date) || [];
+    const sourceIndex = Math.max(0, sourceList.findIndex((t) => t.id === task.id));
+    const destIndex = (tasksByDay.get(destDay) || []).length;
+    handleDragEnd({
+      draggableId: task.id,
+      type: "CALENDAR_TASK",
+      source: { droppableId: task.due_date, index: sourceIndex },
+      destination: { droppableId: destDay, index: destIndex },
+      reason: "DROP",
+      mode: "FLUID",
+      combine: null,
+    } as DropResult);
+    setCursor(newDate);
+  };
+
   const NewTaskButton = ({ day, iconOnly }: { day: Date; iconOnly?: boolean }) =>
     iconOnly ? (
       <button
@@ -326,6 +347,28 @@ export function TaskCalendarView<T extends CalendarViewTask>({
               <span className={cn("h-2 w-2 rounded-full mr-1.5", priorityColor[task.priority])} />
               {priorityLabel[task.priority] || task.priority}
             </Badge>
+            {dragEnabled && (!canDragTask || canDragTask(task)) && (
+              <Popover>
+                <PopoverTrigger asChild>
+                  <button
+                    onClick={(e) => e.stopPropagation()}
+                    className="h-6 w-6 inline-flex items-center justify-center rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-colors shrink-0"
+                    title="Mudar data"
+                  >
+                    <CalendarClock className="h-3.5 w-3.5" />
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" onClick={(e) => e.stopPropagation()}>
+                  <Calendar
+                    mode="single"
+                    selected={new Date(`${task.due_date}T00:00:00`)}
+                    onSelect={(d) => d && quickMoveTask(task, d)}
+                    locale={ptBR}
+                    className="pointer-events-auto"
+                  />
+                </PopoverContent>
+              </Popover>
+            )}
           </div>
         </div>
         {renderTaskMeta && (
@@ -358,8 +401,8 @@ export function TaskCalendarView<T extends CalendarViewTask>({
           <MiniMonth />
         </div>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0">
+        <Card className="flex flex-col lg:max-h-[calc(100vh-320px)] lg:min-h-[420px]">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 shrink-0">
             <div>
               <CardTitle className="text-lg capitalize">{periodLabel}</CardTitle>
               <p className="text-sm text-muted-foreground">
@@ -368,13 +411,18 @@ export function TaskCalendarView<T extends CalendarViewTask>({
             </div>
             {canEdit && <NewTaskButton day={cursor} />}
           </CardHeader>
-          <CardContent className="group" onClick={() => canEdit && onCreate(cursor)}>
+          <CardContent className="group flex-1 min-h-0 flex flex-col">
             {loading ? (
               <div className="text-center py-12 text-muted-foreground">Carregando...</div>
             ) : dayTasks.length === 0 ? (
-              <div className="text-center py-12 text-muted-foreground">Nenhuma tarefa neste dia</div>
+              <div
+                className="flex-1 flex items-center justify-center text-center text-muted-foreground cursor-pointer"
+                onClick={() => canEdit && onCreate(cursor)}
+              >
+                Nenhuma tarefa neste dia
+              </div>
             ) : (
-              <ScrollArea className="max-h-[500px] pr-3">
+              <ScrollArea className="flex-1 min-h-0 pr-3">
                 {dragEnabled ? (
                   <Droppable droppableId={format(cursor, "yyyy-MM-dd")} type="CALENDAR_TASK">
                     {(dropProvided, dropSnapshot) => (
@@ -422,7 +470,7 @@ export function TaskCalendarView<T extends CalendarViewTask>({
               </ScrollArea>
             )}
             {canEdit && (
-              <div className="flex justify-center mt-1" onClick={(e) => e.stopPropagation()}>
+              <div className="flex justify-center mt-1 shrink-0" onClick={(e) => e.stopPropagation()}>
                 <NewTaskButton day={cursor} iconOnly />
               </div>
             )}
