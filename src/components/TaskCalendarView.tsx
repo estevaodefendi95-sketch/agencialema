@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import {
   format,
   startOfMonth,
@@ -12,7 +12,6 @@ import {
   subWeeks,
 } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { useDayRender, type DayProps } from "react-day-picker";
 import { Calendar } from "@/components/ui/calendar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -21,7 +20,7 @@ import { Button } from "@/components/ui/button";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { DragDropContext, Droppable, Draggable, type DropResult } from "@hello-pangea/dnd";
+import { DragDropContext, type DropResult } from "@hello-pangea/dnd";
 import { ChevronLeft, ChevronRight, ChevronDown, Plus, Clock, CornerDownRight, Check, CalendarClock } from "lucide-react";
 import { CalendarTaskPill, type CalendarTaskLike } from "@/components/CalendarTaskPill";
 import { CalendarColorToggle } from "@/components/CalendarColorToggle";
@@ -29,11 +28,6 @@ import { CalendarMonthGrid, CalendarWeekGrid } from "@/components/CalendarMonthW
 import type { CalendarColorMode } from "@/hooks/useCalendarColorMode";
 import { formatDueTime } from "@/lib/taskReminders";
 import { cn } from "@/lib/utils";
-
-// Prefixo dos droppables do mini-mês da visão Dia — distingue "solte aqui
-// pra mudar a data" (mini-mês) de "solte aqui pra reordenar" (lista do dia
-// e grades Mês/Semana, que usam o id puro yyyy-MM-dd).
-const MINI_MONTH_PREFIX = "mini:";
 
 // Layout único de calendário de tarefas, usado por Calendário (TaskCalendar),
 // Minhas Tarefas → Calendário (MyTasks) e Projeto → Calendário (KanbanBoard).
@@ -65,36 +59,6 @@ const priorityLabel: Record<string, string> = {
   alta: "Alta",
   urgente: "Urgente",
 };
-
-/**
- * Dia do mini-mês (visão Dia) como alvo de drop — solta uma tarefa nele pra
- * mudar a data. Preserva o comportamento padrão do dia (seleção, hoje, fora
- * do mês, desabilitado) via useDayRender, só acrescentando o Droppable e o
- * destaque de "arrastando por cima".
- */
-function DroppableMiniDay(props: DayProps) {
-  const buttonRef = useRef<HTMLButtonElement>(null);
-  const dayRender = useDayRender(props.date, props.displayMonth, buttonRef);
-
-  if (dayRender.isHidden) return <div role="gridcell" />;
-  if (!dayRender.isButton) return <div {...dayRender.divProps} />;
-
-  const droppableId = `${MINI_MONTH_PREFIX}${format(props.date, "yyyy-MM-dd")}`;
-  return (
-    <Droppable droppableId={droppableId} type="CALENDAR_TASK">
-      {(provided, snapshot) => (
-        <div ref={provided.innerRef} {...provided.droppableProps}>
-          <button
-            {...dayRender.buttonProps}
-            ref={buttonRef}
-            className={cn(dayRender.buttonProps.className, snapshot.isDraggingOver && "ring-2 ring-primary bg-primary/20")}
-          />
-          <div className="hidden">{provided.placeholder}</div>
-        </div>
-      )}
-    </Droppable>
-  );
-}
 
 // Ordem das tarefas dentro de um dia: day_order (drag-and-drop) primeiro,
 // depois horário, depois criação — sem day_order (null/undefined), fica
@@ -229,19 +193,8 @@ export function TaskCalendarView<T extends CalendarViewTask>({
   // nem as próprias tarefas pessoais.
   const dragEnabled = !!onMoveTask;
 
-  // Solto no mini-mês (visão Dia) = mudar de dia, sempre no fim da lista do
-  // dia de destino (não há posição visível lá pra escolher um índice).
-  // Solto na lista/grade normal = comportamento de sempre (reordenar ou
-  // mover pro índice largado).
   const handleDragEnd = (result: DropResult) => {
     if (!onMoveTask) return;
-    const { destination } = result;
-    if (destination?.droppableId.startsWith(MINI_MONTH_PREFIX)) {
-      const destDate = destination.droppableId.slice(MINI_MONTH_PREFIX.length);
-      const appendIndex = getDayTasks(new Date(`${destDate}T00:00:00`)).length;
-      onMoveTask({ ...result, destination: { droppableId: destDate, index: appendIndex } });
-      return;
-    }
     onMoveTask(result);
   };
 
@@ -295,7 +248,6 @@ export function TaskCalendarView<T extends CalendarViewTask>({
               "relative font-bold text-primary after:content-[''] after:absolute after:bottom-1 after:left-1/2 after:-translate-x-1/2 after:w-1 after:h-1 after:rounded-full after:bg-primary",
           }}
           className="pointer-events-auto"
-          components={dragEnabled ? { Day: DroppableMiniDay } : undefined}
         />
         <div className="mt-3 px-2 space-y-1">
           <p className="text-xs font-medium text-muted-foreground mb-2">Prioridade</p>
@@ -423,50 +375,11 @@ export function TaskCalendarView<T extends CalendarViewTask>({
               </div>
             ) : (
               <ScrollArea className="flex-1 min-h-0 pr-3">
-                {dragEnabled ? (
-                  <Droppable droppableId={format(cursor, "yyyy-MM-dd")} type="CALENDAR_TASK">
-                    {(dropProvided, dropSnapshot) => (
-                      <div
-                        ref={dropProvided.innerRef}
-                        {...dropProvided.droppableProps}
-                        className={cn("space-y-2 rounded-lg transition-colors", dropSnapshot.isDraggingOver && "bg-primary/10 ring-2 ring-inset ring-primary")}
-                      >
-                        {dayTasks.map((task, idx) => (
-                          <Draggable
-                            key={task.id}
-                            draggableId={task.id}
-                            index={idx}
-                            isDragDisabled={canDragTask ? !canDragTask(task) : false}
-                          >
-                            {(dragProvided, snapshot) => (
-                              <div
-                                ref={dragProvided.innerRef}
-                                {...dragProvided.draggableProps}
-                                {...dragProvided.dragHandleProps}
-                                className={cn("transition-shadow", snapshot.isDragging && "shadow-lg")}
-                                style={{
-                                  ...dragProvided.draggableProps.style,
-                                  transform: snapshot.isDragging
-                                    ? `${dragProvided.draggableProps.style?.transform || ""} rotate(2deg)`
-                                    : dragProvided.draggableProps.style?.transform,
-                                }}
-                              >
-                                <DayTaskCard task={task} />
-                              </div>
-                            )}
-                          </Draggable>
-                        ))}
-                        {dropProvided.placeholder}
-                      </div>
-                    )}
-                  </Droppable>
-                ) : (
-                  <div className="space-y-2">
-                    {dayTasks.map((task) => (
-                      <DayTaskCard key={task.id} task={task} />
-                    ))}
-                  </div>
-                )}
+                <div className="space-y-2">
+                  {dayTasks.map((task) => (
+                    <DayTaskCard key={task.id} task={task} />
+                  ))}
+                </div>
               </ScrollArea>
             )}
             {canEdit && (
