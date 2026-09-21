@@ -22,6 +22,13 @@
       "when": 1789946880581,
       "tag": "0002_create_push_subscriptions",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1790025308557,
+      "tag": "0003_add_is_default_and_day_order",
+      "breakpoints": true
     }
   ]
 }
