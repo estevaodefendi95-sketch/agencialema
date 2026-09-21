@@ -671,34 +671,35 @@ export type Database = {
           },
         ]
       }
-      task_assignees: {
+      push_subscriptions: {
         Row: {
-          added_at: string
-          added_by: string | null
-          task_id: string
+          auth: string
+          created_at: string
+          endpoint: string
+          id: string
+          p256dh: string
+          user_agent: string | null
           user_id: string
         }
         Insert: {
-          added_at?: string
-          added_by?: string | null
-          task_id: string
+          auth: string
+          created_at?: string
+          endpoint: string
+          id?: string
+          p256dh: string
+          user_agent?: string | null
           user_id: string
         }
         Update: {
-          added_at?: string
-          added_by?: string | null
-          task_id?: string
+          auth?: string
+          created_at?: string
+          endpoint?: string
+          id?: string
+          p256dh?: string
+          user_agent?: string | null
           user_id?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "task_assignees_task_id_fkey"
-            columns: ["task_id"]
-            isOneToOne: false
-            referencedRelation: "tasks"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       task_attachments: {
         Row: {
