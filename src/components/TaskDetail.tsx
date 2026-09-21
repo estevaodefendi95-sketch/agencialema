@@ -19,6 +19,8 @@ import { useToast } from "@/hooks/use-toast";
 import { Send, Plus, CheckSquare, History, Image, Upload, X, Trash2, Pencil, Save, FileText, Download, ChevronDown, ChevronUp, User, Check, Clock, ListTree, Loader2 } from "lucide-react";
 import { REMINDER_OPTIONS } from "@/lib/taskReminders";
 import { AssigneeAvatar } from "@/components/AssigneeAvatar";
+import { AssigneeMultiSelect } from "@/components/AssigneeMultiSelect";
+import { WORKFLOW_ROLES, workflowRoleLabel } from "@/lib/workflowRoles";
 
 const DONE_LIKE_STATUSES = ["aprovado", "concluido"];
 
@@ -107,15 +109,22 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted, projectMemb
 
   // Subtarefas
   const [subtasks, setSubtasks] = useState<any[]>([]);
+  // task_id (da subtarefa) -> ids dos responsáveis extras (task_assignees) — pros avatares na lista.
+  const [subtaskExtraAssignees, setSubtaskExtraAssignees] = useState<Record<string, string[]>>({});
   const [addingSubtask, setAddingSubtask] = useState(false);
   const [newSubtaskTitle, setNewSubtaskTitle] = useState("");
-  const [newSubtaskAssignee, setNewSubtaskAssignee] = useState("");
+  const [newSubtaskAssignees, setNewSubtaskAssignees] = useState<string[]>([]);
   const [newSubtaskPriority, setNewSubtaskPriority] = useState("media");
   const [newSubtaskDue, setNewSubtaskDue] = useState("");
   const [savingSubtask, setSavingSubtask] = useState(false);
   const [viewingSubtaskId, setViewingSubtaskId] = useState<string | null>(null);
   const [loadingTask, setLoadingTask] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+
+  // Empresa do projeto pai (pra agrupar Responsáveis da subtarefa pelo
+  // Fluxo Operacional) e as funções cadastradas nela.
+  const [parentCompanyId, setParentCompanyId] = useState<string | null>(null);
+  const [companyWorkflowRoles, setCompanyWorkflowRoles] = useState<{ role_key: string; user_id: string }[]>([]);
 
   const load = async () => {
     setLoadingTask(true);
@@ -126,6 +135,12 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted, projectMemb
       setLoadError(taskErr.message);
       setLoadingTask(false);
       return;
+    }
+    if (t?.project_id) {
+      const { data: proj } = await supabase.from("projects").select("company_id").eq("id", t.project_id).maybeSingle();
+      setParentCompanyId(proj?.company_id || null);
+    } else {
+      setParentCompanyId(null);
     }
     if (t) {
       setEditTitle(t.title);
@@ -192,12 +207,37 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted, projectMemb
       .order("created_at", { ascending: true });
     setSubtasks(st || []);
 
+    const subtaskIds = (st || []).map((s: any) => s.id);
+    if (subtaskIds.length > 0) {
+      const { data: sta } = await (supabase.from as any)("task_assignees").select("task_id, user_id").in("task_id", subtaskIds);
+      const bySubtask: Record<string, string[]> = {};
+      ((sta || []) as any[]).forEach((r) => { (bySubtask[r.task_id] ||= []).push(r.user_id); });
+      setSubtaskExtraAssignees(bySubtask);
+    } else {
+      setSubtaskExtraAssignees({});
+    }
+
     const { data: ta } = await (supabase.from as any)("task_assignees").select("user_id").eq("task_id", taskId);
     setExtraAssigneeIds(((ta || []) as any[]).map((r) => r.user_id));
     setLoadingTask(false);
   };
 
   useEffect(() => { load(); }, [taskId]);
+
+  // Fluxo Operacional da empresa do projeto pai — agrupa o seletor de
+  // Responsáveis da subtarefa em "Fluxo da empresa" / "Sem atribuição".
+  useEffect(() => {
+    if (!parentCompanyId) {
+      setCompanyWorkflowRoles([]);
+      return;
+    }
+    (async () => {
+      const { data } = await (supabase.from as any)("company_workflow_roles")
+        .select("role_key, user_id")
+        .eq("company_id", parentCompanyId);
+      setCompanyWorkflowRoles((data || []) as { role_key: string; user_id: string }[]);
+    })();
+  }, [parentCompanyId]);
 
   useEffect(() => {
     if (activityOpen) activityBottomRef.current?.scrollIntoView({ block: "end" });
@@ -456,25 +496,36 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted, projectMemb
       initialStatus = cols?.[0]?.slug || "a_fazer";
     }
 
-    const { error } = await supabase.from("tasks").insert({
+    const primaryAssignee = newSubtaskAssignees[0] || user.id;
+    const extraAssignees = newSubtaskAssignees.slice(1).filter((id) => id !== primaryAssignee);
+
+    const { data: created, error } = await supabase.from("tasks").insert({
       project_id: task.project_id,
       parent_task_id: taskId,
       title: newSubtaskTitle.trim(),
       priority: newSubtaskPriority,
       due_date: newSubtaskDue || null,
-      assigned_to: newSubtaskAssignee || user.id,
+      assigned_to: primaryAssignee,
       status: initialStatus,
       created_by: user.id,
       position: 0,
-    } as any);
+    } as any).select().single();
 
     setSavingSubtask(false);
     if (error) {
       toast({ title: "Erro ao criar subtarefa", description: error.message, variant: "destructive" });
       return;
     }
+    if (created && extraAssignees.length > 0) {
+      const { error: extraError } = await (supabase.from as any)("task_assignees").insert(
+        extraAssignees.map((uid) => ({ task_id: created.id, user_id: uid, added_by: user.id })),
+      );
+      if (extraError) {
+        toast({ title: "Subtarefa criada, mas houve erro ao adicionar responsáveis extras", description: extraError.message, variant: "destructive" });
+      }
+    }
     toast({ title: "Subtarefa criada" });
-    setNewSubtaskTitle(""); setNewSubtaskAssignee(""); setNewSubtaskPriority("media"); setNewSubtaskDue("");
+    setNewSubtaskTitle(""); setNewSubtaskAssignees([]); setNewSubtaskPriority("media"); setNewSubtaskDue("");
     setAddingSubtask(false);
     load();
   };
@@ -504,6 +555,19 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted, projectMemb
 
   const completedCount = checklist.filter((c) => c.completed).length;
   const priorityLabels: Record<string, string> = { baixa: "Baixa", media: "Média", alta: "Alta", urgente: "Urgente" };
+
+  // Agrupamento do seletor de Responsáveis da subtarefa pelo Fluxo
+  // Operacional da empresa do projeto pai.
+  const subtaskWorkflowUserIds = Array.from(new Set(companyWorkflowRoles.map((r) => r.user_id)));
+  const subtaskWorkflowLabels: Record<string, string> = {};
+  const subtaskRoleOrder = WORKFLOW_ROLES.map((r) => r.key);
+  companyWorkflowRoles
+    .slice()
+    .sort((a, b) => subtaskRoleOrder.indexOf(a.role_key) - subtaskRoleOrder.indexOf(b.role_key))
+    .forEach((r) => {
+      const label = workflowRoleLabel(r.role_key);
+      subtaskWorkflowLabels[r.user_id] = subtaskWorkflowLabels[r.user_id] ? `${subtaskWorkflowLabels[r.user_id]}, ${label}` : label;
+    });
 
   // Feed único de atividade: comentários reais + histórico (exceto "Comentou",
   // que já é representado pelo próprio comentário — evita duplicar), em ordem
@@ -797,8 +861,13 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted, projectMemb
                 <div className="space-y-1 mb-2">
                   {subtasks.map((st) => {
                     const isDone = DONE_LIKE_STATUSES.includes(st.status);
-                    const profile = st.assigned_to ? projectMembers.find((m) => m.user_id === st.assigned_to)?.profiles : null;
-                    const name = (profile as any)?.nickname?.trim() || profile?.full_name || st.assignee_name || null;
+                    const resolveProfile = (id: string) =>
+                      projectMembers.find((m) => m.user_id === id)?.profiles
+                      || companyAccessProfiles.find((p) => p.id === id)
+                      || null;
+                    const primaryProfile = st.assigned_to ? resolveProfile(st.assigned_to) : null;
+                    const primaryName = (primaryProfile as any)?.nickname?.trim() || primaryProfile?.full_name || st.assignee_name || null;
+                    const extraIds = (subtaskExtraAssignees[st.id] || []).filter((id) => id !== st.assigned_to);
                     return (
                       <button
                         key={st.id}
@@ -810,8 +879,17 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted, projectMemb
                         <span className={`text-sm flex-1 min-w-0 truncate ${isDone ? "line-through text-muted-foreground" : ""}`}>
                           {st.title}
                         </span>
-                        {(st.assigned_to || st.assignee_name) && (
-                          <AssigneeAvatar url={(profile as any)?.avatar_url} name={name} className="h-5 w-5 shrink-0" />
+                        {(st.assigned_to || st.assignee_name || extraIds.length > 0) && (
+                          <div className="flex items-center -space-x-1.5 shrink-0">
+                            {(st.assigned_to || st.assignee_name) && (
+                              <AssigneeAvatar url={(primaryProfile as any)?.avatar_url} name={primaryName} className="h-5 w-5 ring-2 ring-background" />
+                            )}
+                            {extraIds.map((id) => {
+                              const p = resolveProfile(id);
+                              const name = (p as any)?.nickname?.trim() || p?.full_name || null;
+                              return <AssigneeAvatar key={id} url={(p as any)?.avatar_url} name={name} className="h-5 w-5 ring-2 ring-background" />;
+                            })}
+                          </div>
                         )}
                         <Badge variant="outline" className="text-[10px] shrink-0">{priorityLabels[st.priority] || st.priority}</Badge>
                       </button>
@@ -830,25 +908,16 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted, projectMemb
                       className="h-9 text-sm"
                       autoFocus
                     />
+                    <AssigneeMultiSelect
+                      profiles={companyAccessProfiles}
+                      selected={newSubtaskAssignees}
+                      onChange={setNewSubtaskAssignees}
+                      currentUserId={user?.id}
+                      placeholder="Responsáveis (padrão: eu mesmo)"
+                      workflowUserIds={subtaskWorkflowUserIds}
+                      workflowLabels={subtaskWorkflowLabels}
+                    />
                     <div className="grid grid-cols-2 gap-2">
-                      <Select value={newSubtaskAssignee || (user?.id ?? "")} onValueChange={setNewSubtaskAssignee}>
-                        <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Responsável" /></SelectTrigger>
-                        <SelectContent>
-                          {user && (
-                            <SelectItem value={user.id}>
-                              <span className="flex items-center gap-2"><AssigneeAvatar name="Eu" />Eu mesmo</span>
-                            </SelectItem>
-                          )}
-                          {companyAccessProfiles.filter((p) => p.id !== user?.id).map((p) => (
-                            <SelectItem key={p.id} value={p.id}>
-                              <span className="flex items-center gap-2">
-                                <AssigneeAvatar url={p.avatar_url} name={p.nickname || p.full_name} />
-                                {p.nickname || p.full_name || "Sem nome"}
-                              </span>
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
                       <Select value={newSubtaskPriority} onValueChange={setNewSubtaskPriority}>
                         <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
                         <SelectContent>
@@ -857,18 +926,18 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted, projectMemb
                           ))}
                         </SelectContent>
                       </Select>
+                      <Input
+                        type="date"
+                        value={newSubtaskDue}
+                        onChange={(e) => setNewSubtaskDue(e.target.value)}
+                        className="h-9 text-sm"
+                      />
                     </div>
-                    <Input
-                      type="date"
-                      value={newSubtaskDue}
-                      onChange={(e) => setNewSubtaskDue(e.target.value)}
-                      className="h-9 text-sm"
-                    />
                     <div className="flex justify-end gap-2">
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => { setAddingSubtask(false); setNewSubtaskTitle(""); setNewSubtaskAssignee(""); setNewSubtaskPriority("media"); setNewSubtaskDue(""); }}
+                        onClick={() => { setAddingSubtask(false); setNewSubtaskTitle(""); setNewSubtaskAssignees([]); setNewSubtaskPriority("media"); setNewSubtaskDue(""); }}
                       >
                         Cancelar
                       </Button>

@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { AssigneeMultiSelect } from "@/components/AssigneeMultiSelect";
 import { FolderKanban, User, Clock } from "lucide-react";
 import { REMINDER_OPTIONS } from "@/lib/taskReminders";
+import { WORKFLOW_ROLES, workflowRoleLabel } from "@/lib/workflowRoles";
 import { cn } from "@/lib/utils";
 
 const WEEKDAY_LABELS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
@@ -77,6 +78,7 @@ export function NewTaskDialog({
   const [allCompanies, setAllCompanies] = useState<{ id: string; name: string }[]>([]);
   const [allProjects, setAllProjects] = useState<{ id: string; name: string; company_id: string; is_default: boolean }[]>([]);
   const [companyMembers, setCompanyMembers] = useState<Profile[]>([]);
+  const [companyWorkflowRoles, setCompanyWorkflowRoles] = useState<{ role_key: string; user_id: string }[]>([]);
   const [creating, setCreating] = useState(false);
 
   const [isPersonal, setIsPersonal] = useState(false);
@@ -144,6 +146,21 @@ export function NewTaskDialog({
     })();
   }, [ntCompany, fixedProjectId]);
 
+  // Fluxo Operacional da empresa escolhida — agrupa o seletor de
+  // Responsáveis em "Fluxo da empresa" / "Sem atribuição nesta empresa".
+  useEffect(() => {
+    if (fixedProjectId || !ntCompany) {
+      setCompanyWorkflowRoles([]);
+      return;
+    }
+    (async () => {
+      const { data } = await (supabase.from as any)("company_workflow_roles")
+        .select("role_key, user_id")
+        .eq("company_id", ntCompany);
+      setCompanyWorkflowRoles((data || []) as { role_key: string; user_id: string }[]);
+    })();
+  }, [ntCompany, fixedProjectId]);
+
   // Reseta o formulário a partir dos defaults toda vez que o modal abre.
   useEffect(() => {
     if (!open) return;
@@ -182,6 +199,18 @@ export function NewTaskDialog({
 
   const assigneeProfiles = fixedProjectId ? (fixedProjectProfiles || []) : companyMembers;
   const showCompanyProjectSelect = !fixedProjectId && !isPersonal;
+
+  // Agrupamento do seletor de Responsáveis pelo Fluxo Operacional da empresa.
+  const workflowUserIds = Array.from(new Set(companyWorkflowRoles.map((r) => r.user_id)));
+  const workflowLabels: Record<string, string> = {};
+  const roleOrder = WORKFLOW_ROLES.map((r) => r.key);
+  companyWorkflowRoles
+    .slice()
+    .sort((a, b) => roleOrder.indexOf(a.role_key) - roleOrder.indexOf(b.role_key))
+    .forEach((r) => {
+      const label = workflowRoleLabel(r.role_key);
+      workflowLabels[r.user_id] = workflowLabels[r.user_id] ? `${workflowLabels[r.user_id]}, ${label}` : label;
+    });
 
   const createTask = async () => {
     if (!user || !ntTitle.trim()) return;
@@ -320,6 +349,8 @@ export function NewTaskDialog({
             currentUserId={user?.id}
             disabled={!fixedProjectId && !ntCompany}
             placeholder={fixedProjectId || ntCompany ? "Selecione um ou mais responsáveis..." : "Escolha uma empresa primeiro"}
+            workflowUserIds={workflowUserIds}
+            workflowLabels={workflowLabels}
           />
         </div>
       )}
