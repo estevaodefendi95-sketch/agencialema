@@ -25,19 +25,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Button } from "@/components/ui/button";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { CalendarDays, Building2, FolderKanban, X, MessageSquare, ChevronLeft, ChevronRight, Plus, Clock, CornerDownRight, User, Check, Filter } from "lucide-react";
+import { DragDropContext, Droppable, Draggable, type DropResult } from "@hello-pangea/dnd";
+import { CalendarDays, Building2, FolderKanban, X, MessageSquare, ChevronLeft, ChevronRight, Plus, Clock, CornerDownRight, Check, Filter } from "lucide-react";
 import TaskDetail from "@/components/TaskDetail";
-import { Switch } from "@/components/ui/switch";
-import { REMINDER_OPTIONS, formatDueTime } from "@/lib/taskReminders";
+import { formatDueTime } from "@/lib/taskReminders";
 import { AssigneeAvatar } from "@/components/AssigneeAvatar";
 import { CalendarTaskPill } from "@/components/CalendarTaskPill";
 import { TaskAssigneeChip } from "@/components/TaskAssigneeChip";
-import { AssigneeMultiSelect } from "@/components/AssigneeMultiSelect";
-import { Textarea } from "@/components/ui/textarea";
+import { NewTaskDialog } from "@/components/NewTaskDialog";
 import { CalendarColorToggle } from "@/components/CalendarColorToggle";
 import { CalendarMonthGrid, CalendarWeekGrid, CalendarDayList } from "@/components/CalendarMonthWeekDay";
 import { cn } from "@/lib/utils";
@@ -56,6 +51,8 @@ type TaskWithRelations = {
   project_id: string;
   status: string;
   color: string | null;
+  day_order: number | null;
+  created_at: string;
   parent_task_id: string | null;
   projects: { name: string; company_id: string; color: string | null; companies: { name: string; logo_url: string | null } | null } | null;
   assignee?: { full_name: string | null; nickname?: string | null; avatar_url: string | null; color?: string | null } | null;
@@ -63,9 +60,6 @@ type TaskWithRelations = {
 };
 
 type ViewMode = "mes" | "semana" | "dia";
-type Profile = { id: string; full_name: string | null; nickname: string | null; avatar_url: string | null };
-
-const WEEKDAY_LABELS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 
 const DEFAULT_STATUS_COLUMNS = [
   { slug: "a_fazer", label: "A Fazer" },
@@ -94,6 +88,19 @@ const priorityLabel: Record<string, string> = {
   alta: "Alta",
   urgente: "Urgente",
 };
+
+// Ordem das tarefas dentro de um dia: day_order (drag-and-drop) primeiro,
+// depois horário, depois criação — sem day_order (null), fica sempre por
+// último dentro do critério seguinte.
+function compareDayOrder(a: TaskWithRelations, b: TaskWithRelations): number {
+  if (a.day_order != null && b.day_order != null && a.day_order !== b.day_order) return a.day_order - b.day_order;
+  if (a.day_order != null && b.day_order == null) return -1;
+  if (a.day_order == null && b.day_order != null) return 1;
+  if (a.due_time && b.due_time && a.due_time !== b.due_time) return a.due_time.localeCompare(b.due_time);
+  if (a.due_time && !b.due_time) return -1;
+  if (!a.due_time && b.due_time) return 1;
+  return a.created_at.localeCompare(b.created_at);
+}
 
 export default function TaskCalendar() {
   const navigate = useNavigate();
@@ -125,23 +132,7 @@ export default function TaskCalendar() {
 
   // Nova tarefa direto do calendário
   const [newTaskOpen, setNewTaskOpen] = useState(false);
-  const [ntCompany, setNtCompany] = useState("");
-  const [ntProject, setNtProject] = useState("");
-  const [ntTitle, setNtTitle] = useState("");
-  const [ntDesc, setNtDesc] = useState("");
-  const [ntPriority, setNtPriority] = useState<"baixa" | "media" | "alta" | "urgente">("media");
-  const [ntDue, setNtDue] = useState("");
-  const [ntHasDueTime, setNtHasDueTime] = useState(false);
-  const [ntDueTime, setNtDueTime] = useState("");
-  const [ntReminderMinutes, setNtReminderMinutes] = useState("none");
-  const [ntAssignees, setNtAssignees] = useState<string[]>([]);
-  const [ntRecurrence, setNtRecurrence] = useState<"none" | "daily" | "weekly" | "monthly">("none");
-  const [ntRecurrenceDays, setNtRecurrenceDays] = useState<number[]>([]);
-  const [allCompanies, setAllCompanies] = useState<{ id: string; name: string }[]>([]);
-  const [allProjects, setAllProjects] = useState<{ id: string; name: string; company_id: string }[]>([]);
-  const [isPersonal, setIsPersonal] = useState(false);
-  const [projectMembers, setProjectMembers] = useState<Profile[]>([]);
-  const [creating, setCreating] = useState(false);
+  const [newTaskDefaults, setNewTaskDefaults] = useState<{ date?: Date; companyId?: string; projectId?: string; personal?: boolean }>({});
 
   const changeViewMode = (m: ViewMode) => {
     if (!m) return;
@@ -163,8 +154,6 @@ export default function TaskCalendar() {
 
   useEffect(() => {
     loadTasks();
-    loadAllCompanies();
-    loadAllProjects();
   }, []);
 
   useEffect(() => {
@@ -180,131 +169,11 @@ export default function TaskCalendar() {
     loadStatusColumns();
   }, [projectFilter, companyFilter, tasks]);
 
-  useEffect(() => {
-    if (ntProject) loadProjectMembers(ntProject);
-    else setProjectMembers([]);
-  }, [ntProject]);
-
-  async function loadProjectMembers(projectId: string) {
-    const { data: proj } = await supabase.from("projects").select("company_id").eq("id", projectId).maybeSingle();
-    if (!(proj as any)?.company_id) {
-      setProjectMembers([]);
-      return;
-    }
-    const [{ data: accessRows }, { data: adminProfiles }] = await Promise.all([
-      (supabase.from as any)("user_company_access")
-        .select("user_id, profiles(id, full_name, nickname, avatar_url, status)")
-        .eq("company_id", (proj as any).company_id),
-      (supabase.rpc as any)("get_admin_profiles"),
-    ]);
-    const byId: Record<string, Profile> = {};
-    (accessRows || []).forEach((r: any) => {
-      const p = r.profiles;
-      if (p && p.status === "aprovado") {
-        byId[p.id] = { id: p.id, full_name: p.full_name, nickname: p.nickname, avatar_url: p.avatar_url };
-      }
-    });
-    (adminProfiles || []).forEach((p: any) => {
-      byId[p.id] = { id: p.id, full_name: p.full_name, nickname: p.nickname, avatar_url: p.avatar_url };
-    });
-    setProjectMembers(Object.values(byId));
-  }
-
-  async function loadAllCompanies() {
-    const { data } = await supabase.from("companies").select("id, name").order("name");
-    setAllCompanies((data || []) as any);
-  }
-
-  async function loadAllProjects() {
-    const { data } = await supabase.from("projects").select("id, name, company_id").eq("archived", false).order("name");
-    setAllProjects((data || []) as any);
-  }
 
   function openNewTaskDialog(date: Date, personal?: boolean) {
-    const prefillProject = projectFilter !== "all" ? projectFilter : "";
-    setNtProject(prefillProject);
-    setNtCompany(prefillProject ? allProjects.find((p) => p.id === prefillProject)?.company_id || "" : "");
-    setNtTitle("");
-    setNtDesc("");
-    setNtPriority("media");
-    setNtDue(format(date, "yyyy-MM-dd"));
-    setNtHasDueTime(false);
-    setNtDueTime("");
-    setNtReminderMinutes("none");
-    setNtAssignees(user ? [user.id] : []);
-    setNtRecurrence("none");
-    setNtRecurrenceDays([]);
-    setIsPersonal(!!personal);
-    if (personal) { setNtProject(""); setNtCompany(""); }
+    const prefillProject = projectFilter !== "all" ? projectFilter : undefined;
+    setNewTaskDefaults({ date, projectId: personal ? undefined : prefillProject, personal });
     setNewTaskOpen(true);
-  }
-
-  async function createTask() {
-    if (!user) return;
-    if (!isPersonal && (!ntCompany || !ntProject)) return;
-    if (!ntTitle.trim()) return;
-    setCreating(true);
-
-    let initialStatus = "a_fazer";
-    if (!isPersonal) {
-      const { data: cols } = await supabase
-        .from("project_columns")
-        .select("slug")
-        .eq("project_id", ntProject)
-        .order("position", { ascending: true })
-        .limit(1);
-      initialStatus = cols?.[0]?.slug || "a_fazer";
-    }
-
-    const primaryAssignee = isPersonal ? user.id : (ntAssignees[0] || user.id);
-    const extraAssignees = isPersonal ? [] : ntAssignees.slice(1).filter((id) => id !== primaryAssignee);
-
-    const { data: created, error } = await supabase.from("tasks").insert({
-      project_id: isPersonal ? null : ntProject,
-      title: ntTitle.trim(),
-      description: ntDesc.trim() || null,
-      priority: isPersonal ? "media" : ntPriority,
-      due_date: ntDue || null,
-      due_time: ntHasDueTime && ntDueTime ? ntDueTime : null,
-      reminder_minutes_before: ntHasDueTime && ntDueTime && ntReminderMinutes !== "none" ? parseInt(ntReminderMinutes, 10) : null,
-      assigned_to: primaryAssignee,
-      status: initialStatus,
-      created_by: user.id,
-      position: 0,
-      ...(isPersonal ? {
-        recurrence_type: ntRecurrence,
-        recurrence_days: ntRecurrence === "weekly" ? ntRecurrenceDays : null,
-      } : {}),
-    } as any).select().single();
-
-    if (error) {
-      setCreating(false);
-      toast({ title: "Erro ao criar tarefa", description: error.message, variant: "destructive" });
-      return;
-    }
-
-    if (created) {
-      if (isPersonal) {
-        const { error: assigneeError } = await (supabase.from as any)("task_assignees").insert({
-          task_id: created.id, user_id: user.id, added_by: user.id,
-        });
-        if (assigneeError) {
-          toast({ title: "Tarefa criada, mas houve erro ao registrar responsável", description: assigneeError.message, variant: "destructive" });
-        }
-      } else if (extraAssignees.length > 0) {
-        const { error: extraError } = await (supabase.from as any)("task_assignees").insert(
-          extraAssignees.map((uid) => ({ task_id: created.id, user_id: uid, added_by: user.id })),
-        );
-        if (extraError) {
-          toast({ title: "Tarefa criada, mas houve erro ao adicionar responsáveis extras", description: extraError.message, variant: "destructive" });
-        }
-      }
-    }
-
-    setCreating(false);
-    toast({ title: isPersonal ? "Tarefa pessoal criada" : "Tarefa criada" });
-    setNewTaskOpen(false);
-    loadTasks();
   }
 
   async function loadCompanyAccess(companyId: string) {
@@ -368,7 +237,7 @@ export default function TaskCalendar() {
     setLoading(true);
     const { data, error } = await supabase
       .from("tasks")
-      .select("id, title, due_date, due_time, priority, assigned_to, assignee_name, project_id, status, color, parent_task_id, projects(name, company_id, color, companies(name, logo_url))")
+      .select("id, title, due_date, due_time, priority, assigned_to, assignee_name, project_id, status, color, day_order, created_at, parent_task_id, projects(name, company_id, color, companies(name, logo_url))")
       .not("due_date", "is", null)
       .order("due_date", { ascending: true });
 
@@ -497,10 +366,56 @@ export default function TaskCalendar() {
       if (!map.has(key)) map.set(key, []);
       map.get(key)!.push(t);
     });
+    map.forEach((list) => list.sort(compareDayOrder));
     return map;
   }, [filteredTasks]);
 
   const getTasksForDay = (d: Date) => tasksByDay.get(format(d, "yyyy-MM-dd")) || [];
+
+  // Drag-and-drop do calendário: no mesmo dia, só reordena (day_order); em
+  // outro dia, muda due_date preservando due_time e zerando
+  // reminder_sent_at. Otimista, com reversão + toast se der erro.
+  async function onCalendarDragEnd(result: DropResult) {
+    const { source, destination, draggableId } = result;
+    if (!destination) return;
+    if (source.droppableId === destination.droppableId && source.index === destination.index) return;
+
+    const dragged = tasks.find((t) => t.id === draggableId);
+    if (!dragged) return;
+
+    const sourceDay = source.droppableId;
+    const destDay = destination.droppableId;
+    const sameDay = sourceDay === destDay;
+
+    const destList = (tasksByDay.get(destDay) || []).filter((t) => t.id !== draggableId);
+    destList.splice(destination.index, 0, dragged);
+
+    const updates = destList.map((t, idx) => ({
+      id: t.id,
+      day_order: idx,
+      ...(t.id === draggableId && !sameDay ? { due_date: destDay, reminder_sent_at: null as string | null } : {}),
+    }));
+
+    const previous = tasks;
+    setTasks((prev) =>
+      prev.map((t) => {
+        const u = updates.find((x) => x.id === t.id);
+        if (!u) return t;
+        return { ...t, day_order: u.day_order, ...(u.due_date ? { due_date: u.due_date, reminder_sent_at: null } : {}) };
+      }),
+    );
+
+    try {
+      for (const u of updates) {
+        const { id, ...payload } = u;
+        const { error } = await supabase.from("tasks").update(payload as any).eq("id", id);
+        if (error) throw error;
+      }
+    } catch (err: any) {
+      setTasks(previous);
+      toast({ title: "Não foi possível mover a tarefa", description: err.message, variant: "destructive" });
+    }
+  }
 
   const datesWithTasks = useMemo(
     () => filteredTasks.map((t) => new Date(t.due_date + "T00:00:00")),
@@ -596,11 +511,6 @@ export default function TaskCalendar() {
     setSelectedDate(new Date());
   };
 
-  const openDayInDayView = (d: Date) => {
-    setCursor(d);
-    setSelectedDate(d);
-    changeViewMode("dia");
-  };
 
   // Pill
   const TaskPill = ({ task }: { task: TaskWithRelations }) => (
@@ -615,32 +525,23 @@ export default function TaskCalendar() {
   );
 
   // Botão único "Nova Tarefa" com escolha de tipo (projeto ou pessoal)
+  // O tipo (projeto/pessoal) agora só se escolhe dentro do próprio
+  // NewTaskDialog (aba Tarefa de projeto / Tarefa pessoal) — este botão só
+  // abre o diálogo direto, sempre começando na aba de projeto.
   const NewTaskMenu = ({ day, iconOnly }: { day: Date; iconOnly?: boolean }) => (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        {iconOnly ? (
-          <button
-            onClick={(e) => e.stopPropagation()}
-            className="opacity-0 group-hover:opacity-100 h-6 w-6 inline-flex items-center justify-center rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-opacity"
-            title="Nova tarefa"
-          >
-            <Plus className="h-3.5 w-3.5" />
-          </button>
-        ) : (
-          <Button className="gap-2" size="sm">
-            <Plus className="h-4 w-4" /> Nova Tarefa
-          </Button>
-        )}
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
-        <DropdownMenuItem onClick={() => openNewTaskDialog(day, false)}>
-          <FolderKanban className="h-4 w-4 mr-2" /> Tarefa de projeto
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => openNewTaskDialog(day, true)}>
-          <User className="h-4 w-4 mr-2" /> Tarefa pessoal
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+    iconOnly ? (
+      <button
+        onClick={(e) => { e.stopPropagation(); openNewTaskDialog(day, false); }}
+        className="opacity-0 group-hover:opacity-100 h-6 w-6 inline-flex items-center justify-center rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-opacity"
+        title="Nova tarefa"
+      >
+        <Plus className="h-3.5 w-3.5" />
+      </button>
+    ) : (
+      <Button className="gap-2" size="sm" onClick={() => openNewTaskDialog(day, false)}>
+        <Plus className="h-4 w-4" /> Nova Tarefa
+      </Button>
+    )
   );
 
   // ========== Day View (uses existing detailed cards) ==========
@@ -686,22 +587,28 @@ export default function TaskCalendar() {
             </div>
             {canEdit && <NewTaskMenu day={cursor} />}
           </CardHeader>
-          <CardContent className="group">
+          <CardContent className="group" onClick={() => canEdit && openNewTaskDialog(cursor)}>
             {loading ? (
               <div className="text-center py-12 text-muted-foreground">Carregando...</div>
             ) : dayTasks.length === 0 ? (
               <div className="text-center py-12 text-muted-foreground">Nenhuma tarefa neste dia</div>
             ) : (
               <ScrollArea className="max-h-[500px] pr-3">
-                <div className="space-y-2">
-                  {dayTasks.map((task) => {
-                    const color = getTaskColor(task);
-                    const done = task.status === "concluido";
-                    return (
+                <Droppable droppableId={format(cursor, "yyyy-MM-dd")} type="CALENDAR_TASK">
+                  {(dropProvided) => (
+                    <div ref={dropProvided.innerRef} {...dropProvided.droppableProps} className="space-y-2">
+                      {dayTasks.map((task, idx) => {
+                        const color = getTaskColor(task);
+                        const done = task.status === "concluido";
+                        return (
+                        <Draggable key={task.id} draggableId={task.id} index={idx} isDragDisabled={!canEdit}>
+                          {(dragProvided, snapshot) => (
                     <button
-                      key={task.id}
-                      onClick={() => setSelectedTaskId(task.id)}
-                      className="w-full text-left p-3 rounded-lg border border-l-4 transition-colors"
+                      ref={dragProvided.innerRef}
+                      {...dragProvided.draggableProps}
+                      {...dragProvided.dragHandleProps}
+                      onClick={(e) => { e.stopPropagation(); setSelectedTaskId(task.id); }}
+                      className={cn("w-full text-left p-3 rounded-lg border border-l-4 transition-colors", snapshot.isDragging && "opacity-80")}
                       style={{ borderLeftColor: color, backgroundColor: `${color}15` }}
                     >
                       <div className="flex items-start justify-between gap-2 mb-2">
@@ -769,13 +676,18 @@ export default function TaskCalendar() {
                         )}
                       </div>
                     </button>
-                    );
-                  })}
-                </div>
+                          )}
+                        </Draggable>
+                        );
+                      })}
+                      {dropProvided.placeholder}
+                    </div>
+                  )}
+                </Droppable>
               </ScrollArea>
             )}
             {canEdit && (
-              <div className="flex justify-center mt-1">
+              <div className="flex justify-center mt-1" onClick={(e) => e.stopPropagation()}>
                 <NewTaskMenu day={cursor} iconOnly />
               </div>
             )}
@@ -934,50 +846,54 @@ export default function TaskCalendar() {
         </div>
       </div>
 
-      {viewMode === "mes" && (
-        <CalendarMonthGrid
-          cursor={cursor}
-          getDayTasks={getTasksForDay}
-          ItemComponent={TaskPill}
-          getTaskKey={(t) => t.id}
-          onDayClick={openDayInDayView}
-          onAddDay={canEdit ? openNewTaskDialog : undefined}
-          getTaskColor={getTaskColor}
-          renderOverflow={(day, dayTasks, overflow) => (
-            <Popover>
-              <PopoverTrigger asChild>
-                <button
-                  onClick={(e) => e.stopPropagation()}
-                  className="text-[10px] text-muted-foreground hover:text-foreground text-left px-1.5"
-                >
-                  +{overflow} mais
-                </button>
-              </PopoverTrigger>
-              <PopoverContent className="w-64 p-2" onClick={(e) => e.stopPropagation()}>
-                <p className="text-xs font-medium mb-2">{format(day, "d 'de' MMM", { locale: ptBR })}</p>
-                <div className="flex flex-col gap-1 max-h-72 overflow-y-auto">
-                  {dayTasks.map((t) => (
-                    <TaskPill key={t.id} task={t} />
-                  ))}
-                </div>
-              </PopoverContent>
-            </Popover>
-          )}
-        />
-      )}
-      {viewMode === "semana" && (
-        <CalendarWeekGrid
-          cursor={cursor}
-          getDayTasks={getTasksForDay}
-          ItemComponent={TaskPill}
-          getTaskKey={(t) => t.id}
-          onDayClick={openDayInDayView}
-          onAddDay={canEdit ? openNewTaskDialog : undefined}
-          getTaskColor={getTaskColor}
-          renderDayFooterAction={canEdit ? (d) => <NewTaskMenu day={d} iconOnly /> : undefined}
-        />
-      )}
-      {viewMode === "dia" && <DayView />}
+      <DragDropContext onDragEnd={onCalendarDragEnd}>
+        {viewMode === "mes" && (
+          <CalendarMonthGrid
+            cursor={cursor}
+            getDayTasks={getTasksForDay}
+            ItemComponent={TaskPill}
+            getTaskKey={(t) => t.id}
+            onDayClick={(d) => openNewTaskDialog(d)}
+            onAddDay={canEdit ? openNewTaskDialog : undefined}
+            getTaskColor={getTaskColor}
+            dragEnabled={canEdit}
+            renderOverflow={(day, dayTasks, overflow) => (
+              <Popover>
+                <PopoverTrigger asChild>
+                  <button
+                    onClick={(e) => e.stopPropagation()}
+                    className="text-[10px] text-muted-foreground hover:text-foreground text-left px-1.5"
+                  >
+                    +{overflow} mais
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent className="w-64 p-2" onClick={(e) => e.stopPropagation()}>
+                  <p className="text-xs font-medium mb-2">{format(day, "d 'de' MMM", { locale: ptBR })}</p>
+                  <div className="flex flex-col gap-1 max-h-72 overflow-y-auto">
+                    {dayTasks.map((t) => (
+                      <TaskPill key={t.id} task={t} />
+                    ))}
+                  </div>
+                </PopoverContent>
+              </Popover>
+            )}
+          />
+        )}
+        {viewMode === "semana" && (
+          <CalendarWeekGrid
+            cursor={cursor}
+            getDayTasks={getTasksForDay}
+            ItemComponent={TaskPill}
+            getTaskKey={(t) => t.id}
+            onDayClick={(d) => openNewTaskDialog(d)}
+            onAddDay={canEdit ? openNewTaskDialog : undefined}
+            getTaskColor={getTaskColor}
+            dragEnabled={canEdit}
+            renderDayFooterAction={canEdit ? (d) => <NewTaskMenu day={d} iconOnly /> : undefined}
+          />
+        )}
+        {viewMode === "dia" && <DayView />}
+      </DragDropContext>
 
       {legendItems.length > 0 && (
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 px-1 pt-1 text-xs text-muted-foreground">
@@ -991,170 +907,15 @@ export default function TaskCalendar() {
       )}
 
       {/* Nova Tarefa */}
-      <Dialog open={newTaskOpen} onOpenChange={setNewTaskOpen}>
-        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>{isPersonal ? "Nova Tarefa Pessoal" : "Nova Tarefa"}</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-3">
-            <ToggleGroup
-              type="single"
-              value={isPersonal ? "pessoal" : "projeto"}
-              onValueChange={(v) => {
-                if (!v) return;
-                setIsPersonal(v === "pessoal");
-                if (v === "pessoal") { setNtProject(""); setNtCompany(""); }
-              }}
-              className="justify-start"
-            >
-              <ToggleGroupItem value="projeto" className="gap-1.5 text-xs h-8 px-3">
-                <FolderKanban className="h-3.5 w-3.5" /> Tarefa de projeto
-              </ToggleGroupItem>
-              <ToggleGroupItem value="pessoal" className="gap-1.5 text-xs h-8 px-3">
-                <User className="h-3.5 w-3.5" /> Tarefa pessoal
-              </ToggleGroupItem>
-            </ToggleGroup>
-            {!isPersonal && (
-              <>
-                <div className="space-y-1.5">
-                  <Label className="text-sm">Empresa *</Label>
-                  <Select value={ntCompany} onValueChange={(v) => { setNtCompany(v); setNtProject(""); setNtAssignees(user ? [user.id] : []); }}>
-                    <SelectTrigger><SelectValue placeholder="Selecione uma empresa..." /></SelectTrigger>
-                    <SelectContent>
-                      {allCompanies.map((c) => (
-                        <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-sm">Projeto *</Label>
-                  <Select value={ntProject} onValueChange={(v) => { setNtProject(v); setNtAssignees(user ? [user.id] : []); }} disabled={!ntCompany}>
-                    <SelectTrigger><SelectValue placeholder={ntCompany ? "Selecione um projeto..." : "Escolha uma empresa primeiro"} /></SelectTrigger>
-                    <SelectContent>
-                      {allProjects.filter((p) => p.company_id === ntCompany).map((p) => (
-                        <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </>
-            )}
-            <div className="space-y-1.5">
-              <Label className="text-sm">Título *</Label>
-              <Input value={ntTitle} onChange={(e) => setNtTitle(e.target.value)} placeholder="O que precisa ser feito?" />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-sm">Descrição</Label>
-              <Textarea value={ntDesc} onChange={(e) => setNtDesc(e.target.value)} rows={3} />
-            </div>
-            {!isPersonal && (
-              <div className="space-y-1.5">
-                <Label className="text-sm">Responsáveis</Label>
-                <AssigneeMultiSelect
-                  profiles={projectMembers}
-                  selected={ntAssignees}
-                  onChange={setNtAssignees}
-                  currentUserId={user?.id}
-                  disabled={!ntProject}
-                  placeholder={ntProject ? "Selecione um ou mais responsáveis..." : "Escolha um projeto primeiro"}
-                />
-              </div>
-            )}
-            {!isPersonal && (
-              <div className="space-y-1.5">
-                <Label className="text-sm">Prioridade</Label>
-                <Select value={ntPriority} onValueChange={(v) => setNtPriority(v as typeof ntPriority)}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {Object.entries(priorityLabel).map(([key, label]) => (
-                      <SelectItem key={key} value={key}>{label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-            <div className="space-y-1.5">
-              <Label className="text-sm">Prazo</Label>
-              <Input type="date" value={ntDue} onChange={(e) => setNtDue(e.target.value)} />
-            </div>
-            {isPersonal && (
-              <div className="space-y-1.5">
-                <Label className="text-sm">Recorrência</Label>
-                <Select
-                  value={ntRecurrence}
-                  onValueChange={(v) => {
-                    setNtRecurrence(v as typeof ntRecurrence);
-                    if (v !== "weekly") setNtRecurrenceDays([]);
-                  }}
-                >
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">Não repetir</SelectItem>
-                    <SelectItem value="daily">Diariamente</SelectItem>
-                    <SelectItem value="weekly">Semanalmente</SelectItem>
-                    <SelectItem value="monthly">Mensalmente</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-            {isPersonal && ntRecurrence === "weekly" && (
-              <div className="space-y-1.5">
-                <Label className="text-sm">Repetir nos dias</Label>
-                <div className="flex gap-1.5 flex-wrap">
-                  {WEEKDAY_LABELS.map((label, idx) => (
-                    <button
-                      key={idx}
-                      type="button"
-                      onClick={() => setNtRecurrenceDays((prev) => prev.includes(idx) ? prev.filter((d) => d !== idx) : [...prev, idx])}
-                      className={cn(
-                        "h-8 w-8 rounded-full text-xs font-medium border transition-colors",
-                        ntRecurrenceDays.includes(idx) ? "bg-primary text-primary-foreground border-primary" : "border-input hover:bg-accent",
-                      )}
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-            <div className="space-y-1.5">
-              <Label className="text-sm flex items-center gap-1"><Clock className="h-3.5 w-3.5" /> Definir horário</Label>
-              <div className="flex items-center gap-2">
-                <Switch
-                  checked={ntHasDueTime}
-                  onCheckedChange={(checked) => {
-                    setNtHasDueTime(checked);
-                    if (!checked) { setNtDueTime(""); setNtReminderMinutes("none"); }
-                  }}
-                />
-                {ntHasDueTime && (
-                  <Input type="time" value={ntDueTime} onChange={(e) => setNtDueTime(e.target.value)} className="h-9 w-32" />
-                )}
-              </div>
-            </div>
-            {ntHasDueTime && ntDueTime && (
-              <div className="space-y-1.5">
-                <Label className="text-sm">Notificar</Label>
-                <Select value={ntReminderMinutes} onValueChange={setNtReminderMinutes}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {REMINDER_OPTIONS.map((o) => (
-                      <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setNewTaskOpen(false)}>Cancelar</Button>
-            <Button onClick={createTask} disabled={(!isPersonal && (!ntCompany || !ntProject)) || !ntTitle.trim() || creating}>
-              {creating ? "Criando..." : "Criar"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <NewTaskDialog
+        open={newTaskOpen}
+        onOpenChange={setNewTaskOpen}
+        defaultDate={newTaskDefaults.date}
+        defaultCompanyId={newTaskDefaults.companyId}
+        defaultProjectId={newTaskDefaults.projectId}
+        defaultPersonal={newTaskDefaults.personal}
+        onCreated={() => loadTasks()}
+      />
 
       {selectedTaskId && (
         <TaskDetail

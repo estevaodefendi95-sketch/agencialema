@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -28,6 +29,7 @@ interface Project {
   company_id: string;
   archived: boolean;
   color: string | null;
+  is_default: boolean;
   companies?: { name: string; logo_url: string | null } | null;
 }
 
@@ -339,13 +341,17 @@ export default function Projects() {
           <DropdownMenuItem onClick={() => openEdit(p)}>
             <Pencil className="h-4 w-4 mr-2" /> Editar
           </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => archiveProject(p)}>
-            {p.archived ? <ArchiveRestore className="h-4 w-4 mr-2" /> : <Archive className="h-4 w-4 mr-2" />}
-            {p.archived ? "Desarquivar" : "Arquivar"}
-          </DropdownMenuItem>
-          <DropdownMenuItem className="text-destructive" onClick={() => setDeleteProjectId(p.id)}>
-            <Trash2 className="h-4 w-4 mr-2" /> Excluir
-          </DropdownMenuItem>
+          {!p.is_default && (
+            <DropdownMenuItem onClick={() => archiveProject(p)}>
+              {p.archived ? <ArchiveRestore className="h-4 w-4 mr-2" /> : <Archive className="h-4 w-4 mr-2" />}
+              {p.archived ? "Desarquivar" : "Arquivar"}
+            </DropdownMenuItem>
+          )}
+          {!p.is_default && (
+            <DropdownMenuItem className="text-destructive" onClick={() => setDeleteProjectId(p.id)}>
+              <Trash2 className="h-4 w-4 mr-2" /> Excluir
+            </DropdownMenuItem>
+          )}
         </DropdownMenuContent>
       </DropdownMenu>
     );
@@ -432,7 +438,12 @@ export default function Projects() {
                       const tasks = tasksByProject[p.id] || [];
                       return (
                         <TableRow key={p.id} className="cursor-pointer" onClick={() => navigate(`/projetos/${p.id}`)}>
-                          <TableCell className="font-medium">{p.name}</TableCell>
+                          <TableCell className="font-medium">
+                            <span className="flex items-center gap-1.5">
+                              {p.name}
+                              {p.is_default && <Badge variant="outline" className="text-[10px] font-normal">Geral</Badge>}
+                            </span>
+                          </TableCell>
                           <TableCell>
                             {tasks.length === 0 ? (
                               <span className="text-xs text-muted-foreground">—</span>
@@ -509,7 +520,10 @@ export default function Projects() {
                         )}
                         <CompanyStack companies={additionalCompaniesByProject[p.id] || []} />
                         <div className="flex-1 min-w-0">
-                          <CardTitle className="text-base">{p.name}</CardTitle>
+                          <CardTitle className="text-base flex items-center gap-1.5">
+                            {p.name}
+                            {p.is_default && <Badge variant="outline" className="text-[10px] font-normal">Geral</Badge>}
+                          </CardTitle>
                           <CardDescription
                             className="cursor-pointer hover:underline w-fit"
                             onClick={(e) => {

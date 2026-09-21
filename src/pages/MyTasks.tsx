@@ -16,20 +16,16 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
 import { DragDropContext, Droppable, Draggable, type DropResult } from "@hello-pangea/dnd";
 import { LayoutGrid, List, CalendarDays, FolderKanban, ChevronLeft, ChevronRight, Filter, CheckSquare, User, Plus, GripVertical, Clock, CornerDownRight, Check } from "lucide-react";
-import { Switch } from "@/components/ui/switch";
-import { REMINDER_OPTIONS, formatDueTime } from "@/lib/taskReminders";
+import { formatDueTime } from "@/lib/taskReminders";
 import { AssigneeAvatar } from "@/components/AssigneeAvatar";
-import { AssigneeMultiSelect } from "@/components/AssigneeMultiSelect";
 import TaskDetail from "@/components/TaskDetail";
 import { CalendarTaskPill } from "@/components/CalendarTaskPill";
 import { TaskAssigneeChip } from "@/components/TaskAssigneeChip";
+import { NewTaskDialog } from "@/components/NewTaskDialog";
 import { TaskCardMini } from "@/components/TaskCardMini";
 import { ColorSwatchPicker } from "@/components/ColorSwatchPicker";
 import { CalendarColorToggle } from "@/components/CalendarColorToggle";
 import { CalendarMonthGrid, CalendarWeekGrid } from "@/components/CalendarMonthWeekDay";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { getEntityColor, PROJECT_COLOR_PALETTE } from "@/lib/colorPalette";
 import { useCalendarColorMode } from "@/hooks/useCalendarColorMode";
@@ -54,6 +50,8 @@ type Task = {
   created_by: string | null;
   parent_task_id: string | null;
   position: number;
+  day_order: number | null;
+  created_at: string;
   color: string | null;
   projects: { name: string; company_id: string; color: string | null; companies: { name: string } | null } | null;
   assignee?: { full_name: string | null; nickname: string | null; avatar_url: string | null; color: string | null } | null;
@@ -98,7 +96,18 @@ const PRIORITY_LABEL: Record<string, string> = {
   baixa: "Baixa", media: "Média", alta: "Alta", urgente: "Urgente",
 };
 
-const WEEKDAY_LABELS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
+// Ordem das tarefas dentro de um dia: day_order (drag-and-drop) primeiro,
+// depois horário, depois criação — sem day_order (null), fica sempre por
+// último dentro do critério seguinte.
+function compareDayOrder(a: Task, b: Task): number {
+  if (a.day_order != null && b.day_order != null && a.day_order !== b.day_order) return a.day_order - b.day_order;
+  if (a.day_order != null && b.day_order == null) return -1;
+  if (a.day_order == null && b.day_order != null) return 1;
+  if (a.due_time && b.due_time && a.due_time !== b.due_time) return a.due_time.localeCompare(b.due_time);
+  if (a.due_time && !b.due_time) return -1;
+  if (!a.due_time && b.due_time) return 1;
+  return a.created_at.localeCompare(b.created_at);
+}
 
 type ViewMode = "cards" | "lista" | "calendario";
 type CalMode = "mes" | "semana" | "dia";
@@ -127,25 +136,8 @@ export default function MyTasks() {
   const [filtersOpen, setFiltersOpen] = useState(false);
 
   // Nova tarefa
-  const [allCompanies, setAllCompanies] = useState<{ id: string; name: string }[]>([]);
-  const [allProjects, setAllProjects] = useState<{ id: string; name: string; company_id: string }[]>([]);
-  const [projectMembers, setProjectMembers] = useState<Profile[]>([]);
-  const [openNewTask, setOpenNewTask] = useState(false);
-  const [creating, setCreating] = useState(false);
-  const [ntCompany, setNtCompany] = useState<string>("");
-  const [ntProject, setNtProject] = useState<string>("");
-  const [ntTitle, setNtTitle] = useState("");
-  const [ntDesc, setNtDesc] = useState("");
-  const [ntPriority, setNtPriority] = useState<"baixa" | "media" | "alta" | "urgente">("media");
-  const [ntDue, setNtDue] = useState("");
-  const [ntHasDueTime, setNtHasDueTime] = useState(false);
-  const [ntDueTime, setNtDueTime] = useState("");
-  const [ntReminderMinutes, setNtReminderMinutes] = useState("none");
-  const [ntAssignees, setNtAssignees] = useState<string[]>([]);
-  const [ntStatus, setNtStatus] = useState<string | null>(null);
-  const [isPersonal, setIsPersonal] = useState(false);
-  const [ntRecurrence, setNtRecurrence] = useState<"none" | "daily" | "weekly" | "monthly">("none");
-  const [ntRecurrenceDays, setNtRecurrenceDays] = useState<number[]>([]);
+  const [newTaskOpen, setNewTaskOpen] = useState(false);
+  const [newTaskDefaults, setNewTaskDefaults] = useState<{ date?: Date; statusSlug?: string; personal?: boolean }>({});
 
   const changeView = (v: ViewMode) => {
     if (!v) return;
@@ -170,148 +162,31 @@ export default function MyTasks() {
     if (selectedUser) loadTasks(selectedUser);
   }, [selectedUser]);
 
-  useEffect(() => {
-    if (canEdit) {
-      loadAllProjects();
-      loadAllCompanies();
-    }
-  }, [canEdit]);
-
-  useEffect(() => {
-    if (ntProject) loadProjectMembers(ntProject);
-    else setProjectMembers([]);
-  }, [ntProject]);
-
-  async function loadAllCompanies() {
-    const { data } = await supabase
-      .from("companies")
-      .select("id, name")
-      .order("name");
-    setAllCompanies((data || []) as any);
-  }
-
-  async function loadAllProjects() {
-    const { data } = await supabase
-      .from("projects")
-      .select("id, name, company_id")
-      .eq("archived", false)
-      .order("name");
-    setAllProjects((data || []) as any);
-  }
-
-  async function loadProjectMembers(projectId: string) {
-    const { data: proj } = await supabase.from("projects").select("company_id").eq("id", projectId).maybeSingle();
-    if (!(proj as any)?.company_id) {
-      setProjectMembers([]);
-      return;
-    }
-    const [{ data: accessRows }, { data: adminProfiles }] = await Promise.all([
-      (supabase.from as any)("user_company_access")
-        .select("user_id, profiles(id, full_name, nickname, avatar_url, status)")
-        .eq("company_id", (proj as any).company_id),
-      (supabase.rpc as any)("get_admin_profiles"),
-    ]);
-    const byId: Record<string, Profile> = {};
-    (accessRows || []).forEach((r: any) => {
-      const p = r.profiles;
-      if (p && p.status === "aprovado") {
-        byId[p.id] = { id: p.id, full_name: p.full_name, nickname: p.nickname, avatar_url: p.avatar_url };
-      }
-    });
-    (adminProfiles || []).forEach((p: any) => {
-      byId[p.id] = { id: p.id, full_name: p.full_name, nickname: p.nickname, avatar_url: p.avatar_url };
-    });
-    setProjectMembers(Object.values(byId));
-  }
-
-  async function createTask() {
-    if (!ntTitle.trim() || !user) return;
-    if (!isPersonal && !ntProject) return;
-    setCreating(true);
-    // Status inicial: usa a coluna pré-selecionada (ex: "+" de uma coluna específica
-    // no board), senão cai na primeira coluna do projeto (ou "a_fazer" pra pessoal).
-    let initialStatus = ntStatus;
-    if (!initialStatus) {
-      if (isPersonal) {
-        initialStatus = "a_fazer";
-      } else {
-        const { data: cols } = await supabase
-          .from("project_columns")
-          .select("slug")
-          .eq("project_id", ntProject)
-          .order("position", { ascending: true })
-          .limit(1);
-        initialStatus = cols?.[0]?.slug || "a_fazer";
-      }
-    }
-
-    const primaryAssignee = isPersonal ? user.id : (ntAssignees[0] || user.id);
-    const extraAssignees = isPersonal ? [] : ntAssignees.slice(1).filter((id) => id !== primaryAssignee);
-
-    const { data: created, error } = await supabase.from("tasks").insert({
-      project_id: isPersonal ? null : ntProject,
-      title: ntTitle.trim(),
-      description: ntDesc.trim() || null,
-      priority: isPersonal ? "media" : ntPriority,
-      due_date: ntDue || null,
-      due_time: ntHasDueTime && ntDueTime ? ntDueTime : null,
-      reminder_minutes_before: ntHasDueTime && ntDueTime && ntReminderMinutes !== "none" ? parseInt(ntReminderMinutes, 10) : null,
-      assigned_to: primaryAssignee,
-      status: initialStatus,
-      created_by: user.id,
-      position: 0,
-      ...(isPersonal ? {
-        recurrence_type: ntRecurrence,
-        recurrence_days: ntRecurrence === "weekly" ? ntRecurrenceDays : null,
-      } : {}),
-    } as any).select().single();
-
-    if (error) {
-      setCreating(false);
-      toast({ title: "Erro ao criar tarefa", description: error.message, variant: "destructive" });
-      return;
-    }
-
-    if (created) {
-      if (isPersonal) {
-        const { error: assigneeError } = await (supabase.from as any)("task_assignees").insert({
-          task_id: created.id, user_id: user.id, added_by: user.id,
-        });
-        if (assigneeError) {
-          toast({ title: "Tarefa criada, mas houve erro ao registrar responsável", description: assigneeError.message, variant: "destructive" });
-        }
-      } else if (extraAssignees.length > 0) {
-        const { error: extraError } = await (supabase.from as any)("task_assignees").insert(
-          extraAssignees.map((uid) => ({ task_id: created.id, user_id: uid, added_by: user.id })),
-        );
-        if (extraError) {
-          toast({ title: "Tarefa criada, mas houve erro ao adicionar responsáveis extras", description: extraError.message, variant: "destructive" });
-        }
-      }
-    }
-
-    setCreating(false);
-    toast({ title: isPersonal ? "Tarefa pessoal criada" : "Tarefa criada" });
-    setOpenNewTask(false);
-    setNtCompany(""); setNtProject(""); setNtTitle(""); setNtDesc(""); setNtPriority("media");
-    setNtDue(""); setNtHasDueTime(false); setNtDueTime(""); setNtReminderMinutes("none");
-    setNtAssignees([]); setNtStatus(null); setIsPersonal(false);
-    setNtRecurrence("none"); setNtRecurrenceDays([]);
-    if (selectedUser) loadTasks(selectedUser);
-  }
-
   function openNewTaskDialog(prefillDate?: Date, statusSlug?: string, personal?: boolean) {
-    if (prefillDate) setNtDue(format(prefillDate, "yyyy-MM-dd"));
-    else setNtDue("");
-    setNtStatus(statusSlug ?? null);
-    setIsPersonal(!!personal);
-    setNtAssignees(user ? [user.id] : []);
-    if (personal) { setNtCompany(""); setNtProject(""); }
-    setNtRecurrence("none"); setNtRecurrenceDays([]);
-    setOpenNewTask(true);
+    setNewTaskDefaults({ date: prefillDate, statusSlug, personal });
+    setNewTaskOpen(true);
   }
 
-  function NewTaskMenu({ prefillDate, statusSlug, iconOnly }: { prefillDate?: Date; statusSlug?: string; iconOnly?: boolean }) {
+  // No calendário, o tipo (projeto/pessoal) só se escolhe dentro do próprio
+  // NewTaskDialog — `direct` faz o botão abrir o diálogo direto (aba de
+  // projeto), sem o menu de escolha. Fora do calendário (Cards), mantém o
+  // menu de escolha de sempre.
+  function NewTaskMenu({ prefillDate, statusSlug, iconOnly, direct }: { prefillDate?: Date; statusSlug?: string; iconOnly?: boolean; direct?: boolean }) {
+    if (direct) {
+      return iconOnly ? (
+        <button
+          onClick={(e) => { e.stopPropagation(); openNewTaskDialog(prefillDate, statusSlug, false); }}
+          className="opacity-0 group-hover:opacity-100 h-6 w-6 inline-flex items-center justify-center rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-opacity"
+          title="Nova tarefa"
+        >
+          <Plus className="h-3.5 w-3.5" />
+        </button>
+      ) : (
+        <Button className="gap-2" size="sm" onClick={() => openNewTaskDialog(prefillDate, statusSlug, false)}>
+          <Plus className="h-4 w-4" /> Nova Tarefa
+        </Button>
+      );
+    }
     return (
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
@@ -359,7 +234,7 @@ export default function MyTasks() {
     setLoading(true);
     const { data, error } = await supabase
       .from("tasks")
-      .select("id, title, description, status, priority, due_date, due_time, assigned_to, created_by, parent_task_id, project_id, position, color, projects(name, company_id, color, companies(name))")
+      .select("id, title, description, status, priority, due_date, due_time, assigned_to, created_by, parent_task_id, project_id, position, day_order, created_at, color, projects(name, company_id, color, companies(name))")
       .eq("assigned_to", uid)
       .not("project_id", "is", null)
       .order("due_date", { ascending: true, nullsFirst: false });
@@ -375,7 +250,7 @@ export default function MyTasks() {
     if (extraTaskIds.length > 0) {
       const { data: extraData, error: extraError } = await supabase
         .from("tasks")
-        .select("id, title, description, status, priority, due_date, due_time, assigned_to, created_by, parent_task_id, project_id, position, color, projects(name, company_id, color, companies(name))")
+        .select("id, title, description, status, priority, due_date, due_time, assigned_to, created_by, parent_task_id, project_id, position, day_order, created_at, color, projects(name, company_id, color, companies(name))")
         .in("id", extraTaskIds)
         .not("project_id", "is", null);
       if (extraError) console.error(extraError);
@@ -388,7 +263,7 @@ export default function MyTasks() {
     if (user && uid === user.id) {
       const { data: personalData, error: personalError } = await supabase
         .from("tasks")
-        .select("id, title, description, status, priority, due_date, due_time, assigned_to, created_by, parent_task_id, project_id, position, color")
+        .select("id, title, description, status, priority, due_date, due_time, assigned_to, created_by, parent_task_id, project_id, position, day_order, created_at, color")
         .is("project_id", null)
         .eq("created_by", user.id)
         .order("due_date", { ascending: true, nullsFirst: false });
@@ -539,9 +414,57 @@ export default function MyTasks() {
       if (!map.has(t.due_date)) map.set(t.due_date, []);
       map.get(t.due_date)!.push(t);
     });
+    map.forEach((list) => list.sort(compareDayOrder));
     return map;
   }, [filteredTasks]);
   const getDayTasks = (d: Date) => tasksByDay.get(format(d, "yyyy-MM-dd")) || [];
+
+  const canDragCalendarTask = (t: Task) => t.assigned_to === user?.id;
+
+  // Drag-and-drop do calendário: no mesmo dia, só reordena (day_order); em
+  // outro dia, muda due_date preservando due_time e zerando
+  // reminder_sent_at. Otimista, com reversão + toast se der erro.
+  async function onCalendarDragEnd(result: DropResult) {
+    const { source, destination, draggableId } = result;
+    if (!destination) return;
+    if (source.droppableId === destination.droppableId && source.index === destination.index) return;
+
+    const dragged = tasks.find((t) => t.id === draggableId);
+    if (!dragged) return;
+
+    const sourceDay = source.droppableId;
+    const destDay = destination.droppableId;
+    const sameDay = sourceDay === destDay;
+
+    const destList = (tasksByDay.get(destDay) || []).filter((t) => t.id !== draggableId);
+    destList.splice(destination.index, 0, dragged);
+
+    const updates = destList.map((t, idx) => ({
+      id: t.id,
+      day_order: idx,
+      ...(t.id === draggableId && !sameDay ? { due_date: destDay, reminder_sent_at: null as string | null } : {}),
+    }));
+
+    const previous = tasks;
+    setTasks((prev) =>
+      prev.map((t) => {
+        const u = updates.find((x) => x.id === t.id);
+        if (!u) return t;
+        return { ...t, day_order: u.day_order, ...(u.due_date ? { due_date: u.due_date, reminder_sent_at: null } : {}) };
+      }),
+    );
+
+    try {
+      for (const u of updates) {
+        const { id, ...payload } = u;
+        const { error } = await supabase.from("tasks").update(payload as any).eq("id", id);
+        if (error) throw error;
+      }
+    } catch (err: any) {
+      setTasks(previous);
+      toast({ title: "Não foi possível mover a tarefa", description: err.message, variant: "destructive" });
+    }
+  }
 
   const periodLabel = useMemo(() => {
     if (calMode === "mes") return format(cursor, "MMMM 'de' yyyy", { locale: ptBR });
@@ -900,19 +823,22 @@ export default function MyTasks() {
                   <span className="text-sm font-medium flex-1 min-w-0 text-center lowercase">{periodLabel}</span>
                   <Button variant="outline" size="icon" className="h-8 w-8" onClick={navNext}><ChevronRight className="h-4 w-4" /></Button>
                   <Button variant="outline" size="sm" className="w-full md:w-auto" onClick={() => setCursor(new Date())}>Hoje</Button>
-                  {canEdit && <div className="hidden md:inline-flex"><NewTaskMenu /></div>}
+                  {canEdit && <div className="hidden md:inline-flex"><NewTaskMenu direct /></div>}
                 </div>
               </div>
 
+              <DragDropContext onDragEnd={onCalendarDragEnd}>
               {calMode === "mes" && (
                 <CalendarMonthGrid
                   cursor={cursor}
                   getDayTasks={getDayTasks}
                   ItemComponent={TaskMini}
                   getTaskKey={(t) => t.id}
-                  onDayClick={(d) => { setCursor(d); changeCalMode("dia"); }}
+                  onDayClick={(d) => openNewTaskDialog(d)}
                   onAddDay={canEdit ? (d: Date) => openNewTaskDialog(d) : undefined}
                   getTaskColor={getTaskColor}
+                  dragEnabled={canEdit}
+                  canDragTask={canDragCalendarTask}
                 />
               )}
               {calMode === "semana" && (
@@ -921,31 +847,39 @@ export default function MyTasks() {
                   getDayTasks={getDayTasks}
                   ItemComponent={TaskMini}
                   getTaskKey={(t) => t.id}
-                  onDayClick={(d) => { setCursor(d); changeCalMode("dia"); }}
+                  onDayClick={(d) => openNewTaskDialog(d)}
                   onAddDay={canEdit ? (d: Date) => openNewTaskDialog(d) : undefined}
                   getTaskColor={getTaskColor}
-                  renderDayFooterAction={canEdit ? (d) => <NewTaskMenu prefillDate={d} iconOnly /> : undefined}
+                  dragEnabled={canEdit}
+                  canDragTask={canDragCalendarTask}
+                  renderDayFooterAction={canEdit ? (d) => <NewTaskMenu prefillDate={d} iconOnly direct /> : undefined}
                 />
               )}
               {calMode === "dia" && (
                 <Card>
                   <CardHeader className="flex flex-row items-center justify-between space-y-0">
                     <CardTitle className="text-base lowercase">{format(cursor, "EEEE, d 'de' MMMM", { locale: ptBR })}</CardTitle>
-                    {canEdit && <NewTaskMenu prefillDate={cursor} />}
+                    {canEdit && <NewTaskMenu prefillDate={cursor} direct />}
                   </CardHeader>
-                  <CardContent className="group">
+                  <CardContent className="group" onClick={() => canEdit && openNewTaskDialog(cursor)}>
                     {getDayTasks(cursor).length === 0 ? (
                       <p className="text-center py-12 text-muted-foreground">Nenhuma tarefa neste dia</p>
                     ) : (
-                      <div className="space-y-2">
-                        {getDayTasks(cursor).map((t) => {
+                      <Droppable droppableId={format(cursor, "yyyy-MM-dd")} type="CALENDAR_TASK">
+                        {(dropProvided) => (
+                      <div ref={dropProvided.innerRef} {...dropProvided.droppableProps} className="space-y-2">
+                        {getDayTasks(cursor).map((t, idx) => {
                           const color = getTaskColor(t);
                           const done = t.status === "concluido";
                           return (
+                          <Draggable key={t.id} draggableId={t.id} index={idx} isDragDisabled={!canEdit || !canDragCalendarTask(t)}>
+                            {(dragProvided, snapshot) => (
                           <button
-                            key={t.id}
-                            onClick={() => setSelectedTaskId(t.id)}
-                            className="w-full text-left p-3 rounded-lg border border-l-4 transition-colors"
+                            ref={dragProvided.innerRef}
+                            {...dragProvided.draggableProps}
+                            {...dragProvided.dragHandleProps}
+                            onClick={(e) => { e.stopPropagation(); setSelectedTaskId(t.id); }}
+                            className={cn("w-full text-left p-3 rounded-lg border border-l-4 transition-colors", snapshot.isDragging && "opacity-80")}
                             style={{ borderLeftColor: color, backgroundColor: `${color}15` }}
                           >
                             <div className="flex items-start justify-between gap-2 mb-2">
@@ -989,177 +923,37 @@ export default function MyTasks() {
                               )}
                             </div>
                           </button>
+                            )}
+                          </Draggable>
                           );
                         })}
+                        {dropProvided.placeholder}
                       </div>
+                        )}
+                      </Droppable>
                     )}
                     {canEdit && (
-                      <div className="flex justify-center mt-1">
-                        <NewTaskMenu prefillDate={cursor} iconOnly />
+                      <div className="flex justify-center mt-1" onClick={(e) => e.stopPropagation()}>
+                        <NewTaskMenu prefillDate={cursor} iconOnly direct />
                       </div>
                     )}
                   </CardContent>
                 </Card>
               )}
+              </DragDropContext>
             </div>
           )}
         </>
       )}
 
-      {/* Dialog: Nova Tarefa */}
-      <Dialog open={openNewTask} onOpenChange={setOpenNewTask}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>{isPersonal ? "Nova Tarefa Pessoal" : "Nova Tarefa"}</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-3">
-            {!isPersonal && (
-              <>
-                <div className="space-y-1.5">
-                  <Label className="text-sm">Empresa *</Label>
-                  <Select value={ntCompany} onValueChange={(v) => { setNtCompany(v); setNtProject(""); setNtAssignees(user ? [user.id] : []); }}>
-                    <SelectTrigger><SelectValue placeholder="Selecione uma empresa..." /></SelectTrigger>
-                    <SelectContent>
-                      {allCompanies.map((c) => (
-                        <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-sm">Projeto *</Label>
-                  <Select value={ntProject} onValueChange={(v) => { setNtProject(v); setNtAssignees(user ? [user.id] : []); }} disabled={!ntCompany}>
-                    <SelectTrigger><SelectValue placeholder={ntCompany ? "Selecione um projeto..." : "Escolha uma empresa primeiro"} /></SelectTrigger>
-                    <SelectContent>
-                      {allProjects.filter((p) => p.company_id === ntCompany).map((p) => (
-                        <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </>
-            )}
-            <div className="space-y-1.5">
-              <Label className="text-sm">Título *</Label>
-              <Input value={ntTitle} onChange={(e) => setNtTitle(e.target.value)} placeholder="O que precisa ser feito?" />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-sm">Descrição</Label>
-              <Textarea value={ntDesc} onChange={(e) => setNtDesc(e.target.value)} rows={3} />
-            </div>
-            <div className={cn("grid gap-3", isPersonal ? "grid-cols-1" : "grid-cols-2")}>
-              {!isPersonal && (
-                <div className="space-y-1.5">
-                  <Label className="text-sm">Prioridade</Label>
-                  <Select value={ntPriority} onValueChange={(v) => setNtPriority(v as any)}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="baixa">Baixa</SelectItem>
-                      <SelectItem value="media">Média</SelectItem>
-                      <SelectItem value="alta">Alta</SelectItem>
-                      <SelectItem value="urgente">Urgente</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-              <div className="space-y-1.5">
-                <Label className="text-sm">Prazo</Label>
-                <Input type="date" value={ntDue} onChange={(e) => setNtDue(e.target.value)} />
-              </div>
-            </div>
-            {isPersonal && (
-              <div className="space-y-1.5">
-                <Label className="text-sm">Recorrência</Label>
-                <Select
-                  value={ntRecurrence}
-                  onValueChange={(v) => {
-                    setNtRecurrence(v as typeof ntRecurrence);
-                    if (v !== "weekly") setNtRecurrenceDays([]);
-                  }}
-                >
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">Não repetir</SelectItem>
-                    <SelectItem value="daily">Diariamente</SelectItem>
-                    <SelectItem value="weekly">Semanalmente</SelectItem>
-                    <SelectItem value="monthly">Mensalmente</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-            {isPersonal && ntRecurrence === "weekly" && (
-              <div className="space-y-1.5">
-                <Label className="text-sm">Repetir nos dias</Label>
-                <div className="flex gap-1.5 flex-wrap">
-                  {WEEKDAY_LABELS.map((label, idx) => (
-                    <button
-                      key={idx}
-                      type="button"
-                      onClick={() => setNtRecurrenceDays((prev) => prev.includes(idx) ? prev.filter((d) => d !== idx) : [...prev, idx])}
-                      className={cn(
-                        "h-8 w-8 rounded-full text-xs font-medium border transition-colors",
-                        ntRecurrenceDays.includes(idx) ? "bg-primary text-primary-foreground border-primary" : "border-input hover:bg-accent",
-                      )}
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-            <div className="space-y-1.5">
-              <Label className="text-sm flex items-center gap-1"><Clock className="h-3.5 w-3.5" /> Definir horário</Label>
-              <div className="flex items-center gap-2">
-                <Switch
-                  checked={ntHasDueTime}
-                  onCheckedChange={(checked) => {
-                    setNtHasDueTime(checked);
-                    if (!checked) { setNtDueTime(""); setNtReminderMinutes("none"); }
-                  }}
-                />
-                {ntHasDueTime && (
-                  <Input type="time" value={ntDueTime} onChange={(e) => setNtDueTime(e.target.value)} className="h-9 w-32" />
-                )}
-              </div>
-            </div>
-            {ntHasDueTime && ntDueTime && (
-              <div className="space-y-1.5">
-                <Label className="text-sm">Notificar</Label>
-                <Select value={ntReminderMinutes} onValueChange={setNtReminderMinutes}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {REMINDER_OPTIONS.map((o) => (
-                      <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-            {!isPersonal && (
-              <div className="space-y-1.5">
-                <Label className="text-sm">Responsáveis</Label>
-                <AssigneeMultiSelect
-                  profiles={projectMembers}
-                  selected={ntAssignees}
-                  onChange={setNtAssignees}
-                  currentUserId={user?.id}
-                  disabled={!ntProject}
-                  placeholder={ntProject ? "Selecione um ou mais responsáveis..." : "Escolha um projeto primeiro"}
-                />
-              </div>
-            )}
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setOpenNewTask(false)}>Cancelar</Button>
-            <Button
-              onClick={createTask}
-              disabled={(!isPersonal && (!ntCompany || !ntProject)) || !ntTitle.trim() || creating}
-            >
-              {creating ? "Criando..." : "Criar"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <NewTaskDialog
+        open={newTaskOpen}
+        onOpenChange={setNewTaskOpen}
+        defaultDate={newTaskDefaults.date}
+        defaultStatusSlug={newTaskDefaults.statusSlug}
+        defaultPersonal={newTaskDefaults.personal}
+        onCreated={() => { if (selectedUser) loadTasks(selectedUser); }}
+      />
 
       {selectedTaskId && (
         <TaskDetail

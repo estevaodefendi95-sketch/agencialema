@@ -23,7 +23,6 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { Textarea } from "@/components/ui/textarea";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useToast } from "@/hooks/use-toast";
 import { DragDropContext, Droppable, Draggable, type DropResult } from "@hello-pangea/dnd";
@@ -39,7 +38,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 import { Switch } from "@/components/ui/switch";
-import { REMINDER_OPTIONS, formatDueTime } from "@/lib/taskReminders";
+import { formatDueTime } from "@/lib/taskReminders";
 import TaskDetail from "@/components/TaskDetail";
 import PrintProjectView from "@/components/PrintProjectView";
 import PresentationBuilder from "@/components/presentation/PresentationBuilder";
@@ -47,11 +46,9 @@ import { PresentationsTab } from "@/components/presentation/PresentationsTab";
 import { useAppSettings } from "@/hooks/useAppSettings";
 import { useScrollSnapIndex } from "@/hooks/useScrollSnapIndex";
 import { AssigneeAvatar } from "@/components/AssigneeAvatar";
-import { AssigneeMultiSelect } from "@/components/AssigneeMultiSelect";
 import { TaskCardMini } from "@/components/TaskCardMini";
+import { NewTaskDialog } from "@/components/NewTaskDialog";
 import { CalendarMonthGrid, CalendarWeekGrid, CalendarDayList } from "@/components/CalendarMonthWeekDay";
-
-const WEEKDAY_LABELS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 
 const COLOR_PALETTE = [
   "#94a3b8", "#3B82F6", "#22c55e", "#eab308",
@@ -173,19 +170,9 @@ export default function KanbanBoard() {
     Record<string, { full_name: string | null; nickname: string | null; email: string | null; avatar_url: string | null; color?: string | null }>
   >({});
   const [newTaskOpen, setNewTaskOpen] = useState(false);
+  const [newTaskDate, setNewTaskDate] = useState<Date | undefined>(undefined);
   const [selectedTask, setSelectedTask] = useState<string | null>(null);
-  const [newTitle, setNewTitle] = useState("");
-  const [newDesc, setNewDesc] = useState("");
-  const [newPriority, setNewPriority] = useState<string>("media");
-  const [newDueDate, setNewDueDate] = useState("");
-  const [newHasDueTime, setNewHasDueTime] = useState(false);
-  const [newDueTime, setNewDueTime] = useState("");
-  const [newReminderMinutes, setNewReminderMinutes] = useState("none");
   const [newStatus, setNewStatus] = useState<string>("a_fazer");
-  const [newAssignedTo, setNewAssignedTo] = useState<string[]>([]);
-  const [isPersonal, setIsPersonal] = useState(false);
-  const [newRecurrence, setNewRecurrence] = useState<"none" | "daily" | "weekly" | "monthly">("none");
-  const [newRecurrenceDays, setNewRecurrenceDays] = useState<number[]>([]);
   const [newColor, setNewColor] = useState<string | null>(null);
   const [newCheckItems, setNewCheckItems] = useState<string[]>([]);
   const [newCheckInput, setNewCheckInput] = useState("");
@@ -358,9 +345,6 @@ export default function KanbanBoard() {
   useEffect(() => { load(); }, [load]);
   useEffect(() => { loadColumns(); }, [loadColumns]);
   useEffect(() => { loadMembers(); }, [loadMembers]);
-  useEffect(() => {
-    if (newTaskOpen) setNewAssignedTo(user ? [user.id] : []);
-  }, [newTaskOpen]);
 
   // Quem já tem acesso liberado à empresa deste projeto — usado no select de
   // Responsável e na aba "Equipe do Projeto". Combina duas fontes: quem tem
@@ -469,83 +453,37 @@ export default function KanbanBoard() {
     }
   };
 
-  const createTask = async () => {
-    if (!projectId || !user) return;
-    const colTasks = tasks.filter((t) => t.status === newStatus);
-    const maxPos = colTasks.reduce((max, t) => Math.max(max, t.position), -1);
-    const primaryAssignee = isPersonal ? user.id : (newAssignedTo[0] || user.id);
-    const extraAssignees = isPersonal ? [] : newAssignedTo.slice(1).filter((id) => id !== primaryAssignee);
-    const { data: created, error } = await (supabase.from("tasks") as any).insert({
-      project_id: isPersonal ? null : projectId,
-      title: newTitle,
-      description: newDesc || null,
-      priority: isPersonal ? "media" : newPriority,
-      due_date: newDueDate || null,
-      due_time: newHasDueTime && newDueTime ? newDueTime : null,
-      reminder_minutes_before: newHasDueTime && newDueTime && newReminderMinutes !== "none" ? parseInt(newReminderMinutes, 10) : null,
-      status: isPersonal ? "a_fazer" : newStatus,
-      position: isPersonal ? 0 : maxPos + 1,
-      created_by: user.id,
-      assigned_to: primaryAssignee,
-      color: newColor,
-      ...(isPersonal ? {
-        recurrence_type: newRecurrence,
-        recurrence_days: newRecurrence === "weekly" ? newRecurrenceDays : null,
-      } : {}),
-    }).select().single();
-
-    if (error) {
-      toast({ title: "Erro ao criar tarefa", description: error.message, variant: "destructive" });
-      return;
+  const handleTaskCreated = async (created: { id: string; project_id: string | null }) => {
+    await (supabase.from as any)("task_history").insert({
+      task_id: created.id,
+      user_id: user?.id,
+      action: "Criou tarefa",
+    });
+    if (newColor) {
+      await (supabase.from("tasks").update as any)({ color: newColor }).eq("id", created.id);
     }
-
-    if (created) {
-      await (supabase.from as any)("task_history").insert({
-        task_id: created.id,
-        user_id: user?.id,
-        action: "Criou tarefa",
-      });
-      if (isPersonal) {
-        const { error: assigneeError } = await (supabase.from as any)("task_assignees").insert({
-          task_id: created.id, user_id: user.id, added_by: user.id,
-        });
-        if (assigneeError) {
-          toast({ title: "Tarefa criada, mas houve erro ao registrar responsável", description: assigneeError.message, variant: "destructive" });
-        }
-      } else if (extraAssignees.length > 0) {
-        const { error: extraError } = await (supabase.from as any)("task_assignees").insert(
-          extraAssignees.map((uid) => ({ task_id: created.id, user_id: uid, added_by: user.id })),
-        );
-        if (extraError) {
-          toast({ title: "Tarefa criada, mas houve erro ao adicionar responsáveis extras", description: extraError.message, variant: "destructive" });
-        }
-      }
-      // Create checklist items
-      if (newCheckItems.length > 0) {
-        const items = newCheckItems.map((title, i) => ({ task_id: created.id, title, position: i }));
-        await supabase.from("task_checklists").insert(items);
-      }
-      // Upload files
-      for (const file of newFiles) {
-        const ext = file.name.split(".").pop()?.toLowerCase() || "";
-        const videoExts = ["mp4", "webm", "mov"];
-        const docExts = ["pdf", "doc", "docx", "ppt", "pptx", "xls", "xlsx", "txt", "csv"];
-        const fileType = videoExts.includes(ext) ? "video" : docExts.includes(ext) ? "document" : "image";
-        const path = `task-media/${created.id}/${Date.now()}-${file.name}`;
-        const { error: uploadError } = await supabase.storage.from("attachments").upload(path, file);
-        if (!uploadError) {
-          const { data: urlData } = supabase.storage.from("attachments").getPublicUrl(path);
-          await supabase.from("task_media").insert({ task_id: created.id, file_url: urlData.publicUrl, file_name: file.name, file_type: fileType });
-        }
+    // Create checklist items
+    if (newCheckItems.length > 0) {
+      const items = newCheckItems.map((title, i) => ({ task_id: created.id, title, position: i }));
+      await supabase.from("task_checklists").insert(items);
+    }
+    // Upload files
+    for (const file of newFiles) {
+      const ext = file.name.split(".").pop()?.toLowerCase() || "";
+      const videoExts = ["mp4", "webm", "mov"];
+      const docExts = ["pdf", "doc", "docx", "ppt", "pptx", "xls", "xlsx", "txt", "csv"];
+      const fileType = videoExts.includes(ext) ? "video" : docExts.includes(ext) ? "document" : "image";
+      const path = `task-media/${created.id}/${Date.now()}-${file.name}`;
+      const { error: uploadError } = await supabase.storage.from("attachments").upload(path, file);
+      if (!uploadError) {
+        const { data: urlData } = supabase.storage.from("attachments").getPublicUrl(path);
+        await supabase.from("task_media").insert({ task_id: created.id, file_url: urlData.publicUrl, file_name: file.name, file_type: fileType });
       }
     }
 
-    setNewTaskOpen(false);
-    setNewTitle(""); setNewDesc(""); setNewPriority("media"); setNewDueDate(""); setNewStatus("a_fazer");
-    setNewHasDueTime(false); setNewDueTime(""); setNewReminderMinutes("none");
-    setNewAssignedTo([]); setNewColor(null); setNewCheckItems([]); setNewCheckInput(""); setNewFiles([]);
-    setIsPersonal(false); setNewRecurrence("none"); setNewRecurrenceDays([]);
-    toast({ title: isPersonal ? "Tarefa pessoal criada" : "Tarefa criada" });
+    setNewStatus("a_fazer");
+    setNewTaskDate(undefined);
+    setNewColor(null); setNewCheckItems([]); setNewCheckInput(""); setNewFiles([]);
     load();
   };
 
@@ -573,7 +511,7 @@ export default function KanbanBoard() {
     tasks.filter((t) => t.due_date && matchesAssignee(t) && isSameDay(parseISO(t.due_date), day));
 
   const openNewTaskForDay = (day: Date) => {
-    setNewDueDate(format(day, "yyyy-MM-dd"));
+    setNewTaskDate(day);
     setNewTaskOpen(true);
   };
 
@@ -1707,245 +1645,109 @@ export default function KanbanBoard() {
         </DragDropContext>
       )}
 
-      {/* New Task Dialog */}
-      <Sheet open={newTaskOpen} onOpenChange={setNewTaskOpen}>
-        <SheetContent side="right" className="w-full sm:max-w-3xl h-full flex flex-col p-0 gap-0 overflow-hidden">
-          <SheetHeader className="px-8 pt-8 pb-5 border-b shrink-0 pr-14 text-left">
-            <SheetTitle className="text-xl">Nova Tarefa</SheetTitle>
-          </SheetHeader>
-          <ScrollArea className="flex-1 min-h-0 px-8 py-6">
-            <div className="space-y-6">
-              <ToggleGroup
-                type="single"
-                value={isPersonal ? "pessoal" : "projeto"}
-                onValueChange={(v) => { if (v) setIsPersonal(v === "pessoal"); }}
-                className="justify-start"
-              >
-                <ToggleGroupItem value="projeto" className="gap-1.5 text-xs h-8 px-3">
-                  <FolderKanban className="h-3.5 w-3.5" /> Tarefa de projeto
-                </ToggleGroupItem>
-                <ToggleGroupItem value="pessoal" className="gap-1.5 text-xs h-8 px-3">
-                  <User className="h-3.5 w-3.5" /> Tarefa pessoal
-                </ToggleGroupItem>
-              </ToggleGroup>
-              <div className="space-y-1.5">
-                <Label className="text-sm">Título</Label>
-                <Input
-                  value={newTitle}
-                  onChange={(e) => setNewTitle(e.target.value)}
-                  placeholder="Título da tarefa"
-                  className="h-9 text-sm"
+      <NewTaskDialog
+        open={newTaskOpen}
+        onOpenChange={setNewTaskOpen}
+        variant="sheet"
+        fixedProjectId={projectId!}
+        fixedProjectProfiles={companyAccessProfiles}
+        defaultDate={newTaskDate}
+        defaultStatusSlug={newStatus}
+        statusOptions={columns.map((c) => ({ slug: c.slug, label: c.label }))}
+        computePosition={(slug) => {
+          const colTasks = tasks.filter((t) => t.status === slug);
+          return colTasks.reduce((max, t) => Math.max(max, t.position), -1) + 1;
+        }}
+        onCreated={handleTaskCreated}
+        extraFields={
+          <>
+            {/* Color */}
+            <div className="space-y-2">
+              <Label>Cor da tarefa</Label>
+              <div className="flex gap-1.5 items-center">
+                <button
+                  className={`h-6 w-6 rounded-full border-2 ${!newColor ? "border-foreground" : "border-transparent"} bg-muted`}
+                  onClick={() => setNewColor(null)}
+                  title="Sem cor"
                 />
-              </div>
-              <div className="space-y-2">
-                <Label>Descrição</Label>
-                <Textarea value={newDesc} onChange={(e) => setNewDesc(e.target.value)} />
-              </div>
-              {!isPersonal && (
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Prioridade</Label>
-                    <Select value={newPriority} onValueChange={setNewPriority}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="baixa">Baixa</SelectItem>
-                        <SelectItem value="media">Média</SelectItem>
-                        <SelectItem value="alta">Alta</SelectItem>
-                        <SelectItem value="urgente">Urgente</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Coluna</Label>
-                    <Select value={newStatus} onValueChange={setNewStatus}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        {columns.map((c) => <SelectItem key={c.slug} value={c.slug}>{c.label}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-              )}
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Prazo</Label>
-                  <Input type="date" value={newDueDate} onChange={(e) => setNewDueDate(e.target.value)} />
-                </div>
-                <div className="space-y-2">
-                  <Label className="flex items-center gap-1"><Clock className="h-3.5 w-3.5" /> Definir horário</Label>
-                  <div className="flex items-center gap-2 h-9">
-                    <Switch
-                      checked={newHasDueTime}
-                      onCheckedChange={(checked) => {
-                        setNewHasDueTime(checked);
-                        if (!checked) { setNewDueTime(""); setNewReminderMinutes("none"); }
-                      }}
-                    />
-                    {newHasDueTime && (
-                      <Input type="time" value={newDueTime} onChange={(e) => setNewDueTime(e.target.value)} className="h-9" />
-                    )}
-                  </div>
-                </div>
-              </div>
-              {isPersonal && (
-                <div className="space-y-2">
-                  <Label>Recorrência</Label>
-                  <Select
-                    value={newRecurrence}
-                    onValueChange={(v) => {
-                      setNewRecurrence(v as typeof newRecurrence);
-                      if (v !== "weekly") setNewRecurrenceDays([]);
-                    }}
-                  >
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">Não repetir</SelectItem>
-                      <SelectItem value="daily">Diariamente</SelectItem>
-                      <SelectItem value="weekly">Semanalmente</SelectItem>
-                      <SelectItem value="monthly">Mensalmente</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-              {isPersonal && newRecurrence === "weekly" && (
-                <div className="space-y-2">
-                  <Label>Repetir nos dias</Label>
-                  <div className="flex gap-1.5 flex-wrap">
-                    {WEEKDAY_LABELS.map((label, idx) => (
-                      <button
-                        key={idx}
-                        type="button"
-                        onClick={() => setNewRecurrenceDays((prev) => prev.includes(idx) ? prev.filter((d) => d !== idx) : [...prev, idx])}
-                        className={`h-8 w-8 rounded-full text-xs font-medium border transition-colors ${newRecurrenceDays.includes(idx) ? "bg-primary text-primary-foreground border-primary" : "border-input hover:bg-accent"}`}
-                      >
-                        {label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-              {newHasDueTime && newDueTime && (
-                <div className="space-y-2">
-                  <Label>Notificar</Label>
-                  <Select value={newReminderMinutes} onValueChange={setNewReminderMinutes}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {REMINDER_OPTIONS.map((o) => (
-                        <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-              {!isPersonal && (
-                <div className="space-y-2">
-                  <Label>Responsáveis</Label>
-                  <AssigneeMultiSelect
-                    profiles={companyAccessProfiles}
-                    selected={newAssignedTo}
-                    onChange={setNewAssignedTo}
-                    currentUserId={user?.id}
-                  />
-                  {companyAccessProfiles.length === 0 && (
-                    <p className="text-xs text-muted-foreground">
-                      Nenhum membro ativo. Adicione membros à equipe do projeto.
-                    </p>
-                  )}
-                </div>
-              )}
-
-              {/* Color */}
-              <div className="space-y-2">
-                <Label>Cor da tarefa</Label>
-                <div className="flex gap-1.5 items-center">
-                  <button
-                    className={`h-6 w-6 rounded-full border-2 ${!newColor ? "border-foreground" : "border-transparent"} bg-muted`}
-                    onClick={() => setNewColor(null)}
-                    title="Sem cor"
-                  />
-                  {COLOR_PALETTE.map((c) => (
-                    <button key={c} className={`h-6 w-6 rounded-full border-2 ${newColor === c ? "border-foreground" : "border-transparent"}`} style={{ backgroundColor: c }} onClick={() => setNewColor(c)} />
-                  ))}
-                </div>
-              </div>
-
-              {/* Checklist */}
-              <div className="space-y-2">
-                <Label>Checklist</Label>
-                {newCheckItems.length > 0 && (
-                  <div className="space-y-1">
-                    {newCheckItems.map((item, i) => (
-                      <div key={i} className="flex items-center gap-2 text-sm">
-                        <CheckSquare className="h-3.5 w-3.5 text-muted-foreground" />
-                        <span className="flex-1">{item}</span>
-                        <button onClick={() => setNewCheckItems((prev) => prev.filter((_, idx) => idx !== i))} className="text-muted-foreground hover:text-destructive">
-                          <X className="h-3 w-3" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                <div className="flex gap-2">
-                  <Input
-                    placeholder="Novo item..."
-                    value={newCheckInput}
-                    onChange={(e) => setNewCheckInput(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" && newCheckInput.trim()) {
-                        e.preventDefault();
-                        setNewCheckItems((prev) => [...prev, newCheckInput.trim()]);
-                        setNewCheckInput("");
-                      }
-                    }}
-                    className="h-8 text-sm"
-                  />
-                  <Button size="sm" variant="outline" onClick={() => { if (newCheckInput.trim()) { setNewCheckItems((prev) => [...prev, newCheckInput.trim()]); setNewCheckInput(""); } }}>
-                    <Plus className="h-3 w-3" />
-                  </Button>
-                </div>
-              </div>
-
-              {/* File Upload */}
-              <div className="space-y-2">
-                <Label>Mídias e Documentos</Label>
-                {newFiles.length > 0 && (
-                  <div className="space-y-1">
-                    {newFiles.map((f, i) => (
-                      <div key={i} className="flex items-center gap-2 text-sm">
-                        <FileText className="h-3.5 w-3.5 text-muted-foreground" />
-                        <span className="flex-1 truncate">{f.name}</span>
-                        <button onClick={() => setNewFiles((prev) => prev.filter((_, idx) => idx !== i))} className="text-muted-foreground hover:text-destructive">
-                          <X className="h-3 w-3" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                <label className="flex items-center gap-2 cursor-pointer text-sm text-muted-foreground hover:text-foreground transition-colors">
-                  <Upload className="h-4 w-4" />
-                  Adicionar arquivos
-                  <input
-                    type="file"
-                    accept="image/*,video/mp4,video/webm,.pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt,.csv"
-                    multiple
-                    className="hidden"
-                    onChange={(e) => {
-                      if (e.target.files) {
-                        setNewFiles((prev) => [...prev, ...Array.from(e.target.files!)]);
-                      }
-                      e.target.value = "";
-                    }}
-                  />
-                </label>
+                {COLOR_PALETTE.map((c) => (
+                  <button key={c} className={`h-6 w-6 rounded-full border-2 ${newColor === c ? "border-foreground" : "border-transparent"}`} style={{ backgroundColor: c }} onClick={() => setNewColor(c)} />
+                ))}
               </div>
             </div>
-          </ScrollArea>
-          <SheetFooter className="px-8 py-5 border-t shrink-0">
-            <Button variant="outline" onClick={() => setNewTaskOpen(false)}>Cancelar</Button>
-            <Button onClick={createTask} disabled={!newTitle}>Criar</Button>
-          </SheetFooter>
-        </SheetContent>
-      </Sheet>
+
+            {/* Checklist */}
+            <div className="space-y-2">
+              <Label>Checklist</Label>
+              {newCheckItems.length > 0 && (
+                <div className="space-y-1">
+                  {newCheckItems.map((item, i) => (
+                    <div key={i} className="flex items-center gap-2 text-sm">
+                      <CheckSquare className="h-3.5 w-3.5 text-muted-foreground" />
+                      <span className="flex-1">{item}</span>
+                      <button onClick={() => setNewCheckItems((prev) => prev.filter((_, idx) => idx !== i))} className="text-muted-foreground hover:text-destructive">
+                        <X className="h-3 w-3" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div className="flex gap-2">
+                <Input
+                  placeholder="Novo item..."
+                  value={newCheckInput}
+                  onChange={(e) => setNewCheckInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && newCheckInput.trim()) {
+                      e.preventDefault();
+                      setNewCheckItems((prev) => [...prev, newCheckInput.trim()]);
+                      setNewCheckInput("");
+                    }
+                  }}
+                  className="h-8 text-sm"
+                />
+                <Button size="sm" variant="outline" onClick={() => { if (newCheckInput.trim()) { setNewCheckItems((prev) => [...prev, newCheckInput.trim()]); setNewCheckInput(""); } }}>
+                  <Plus className="h-3 w-3" />
+                </Button>
+              </div>
+            </div>
+
+            {/* File Upload */}
+            <div className="space-y-2">
+              <Label>Mídias e Documentos</Label>
+              {newFiles.length > 0 && (
+                <div className="space-y-1">
+                  {newFiles.map((f, i) => (
+                    <div key={i} className="flex items-center gap-2 text-sm">
+                      <FileText className="h-3.5 w-3.5 text-muted-foreground" />
+                      <span className="flex-1 truncate">{f.name}</span>
+                      <button onClick={() => setNewFiles((prev) => prev.filter((_, idx) => idx !== i))} className="text-muted-foreground hover:text-destructive">
+                        <X className="h-3 w-3" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <label className="flex items-center gap-2 cursor-pointer text-sm text-muted-foreground hover:text-foreground transition-colors">
+                <Upload className="h-4 w-4" />
+                Adicionar arquivos
+                <input
+                  type="file"
+                  accept="image/*,video/mp4,video/webm,.pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt,.csv"
+                  multiple
+                  className="hidden"
+                  onChange={(e) => {
+                    if (e.target.files) {
+                      setNewFiles((prev) => [...prev, ...Array.from(e.target.files!)]);
+                    }
+                    e.target.value = "";
+                  }}
+                />
+              </label>
+            </div>
+          </>
+        }
+      />
 
       {selectedTask && (
         <TaskDetail

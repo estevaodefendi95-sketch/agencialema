@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
@@ -39,6 +40,7 @@ interface Project {
   due_date: string | null;
   archived: boolean;
   color: string | null;
+  is_default: boolean;
 }
 
 export default function CompanyDetail() {
@@ -78,7 +80,7 @@ export default function CompanyDetail() {
 
     const { data: p } = await supabase
       .from("projects")
-      .select("id, name, description, due_date, archived, color")
+      .select("id, name, description, due_date, archived, color, is_default")
       .eq("company_id", companyId)
       .order("created_at", { ascending: false });
     const list = ((p || []) as any[]).map((d) => ({ ...d, archived: d.archived ?? false })) as Project[];
@@ -199,13 +201,17 @@ export default function CompanyDetail() {
           <DropdownMenuItem onClick={() => openEdit(p)}>
             <Pencil className="h-4 w-4 mr-2" /> Editar
           </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => archiveProject(p)}>
-            {p.archived ? <ArchiveRestore className="h-4 w-4 mr-2" /> : <Archive className="h-4 w-4 mr-2" />}
-            {p.archived ? "Desarquivar" : "Arquivar"}
-          </DropdownMenuItem>
-          <DropdownMenuItem className="text-destructive" onClick={() => setDeleteProjectId(p.id)}>
-            <Trash2 className="h-4 w-4 mr-2" /> Excluir
-          </DropdownMenuItem>
+          {!p.is_default && (
+            <DropdownMenuItem onClick={() => archiveProject(p)}>
+              {p.archived ? <ArchiveRestore className="h-4 w-4 mr-2" /> : <Archive className="h-4 w-4 mr-2" />}
+              {p.archived ? "Desarquivar" : "Arquivar"}
+            </DropdownMenuItem>
+          )}
+          {!p.is_default && (
+            <DropdownMenuItem className="text-destructive" onClick={() => setDeleteProjectId(p.id)}>
+              <Trash2 className="h-4 w-4 mr-2" /> Excluir
+            </DropdownMenuItem>
+          )}
         </DropdownMenuContent>
       </DropdownMenu>
     );
@@ -328,7 +334,10 @@ export default function CompanyDetail() {
                 <CardHeader>
                   <div className="flex items-center gap-3">
                     <div className="flex-1 min-w-0">
-                      <CardTitle className="text-base">{p.name}</CardTitle>
+                      <CardTitle className="text-base flex items-center gap-1.5">
+                        {p.name}
+                        {p.is_default && <Badge variant="outline" className="text-[10px] font-normal">Geral</Badge>}
+                      </CardTitle>
                     </div>
                     <ProjectActions p={p} />
                   </div>
