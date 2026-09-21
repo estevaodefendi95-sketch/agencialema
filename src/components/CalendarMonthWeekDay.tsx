@@ -71,9 +71,49 @@ function TaskDots<T>({ tasks, getTaskKey, getTaskColor }: { tasks: T[]; getTaskK
   );
 }
 
-/** Lista de tarefas de um dia, opcionalmente arrastável (cada item vira um Draggable dentro de um Droppable com droppableId = dia em yyyy-MM-dd). */
-function TaskList<T>({
+/**
+ * Envolve o conteúdo de uma célula de dia num Droppable único (dia inteiro
+ * é alvo do drop, não só a lista de tarefas) — isso permite destacar a
+ * célula inteira (fundo + anel) quando uma tarefa está sendo arrastada por
+ * cima, igual ao Kanban. Sem dragEnabled, renderiza exatamente como antes
+ * (div simples, sem @hello-pangea/dnd).
+ */
+function DroppableDayCell({
   day,
+  dragEnabled,
+  className,
+  onClick,
+  children,
+}: {
+  day: Date;
+  dragEnabled?: boolean;
+  className?: string;
+  onClick?: () => void;
+  children: ReactNode;
+}) {
+  if (!dragEnabled) {
+    return <div onClick={onClick} className={className}>{children}</div>;
+  }
+  const droppableId = format(day, "yyyy-MM-dd");
+  return (
+    <Droppable droppableId={droppableId} type="CALENDAR_TASK">
+      {(provided, snapshot) => (
+        <div
+          ref={provided.innerRef}
+          {...provided.droppableProps}
+          onClick={onClick}
+          className={cn(className, snapshot.isDraggingOver && "bg-primary/10 ring-2 ring-inset ring-primary")}
+        >
+          {children}
+          {provided.placeholder}
+        </div>
+      )}
+    </Droppable>
+  );
+}
+
+/** Lista de tarefas de um dia, opcionalmente arrastável — precisa de um DroppableDayCell como ancestral quando dragEnabled. */
+function TaskList<T>({
   tasks,
   ItemComponent,
   getTaskKey,
@@ -81,7 +121,6 @@ function TaskList<T>({
   canDragTask,
   emptyState,
 }: {
-  day: Date;
   tasks: T[];
   ItemComponent: ComponentType<{ task: T }>;
   getTaskKey: (task: T) => string;
@@ -100,30 +139,30 @@ function TaskList<T>({
     );
   }
 
-  const droppableId = format(day, "yyyy-MM-dd");
   return (
-    <Droppable droppableId={droppableId} type="CALENDAR_TASK">
-      {(provided) => (
-        <div ref={provided.innerRef} {...provided.droppableProps} className="contents">
-          {tasks.map((t, idx) => (
-            <Draggable key={getTaskKey(t)} draggableId={getTaskKey(t)} index={idx} isDragDisabled={canDragTask ? !canDragTask(t) : false}>
-              {(dragProvided, snapshot) => (
-                <div
-                  ref={dragProvided.innerRef}
-                  {...dragProvided.draggableProps}
-                  {...dragProvided.dragHandleProps}
-                  className={cn(snapshot.isDragging && "opacity-80")}
-                >
-                  <ItemComponent task={t} />
-                </div>
-              )}
-            </Draggable>
-          ))}
-          {provided.placeholder}
-          {tasks.length === 0 && emptyState}
-        </div>
-      )}
-    </Droppable>
+    <>
+      {tasks.map((t, idx) => (
+        <Draggable key={getTaskKey(t)} draggableId={getTaskKey(t)} index={idx} isDragDisabled={canDragTask ? !canDragTask(t) : false}>
+          {(dragProvided, snapshot) => (
+            <div
+              ref={dragProvided.innerRef}
+              {...dragProvided.draggableProps}
+              {...dragProvided.dragHandleProps}
+              className={cn("transition-shadow", snapshot.isDragging && "shadow-lg")}
+              style={{
+                ...dragProvided.draggableProps.style,
+                transform: snapshot.isDragging
+                  ? `${dragProvided.draggableProps.style?.transform || ""} rotate(2deg)`
+                  : dragProvided.draggableProps.style?.transform,
+              }}
+            >
+              <ItemComponent task={t} />
+            </div>
+          )}
+        </Draggable>
+      ))}
+      {tasks.length === 0 && emptyState}
+    </>
   );
 }
 
@@ -147,9 +186,8 @@ function MobileDayList<T>({
       <p className="text-xs font-medium text-muted-foreground px-1">
         {format(day, "EEEE, d 'de' MMMM", { locale: ptBR })}
       </p>
-      <div className="space-y-2">
+      <DroppableDayCell day={day} dragEnabled={dragEnabled} className="space-y-2">
         <TaskList
-          day={day}
           tasks={tasks}
           ItemComponent={ItemComponent}
           getTaskKey={getTaskKey}
@@ -157,7 +195,7 @@ function MobileDayList<T>({
           canDragTask={canDragTask}
           emptyState={<p className="text-xs text-muted-foreground text-center py-4">Nenhuma tarefa neste dia</p>}
         />
-      </div>
+      </DroppableDayCell>
     </div>
   );
 }
@@ -223,8 +261,10 @@ export function CalendarMonthGrid<T>({
           const visible = dayTasks.slice(0, maxVisible);
           const overflow = dayTasks.length - visible.length;
           return (
-            <div
+            <DroppableDayCell
               key={day.toISOString()}
+              day={day}
+              dragEnabled={dragEnabled}
               onClick={() => onDayClick(day)}
               className={cn(
                 "group min-h-[110px] border-r border-b last:border-r-0 p-1.5 flex flex-col gap-1 cursor-pointer hover:bg-accent/30 transition-colors",
@@ -247,7 +287,6 @@ export function CalendarMonthGrid<T>({
               </div>
               <div className="flex flex-col gap-0.5">
                 <TaskList
-                  day={day}
                   tasks={visible}
                   ItemComponent={ItemComponent}
                   getTaskKey={getTaskKey}
@@ -262,7 +301,7 @@ export function CalendarMonthGrid<T>({
                   )
                 )}
               </div>
-            </div>
+            </DroppableDayCell>
           );
         })}
       </div>
@@ -352,12 +391,13 @@ export function CalendarWeekGrid<T>({
                   </button>
                 )}
               </div>
-              <div
-                className="p-1.5 flex flex-col gap-1 flex-1 overflow-y-auto"
+              <DroppableDayCell
+                day={day}
+                dragEnabled={dragEnabled}
                 onClick={() => onDayClick(day)}
+                className="p-1.5 flex flex-col gap-1 flex-1 overflow-y-auto"
               >
                 <TaskList
-                  day={day}
                   tasks={dayTasks}
                   ItemComponent={ItemComponent}
                   getTaskKey={getTaskKey}
@@ -370,7 +410,7 @@ export function CalendarWeekGrid<T>({
                     {renderDayFooterAction(day)}
                   </div>
                 )}
-              </div>
+              </DroppableDayCell>
             </div>
           );
         })}

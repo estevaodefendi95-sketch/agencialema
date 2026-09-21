@@ -1,18 +1,6 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
-import {
-  format,
-  isSameDay,
-  startOfWeek,
-  endOfWeek,
-  addMonths,
-  subMonths,
-  addWeeks,
-  subWeeks,
-  addDays,
-  parseISO,
-} from "date-fns";
-import { ptBR } from "date-fns/locale";
+import { format, parseISO } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -22,13 +10,12 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useToast } from "@/hooks/use-toast";
 import { DragDropContext, Droppable, Draggable, type DropResult } from "@hello-pangea/dnd";
-import { Plus, GripVertical, Calendar, CalendarDays, ThumbsUp, RotateCcw, ImageIcon, Play, LayoutGrid, List, ArrowUpDown, Pencil, Check, X, Trash2, Palette, History, Undo2, Users, User, FileText, CheckSquare, Upload, Printer, MessageSquare, Eye, EyeOff, Clock, ChevronLeft, ChevronRight, ClipboardList, CornerDownRight, FolderKanban } from "lucide-react";
-import { CalendarColorToggle } from "@/components/CalendarColorToggle";
+import { Plus, GripVertical, Calendar, CalendarDays, ThumbsUp, RotateCcw, ImageIcon, Play, LayoutGrid, List, ArrowUpDown, Pencil, Check, X, Trash2, Palette, History, Undo2, Users, User, FileText, CheckSquare, Upload, Printer, MessageSquare, Eye, EyeOff, Clock, ClipboardList, CornerDownRight, FolderKanban } from "lucide-react";
 import { useCalendarColorMode } from "@/hooks/useCalendarColorMode";
+import { TaskAssigneeChip } from "@/components/TaskAssigneeChip";
 import { getEntityColor, TEAM_COLOR_PALETTE } from "@/lib/colorPalette";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter, SheetTrigger } from "@/components/ui/sheet";
@@ -48,7 +35,8 @@ import { useScrollSnapIndex } from "@/hooks/useScrollSnapIndex";
 import { AssigneeAvatar } from "@/components/AssigneeAvatar";
 import { TaskCardMini } from "@/components/TaskCardMini";
 import { NewTaskDialog } from "@/components/NewTaskDialog";
-import { CalendarMonthGrid, CalendarWeekGrid, CalendarDayList } from "@/components/CalendarMonthWeekDay";
+import { TaskCalendarView } from "@/components/TaskCalendarView";
+import { ToastAction } from "@/components/ui/toast";
 
 const COLOR_PALETTE = [
   "#94a3b8", "#3B82F6", "#22c55e", "#eab308",
@@ -69,6 +57,10 @@ interface Task {
   project_id: string;
   color: string | null;
   parent_task_id: string | null;
+  // Não vêm no select("*") tipado acima, mas existem na linha (usadas só
+  // pra ordenar dentro do dia no calendário — sem drag-and-drop aqui).
+  day_order?: number | null;
+  created_at?: string;
 }
 
 interface Column {
@@ -139,6 +131,19 @@ const PRIORITY_LABEL: Record<string, string> = {
   urgente: "Urgente",
 };
 
+// Ordem das tarefas dentro de um dia no calendário: day_order (drag-and-drop)
+// primeiro, depois horário, depois criação.
+function compareDayOrder(a: Task, b: Task): number {
+  if (a.day_order != null && b.day_order != null && a.day_order !== b.day_order) return a.day_order - b.day_order;
+  if (a.day_order != null && b.day_order == null) return -1;
+  if (a.day_order == null && b.day_order != null) return 1;
+  if (a.due_time && b.due_time && a.due_time !== b.due_time) return a.due_time.localeCompare(b.due_time);
+  if (a.due_time && !b.due_time) return -1;
+  if (!a.due_time && b.due_time) return 1;
+  if (a.created_at && b.created_at) return a.created_at.localeCompare(b.created_at);
+  return 0;
+}
+
 export default function KanbanBoard() {
   const { id: projectId } = useParams<{ id: string }>();
   const [searchParams] = useSearchParams();
@@ -193,8 +198,6 @@ export default function KanbanBoard() {
     if (!projectId) return "kanban";
     return (localStorage.getItem(`view-mode-${projectId}`) as any) || "kanban";
   });
-  const [calCursor, setCalCursor] = useState(new Date());
-  const [calViewMode, setCalViewMode] = useState<"mes" | "semana" | "dia">("mes");
   const { colorMode, setColorMode, getTaskColor: getTaskColorForMode } = useCalendarColorMode();
   const [sortPrazo, setSortPrazo] = useState<"asc" | "desc">(() =>
     (localStorage.getItem(`sort-prazo-${projectId}`) as "asc" | "desc") || "asc"
@@ -507,9 +510,6 @@ export default function KanbanBoard() {
     return t.assigned_to === assigneeFilter;
   };
 
-  const getCalDayTasks = (day: Date) =>
-    tasks.filter((t) => t.due_date && matchesAssignee(t) && isSameDay(parseISO(t.due_date), day));
-
   const openNewTaskForDay = (day: Date) => {
     setNewTaskDate(day);
     setNewTaskOpen(true);
@@ -526,64 +526,125 @@ export default function KanbanBoard() {
     });
   };
 
-  const getAssigneeInfo = (t: Task) => {
-    const profile = t.assigned_to ? assigneeProfiles[t.assigned_to] : null;
-    return {
-      avatarUrl: profile?.avatar_url ?? null,
-      name: profile?.nickname?.trim() || profile?.full_name || t.assignee_name || null,
-    };
-  };
+  // Tarefas com prazo que passam no filtro de responsável, já com o perfil
+  // do responsável embutido (a pílula/card do calendário lê task.assignee).
+  const calendarTasks = useMemo(() => {
+    return tasks
+      .filter((t): t is Task & { due_date: string } => !!t.due_date && matchesAssignee(t))
+      .map((t) => ({ ...t, assignee: t.assigned_to ? assigneeProfiles[t.assigned_to] ?? null : null }));
+  }, [tasks, assigneeFilter, assigneeProfiles]);
 
-  const CalTaskPill = ({ task }: { task: Task }) => {
-    const color = getTaskColor(task);
-    const assignee = getAssigneeInfo(task);
-    return (
-      <button
-        onClick={() => setSelectedTask(task.id)}
-        className="w-full text-left px-1.5 py-0.5 rounded text-xs flex items-center gap-1 border-l-4 truncate"
-        style={{ borderLeftColor: color, backgroundColor: `${color}15` }}
-        title={task.title}
-      >
-        {colorMode === "responsavel" && (task.assigned_to || task.assignee_name) && (
-          <AssigneeAvatar url={assignee.avatarUrl} name={assignee.name} className="h-4 w-4 shrink-0" />
-        )}
-        {task.parent_task_id && (
-          <span title="Subtarefa"><CornerDownRight className="h-3 w-3 shrink-0" /></span>
-        )}
-        <span className="line-clamp-2 min-w-0 flex-1 leading-snug break-words">{task.title}</span>
-      </button>
-    );
-  };
+  const renderCalendarTaskMeta = (task: (typeof calendarTasks)[number]) =>
+    colorMode === "responsavel" && (task.assigned_to || task.assignee_name) ? (
+      <TaskAssigneeChip assignee={task.assignee} assigneeName={task.assignee_name} className="ml-auto" />
+    ) : null;
 
-  const CalTaskDayCard = ({ task }: { task: Task }) => {
-    const color = getTaskColor(task);
-    const assignee = getAssigneeInfo(task);
-    return (
-      <button
-        onClick={() => setSelectedTask(task.id)}
-        className="w-full text-left p-3 rounded-lg border border-l-4 transition-colors hover:bg-accent/30"
-        style={{ borderLeftColor: color, backgroundColor: `${color}15` }}
-      >
-        <div className="flex items-start justify-between gap-2 mb-1">
-          <div className="flex items-start gap-2 min-w-0">
-            {colorMode === "responsavel" && (task.assigned_to || task.assignee_name) && (
-              <AssigneeAvatar url={assignee.avatarUrl} name={assignee.name} className="h-5 w-5 shrink-0 mt-0.5" />
-            )}
-            {task.parent_task_id && (
-              <span title="Subtarefa" className="mt-0.5"><CornerDownRight className="h-3 w-3 text-muted-foreground shrink-0" /></span>
-            )}
-            <h3 className="font-medium text-sm line-clamp-2 leading-snug break-words min-w-0 flex-1">{task.title}</h3>
-          </div>
-          <Badge className={`text-[10px] shrink-0 ${PRIORITY_COLORS[task.priority] || ""}`} variant="secondary">
-            {PRIORITY_LABEL[task.priority] || task.priority}
-          </Badge>
-        </div>
-        {task.due_time && (
-          <p className="text-xs text-muted-foreground ml-0">{formatDueTime(task.due_time)}</p>
-        )}
-      </button>
+  // Tarefas de projeto: só quem pode editar arrasta (não há tarefa pessoal
+  // aqui, o board é sempre de um projeto).
+  const canDragCalendarTask = (_t: Task) => canEdit;
+
+  const calendarTasksByDay = useMemo(() => {
+    const map = new Map<string, Task[]>();
+    tasks.forEach((t) => {
+      if (!t.due_date || !matchesAssignee(t)) return;
+      if (!map.has(t.due_date)) map.set(t.due_date, []);
+      map.get(t.due_date)!.push(t);
+    });
+    map.forEach((list) => list.sort(compareDayOrder));
+    return map;
+  }, [tasks, assigneeFilter]);
+
+  // Reverte uma jogada de arrastar (usado pelo "Desfazer" do toast e por
+  // erro de gravação).
+  async function revertCalendarMove(updatedIds: string[], previous: Task[]) {
+    setTasks(previous);
+    for (const id of updatedIds) {
+      const prevTask = previous.find((t) => t.id === id);
+      if (!prevTask) continue;
+      await supabase.from("tasks").update({ day_order: prevTask.day_order, due_date: prevTask.due_date } as any).eq("id", id);
+    }
+  }
+
+  // Drag-and-drop do calendário do projeto: no mesmo dia, só reordena
+  // (day_order); em outro dia, muda due_date preservando due_time e zerando
+  // reminder_sent_at. Otimista, com reversão + toast se der erro; se der
+  // certo e mudar de dia, toast "Movida para dd/MM" com Desfazer + registro
+  // em task_history.
+  async function onCalendarDragEnd(result: DropResult) {
+    const { source, destination, draggableId } = result;
+    if (!destination) return;
+    if (source.droppableId === destination.droppableId && source.index === destination.index) return;
+
+    const dragged = tasks.find((t) => t.id === draggableId);
+    if (!dragged) return;
+
+    const sourceDay = source.droppableId;
+    const destDay = destination.droppableId;
+    const sameDay = sourceDay === destDay;
+
+    const destList = (calendarTasksByDay.get(destDay) || []).filter((t) => t.id !== draggableId);
+    destList.splice(destination.index, 0, dragged);
+
+    const updates = destList.map((t, idx) => ({
+      id: t.id,
+      day_order: idx,
+      ...(t.id === draggableId && !sameDay ? { due_date: destDay, reminder_sent_at: null as string | null } : {}),
+    }));
+
+    const previous = tasks;
+    setTasks((prev) =>
+      prev.map((t) => {
+        const u = updates.find((x) => x.id === t.id);
+        if (!u) return t;
+        return { ...t, day_order: u.day_order, ...(u.due_date ? { due_date: u.due_date, reminder_sent_at: null } : {}) };
+      }),
     );
-  };
+
+    try {
+      for (const u of updates) {
+        const { id, ...payload } = u;
+        const { error } = await supabase.from("tasks").update(payload as any).eq("id", id);
+        if (error) throw error;
+      }
+    } catch (err: any) {
+      setTasks(previous);
+      toast({ title: "Não foi possível mover a tarefa", description: err.message, variant: "destructive" });
+      return;
+    }
+
+    if (!sameDay) {
+      const updatedIds = updates.map((u) => u.id);
+      await supabase.from("task_history").insert({
+        task_id: draggableId,
+        user_id: user?.id,
+        action: "Editou tarefa",
+        details: { changes: ["Prazo atualizado"] },
+      });
+      toast({
+        title: `Movida para ${format(new Date(`${destDay}T00:00:00`), "dd/MM")}`,
+        action: (
+          <ToastAction altText="Desfazer" onClick={() => revertCalendarMove(updatedIds, previous)}>
+            Desfazer
+          </ToastAction>
+        ),
+      });
+    }
+  }
+
+  // Não há endpoint de "concluído" fixo por projeto (colunas são
+  // personalizáveis), mas segue o mesmo padrão do Calendário/Minhas Tarefas:
+  // alterna entre "concluido" e "a_fazer".
+  async function toggleTaskDone(task: Task, e?: React.MouseEvent) {
+    e?.stopPropagation();
+    const nextStatus = task.status === "concluido" ? "a_fazer" : "concluido";
+    const previous = tasks;
+    setTasks((prev) => prev.map((t) => (t.id === task.id ? { ...t, status: nextStatus } : t)));
+    const { error } = await supabase.from("tasks").update({ status: nextStatus }).eq("id", task.id);
+    if (error) {
+      setTasks(previous);
+      toast({ title: "Não foi possível atualizar a tarefa", description: error.message, variant: "destructive" });
+    }
+  }
 
   // Memoizado por tasks/assigneeFilter — evita refiltrar+reordenar as tarefas
   // de TODAS as colunas a cada render (ex: durante o drag de reordenar
@@ -893,9 +954,6 @@ export default function KanbanBoard() {
               <ArrowUpDown className="h-3.5 w-3.5" />
               Prazo {sortPrazo === "asc" ? "↑" : "↓"}
             </Button>
-          )}
-          {viewMode === "calendario" && (
-            <CalendarColorToggle colorMode={colorMode} onChange={setColorMode} />
           )}
           <Select value={assigneeFilter} onValueChange={setAssigneeFilter}>
             <SelectTrigger className="h-8 w-full sm:w-[150px] text-xs gap-1.5">
@@ -1251,105 +1309,20 @@ export default function KanbanBoard() {
           </div>
         </DragDropContext>
       ) : viewMode === "calendario" ? (
-        <div className="space-y-3">
-          <div className="flex flex-col sm:flex-row sm:items-center gap-3 justify-between">
-            <ToggleGroup
-              type="single"
-              value={calViewMode}
-              onValueChange={(v) => v && setCalViewMode(v as typeof calViewMode)}
-              className="border rounded-md p-0.5 bg-muted/40"
-            >
-              <ToggleGroupItem value="mes" className="h-8 px-3 text-xs data-[state=on]:bg-background">Mês</ToggleGroupItem>
-              <ToggleGroupItem value="semana" className="h-8 px-3 text-xs data-[state=on]:bg-background">Semana</ToggleGroupItem>
-              <ToggleGroupItem value="dia" className="h-8 px-3 text-xs data-[state=on]:bg-background">Dia</ToggleGroupItem>
-            </ToggleGroup>
-
-            <div className="flex items-center justify-center gap-2 w-full">
-              <Button
-                variant="outline"
-                size="icon"
-                className="h-8 w-8"
-                onClick={() => setCalCursor((c) =>
-                  calViewMode === "mes" ? subMonths(c, 1) : calViewMode === "semana" ? subWeeks(c, 1) : addDays(c, -1),
-                )}
-              >
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
-              <span className="text-sm font-medium flex-1 min-w-0 truncate text-center lowercase">
-                {calViewMode === "mes"
-                  ? format(calCursor, "MMMM 'de' yyyy", { locale: ptBR })
-                  : calViewMode === "semana"
-                    ? `${format(startOfWeek(calCursor, { weekStartsOn: 0 }), "d 'de' MMM", { locale: ptBR })} – ${format(endOfWeek(calCursor, { weekStartsOn: 0 }), "d 'de' MMM", { locale: ptBR })}`
-                    : format(calCursor, "EEEE, d 'de' MMMM", { locale: ptBR })}
-              </span>
-              <Button
-                variant="outline"
-                size="icon"
-                className="h-8 w-8"
-                onClick={() => setCalCursor((c) =>
-                  calViewMode === "mes" ? addMonths(c, 1) : calViewMode === "semana" ? addWeeks(c, 1) : addDays(c, 1),
-                )}
-              >
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-              <Button variant="outline" size="sm" className="h-8" onClick={() => setCalCursor(new Date())}>Hoje</Button>
-            </div>
-          </div>
-
-          {calViewMode === "mes" && (
-            <CalendarMonthGrid
-              cursor={calCursor}
-              getDayTasks={getCalDayTasks}
-              ItemComponent={CalTaskPill}
-              getTaskKey={(t) => t.id}
-              onDayClick={(d) => { setCalCursor(d); setCalViewMode("dia"); }}
-            />
-          )}
-          {calViewMode === "semana" && (
-            <CalendarWeekGrid
-              cursor={calCursor}
-              getDayTasks={getCalDayTasks}
-              ItemComponent={CalTaskPill}
-              getTaskKey={(t) => t.id}
-              onDayClick={(d) => { setCalCursor(d); setCalViewMode("dia"); }}
-              renderDayFooterAction={canEdit ? (d) => (
-                <button
-                  onClick={(e) => { e.stopPropagation(); openNewTaskForDay(d); }}
-                  className="opacity-0 group-hover:opacity-100 h-6 w-6 inline-flex items-center justify-center rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-opacity"
-                  title="Nova tarefa"
-                >
-                  <Plus className="h-3.5 w-3.5" />
-                </button>
-              ) : undefined}
-            />
-          )}
-          {calViewMode === "dia" && (
-            <Card>
-              <CardContent className="group p-4">
-                {getCalDayTasks(calCursor).length === 0 ? (
-                  <p className="text-center py-12 text-muted-foreground">Nenhuma tarefa neste dia</p>
-                ) : (
-                  <CalendarDayList
-                    tasks={getCalDayTasks(calCursor)}
-                    ItemComponent={CalTaskDayCard}
-                    getTaskKey={(t) => t.id}
-                  />
-                )}
-                {canEdit && (
-                  <div className="flex justify-center mt-1">
-                    <button
-                      onClick={() => openNewTaskForDay(calCursor)}
-                      className="opacity-0 group-hover:opacity-100 h-6 w-6 inline-flex items-center justify-center rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-opacity"
-                      title="Nova tarefa"
-                    >
-                      <Plus className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          )}
-        </div>
+        <TaskCalendarView
+          tasks={calendarTasks}
+          colorMode={colorMode}
+          onColorModeChange={setColorMode}
+          getTaskColor={getTaskColor}
+          onOpenTask={(t) => setSelectedTask(t.id)}
+          onCreate={openNewTaskForDay}
+          onToggleComplete={toggleTaskDone}
+          onMoveTask={onCalendarDragEnd}
+          canEdit={canEdit}
+          canDragTask={canDragCalendarTask}
+          renderTaskMeta={renderCalendarTaskMeta}
+          storageKey="kanban-cal-view-mode"
+        />
       ) : (
         <DragDropContext onDragEnd={onColumnDragEnd}>
           <Droppable

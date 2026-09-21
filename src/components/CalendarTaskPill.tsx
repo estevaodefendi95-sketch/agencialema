@@ -7,12 +7,12 @@ export type CalendarTaskLike = {
   id: string;
   title: string;
   due_time?: string | null;
-  priority: "baixa" | "media" | "alta" | "urgente";
+  priority: string;
   assigned_to?: string | null;
   assignee_name?: string | null;
   status: string;
   parent_task_id?: string | null;
-  projects?: { companies?: { logo_url?: string | null } | null } | null;
+  projects?: { companies?: ({ logo_url?: string | null } & Record<string, unknown>) | null } | null;
   assignee?: { full_name?: string | null; nickname?: string | null; avatar_url?: string | null } | null;
 };
 

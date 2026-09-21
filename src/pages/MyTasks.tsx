@@ -9,31 +9,26 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { Calendar } from "@/components/ui/calendar";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
 import { DragDropContext, Droppable, Draggable, type DropResult } from "@hello-pangea/dnd";
-import { LayoutGrid, List, CalendarDays, FolderKanban, ChevronLeft, ChevronRight, Filter, CheckSquare, User, Plus, GripVertical, Clock, CornerDownRight, Check } from "lucide-react";
+import { LayoutGrid, List, CalendarDays, FolderKanban, Filter, CheckSquare, User, Plus, GripVertical, CornerDownRight } from "lucide-react";
 import { formatDueTime } from "@/lib/taskReminders";
 import { AssigneeAvatar } from "@/components/AssigneeAvatar";
 import TaskDetail from "@/components/TaskDetail";
-import { CalendarTaskPill } from "@/components/CalendarTaskPill";
 import { TaskAssigneeChip } from "@/components/TaskAssigneeChip";
 import { NewTaskDialog } from "@/components/NewTaskDialog";
 import { TaskCardMini } from "@/components/TaskCardMini";
 import { ColorSwatchPicker } from "@/components/ColorSwatchPicker";
-import { CalendarColorToggle } from "@/components/CalendarColorToggle";
-import { CalendarMonthGrid, CalendarWeekGrid } from "@/components/CalendarMonthWeekDay";
+import { TaskCalendarView } from "@/components/TaskCalendarView";
+import { ToastAction } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
 import { getEntityColor, PROJECT_COLOR_PALETTE } from "@/lib/colorPalette";
 import { useCalendarColorMode } from "@/hooks/useCalendarColorMode";
 import { useScrollSnapIndex } from "@/hooks/useScrollSnapIndex";
 import {
   format, isSameDay,
-  startOfWeek, endOfWeek, addMonths, addWeeks, addDays,
-  subMonths, subWeeks, isAfter, isBefore, parseISO,
+  addDays, isAfter, isBefore, parseISO,
 } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
@@ -110,7 +105,6 @@ function compareDayOrder(a: Task, b: Task): number {
 }
 
 type ViewMode = "cards" | "lista" | "calendario";
-type CalMode = "mes" | "semana" | "dia";
 
 export default function MyTasks() {
   const { user, isAdmin, canEdit, avatarUrl } = useAuth();
@@ -118,8 +112,6 @@ export default function MyTasks() {
   const { toast } = useToast();
 
   const [view, setView] = useState<ViewMode>(() => (localStorage.getItem("mytasks-view") as ViewMode) || "cards");
-  const [calMode, setCalMode] = useState<CalMode>(() => (localStorage.getItem("mytasks-cal") as CalMode) || "mes");
-  const [cursor, setCursor] = useState<Date>(new Date());
   const { colorMode, setColorMode, getTaskColor: getTaskColorForMode } = useCalendarColorMode();
 
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -143,11 +135,6 @@ export default function MyTasks() {
     if (!v) return;
     setView(v);
     localStorage.setItem("mytasks-view", v);
-  };
-  const changeCalMode = (m: CalMode) => {
-    if (!m) return;
-    setCalMode(m);
-    localStorage.setItem("mytasks-cal", m);
   };
 
   useEffect(() => {
@@ -417,13 +404,38 @@ export default function MyTasks() {
     map.forEach((list) => list.sort(compareDayOrder));
     return map;
   }, [filteredTasks]);
-  const getDayTasks = (d: Date) => tasksByDay.get(format(d, "yyyy-MM-dd")) || [];
+  // Tarefas com prazo, únicas que aparecem no calendário — tipadas com
+  // due_date obrigatório pro TaskCalendarView.
+  const calendarTasks = useMemo(
+    () => filteredTasks.filter((t): t is Task & { due_date: string } => !!t.due_date),
+    [filteredTasks],
+  );
 
-  const canDragCalendarTask = (t: Task) => t.assigned_to === user?.id;
+  // Tarefa de projeto: só quem pode editar (independente de pra quem está
+  // atribuída — antes restringia a "atribuída a mim", o que impedia
+  // admin/editor de reorganizar a agenda de outra pessoa). Tarefa pessoal:
+  // só o próprio autor.
+  const canDragCalendarTask = (t: Task) => {
+    if (!t.project_id) return t.created_by === user?.id;
+    return canEdit;
+  };
+
+  // Reverte uma jogada de arrastar (usado pelo "Desfazer" do toast e por
+  // erro de gravação).
+  async function revertCalendarMove(updatedIds: string[], previous: Task[]) {
+    setTasks(previous);
+    for (const id of updatedIds) {
+      const prevTask = previous.find((t) => t.id === id);
+      if (!prevTask) continue;
+      await supabase.from("tasks").update({ day_order: prevTask.day_order, due_date: prevTask.due_date } as any).eq("id", id);
+    }
+  }
 
   // Drag-and-drop do calendário: no mesmo dia, só reordena (day_order); em
   // outro dia, muda due_date preservando due_time e zerando
-  // reminder_sent_at. Otimista, com reversão + toast se der erro.
+  // reminder_sent_at. Otimista, com reversão + toast se der erro; se der
+  // certo e mudar de dia, toast "Movida para dd/MM" com Desfazer + registro
+  // em task_history.
   async function onCalendarDragEnd(result: DropResult) {
     const { source, destination, draggableId } = result;
     if (!destination) return;
@@ -463,29 +475,27 @@ export default function MyTasks() {
     } catch (err: any) {
       setTasks(previous);
       toast({ title: "Não foi possível mover a tarefa", description: err.message, variant: "destructive" });
+      return;
+    }
+
+    if (!sameDay) {
+      const updatedIds = updates.map((u) => u.id);
+      await supabase.from("task_history").insert({
+        task_id: draggableId,
+        user_id: user?.id,
+        action: "Editou tarefa",
+        details: { changes: ["Prazo atualizado"] },
+      });
+      toast({
+        title: `Movida para ${format(new Date(`${destDay}T00:00:00`), "dd/MM")}`,
+        action: (
+          <ToastAction altText="Desfazer" onClick={() => revertCalendarMove(updatedIds, previous)}>
+            Desfazer
+          </ToastAction>
+        ),
+      });
     }
   }
-
-  const periodLabel = useMemo(() => {
-    if (calMode === "mes") return format(cursor, "MMMM 'de' yyyy", { locale: ptBR });
-    if (calMode === "semana") {
-      const ws = startOfWeek(cursor, { weekStartsOn: 0 });
-      const we = endOfWeek(cursor, { weekStartsOn: 0 });
-      return `${format(ws, "d MMM", { locale: ptBR })} – ${format(we, "d MMM yyyy", { locale: ptBR })}`;
-    }
-    return format(cursor, "EEEE, d 'de' MMMM yyyy", { locale: ptBR });
-  }, [cursor, calMode]);
-
-  const navPrev = () => {
-    if (calMode === "mes") setCursor((c) => subMonths(c, 1));
-    else if (calMode === "semana") setCursor((c) => subWeeks(c, 1));
-    else setCursor((c) => addDays(c, -1));
-  };
-  const navNext = () => {
-    if (calMode === "mes") setCursor((c) => addMonths(c, 1));
-    else if (calMode === "semana") setCursor((c) => addWeeks(c, 1));
-    else setCursor((c) => addDays(c, 1));
-  };
 
   // Tarefas em Minhas Tarefas são todas do mesmo responsável (selectedUser),
   // então "Por Responsável" acaba dando a mesma cor pra tudo — ainda assim
@@ -498,15 +508,17 @@ export default function MyTasks() {
       assignedTo: task.assigned_to,
     });
 
-  const TaskMini = ({ task }: { task: Task }) => (
-    <CalendarTaskPill
-      task={task as any}
-      color={getTaskColor(task)}
-      colorMode={colorMode}
-      priorityColor={PRIORITY_COLOR}
-      onOpen={(t) => setSelectedTaskId(t.id)}
-      onToggleDone={toggleTaskDone}
-    />
+  const renderCalendarTaskMeta = (task: Task) => (
+    <>
+      {task.project_id ? (
+        task.projects?.name && <p className="text-xs text-muted-foreground">{task.projects.name}</p>
+      ) : (
+        <Badge variant="outline" className="text-[10px]">Pessoal</Badge>
+      )}
+      {colorMode === "responsavel" && task.assignee && (
+        <TaskAssigneeChip assignee={task.assignee} className="ml-auto" />
+      )}
+    </>
   );
 
   const selectedMember = members.find((m) => m.id === selectedUser);
@@ -810,138 +822,21 @@ export default function MyTasks() {
 
           {/* === CALENDÁRIO === */}
           {view === "calendario" && (
-            <div className="space-y-3">
-              <div className="flex flex-wrap items-center justify-between gap-3 p-3 border rounded-lg bg-card">
-                <ToggleGroup type="single" value={calMode} onValueChange={(v) => changeCalMode(v as CalMode)} variant="outline" size="sm">
-                  <ToggleGroupItem value="mes">Mês</ToggleGroupItem>
-                  <ToggleGroupItem value="semana">Semana</ToggleGroupItem>
-                  <ToggleGroupItem value="dia">Dia</ToggleGroupItem>
-                </ToggleGroup>
-                <CalendarColorToggle colorMode={colorMode} onChange={setColorMode} />
-                <div className="flex flex-wrap items-center gap-2 w-full">
-                  <Button variant="outline" size="icon" className="h-8 w-8" onClick={navPrev}><ChevronLeft className="h-4 w-4" /></Button>
-                  <span className="text-sm font-medium flex-1 min-w-0 text-center lowercase">{periodLabel}</span>
-                  <Button variant="outline" size="icon" className="h-8 w-8" onClick={navNext}><ChevronRight className="h-4 w-4" /></Button>
-                  <Button variant="outline" size="sm" className="w-full md:w-auto" onClick={() => setCursor(new Date())}>Hoje</Button>
-                  {canEdit && <div className="hidden md:inline-flex"><NewTaskMenu direct /></div>}
-                </div>
-              </div>
-
-              <DragDropContext onDragEnd={onCalendarDragEnd}>
-              {calMode === "mes" && (
-                <CalendarMonthGrid
-                  cursor={cursor}
-                  getDayTasks={getDayTasks}
-                  ItemComponent={TaskMini}
-                  getTaskKey={(t) => t.id}
-                  onDayClick={(d) => openNewTaskDialog(d)}
-                  onAddDay={canEdit ? (d: Date) => openNewTaskDialog(d) : undefined}
-                  getTaskColor={getTaskColor}
-                  dragEnabled={canEdit}
-                  canDragTask={canDragCalendarTask}
-                />
-              )}
-              {calMode === "semana" && (
-                <CalendarWeekGrid
-                  cursor={cursor}
-                  getDayTasks={getDayTasks}
-                  ItemComponent={TaskMini}
-                  getTaskKey={(t) => t.id}
-                  onDayClick={(d) => openNewTaskDialog(d)}
-                  onAddDay={canEdit ? (d: Date) => openNewTaskDialog(d) : undefined}
-                  getTaskColor={getTaskColor}
-                  dragEnabled={canEdit}
-                  canDragTask={canDragCalendarTask}
-                  renderDayFooterAction={canEdit ? (d) => <NewTaskMenu prefillDate={d} iconOnly direct /> : undefined}
-                />
-              )}
-              {calMode === "dia" && (
-                <Card>
-                  <CardHeader className="flex flex-row items-center justify-between space-y-0">
-                    <CardTitle className="text-base lowercase">{format(cursor, "EEEE, d 'de' MMMM", { locale: ptBR })}</CardTitle>
-                    {canEdit && <NewTaskMenu prefillDate={cursor} direct />}
-                  </CardHeader>
-                  <CardContent className="group" onClick={() => canEdit && openNewTaskDialog(cursor)}>
-                    {getDayTasks(cursor).length === 0 ? (
-                      <p className="text-center py-12 text-muted-foreground">Nenhuma tarefa neste dia</p>
-                    ) : (
-                      <Droppable droppableId={format(cursor, "yyyy-MM-dd")} type="CALENDAR_TASK">
-                        {(dropProvided) => (
-                      <div ref={dropProvided.innerRef} {...dropProvided.droppableProps} className="space-y-2">
-                        {getDayTasks(cursor).map((t, idx) => {
-                          const color = getTaskColor(t);
-                          const done = t.status === "concluido";
-                          return (
-                          <Draggable key={t.id} draggableId={t.id} index={idx} isDragDisabled={!canEdit || !canDragCalendarTask(t)}>
-                            {(dragProvided, snapshot) => (
-                          <button
-                            ref={dragProvided.innerRef}
-                            {...dragProvided.draggableProps}
-                            {...dragProvided.dragHandleProps}
-                            onClick={(e) => { e.stopPropagation(); setSelectedTaskId(t.id); }}
-                            className={cn("w-full text-left p-3 rounded-lg border border-l-4 transition-colors", snapshot.isDragging && "opacity-80")}
-                            style={{ borderLeftColor: color, backgroundColor: `${color}15` }}
-                          >
-                            <div className="flex items-start justify-between gap-2 mb-2">
-                              <h3 className="font-medium text-sm flex items-center gap-1.5">
-                                <span
-                                  role="button"
-                                  onClick={(e) => toggleTaskDone(t, e)}
-                                  className={cn(
-                                    "h-4 w-4 rounded-sm border shrink-0 flex items-center justify-center transition-colors",
-                                    done ? "bg-primary border-primary" : "border-muted-foreground/40 hover:border-primary",
-                                  )}
-                                  title={done ? "Marcar como não concluída" : "Marcar como concluída"}
-                                >
-                                  {done && <Check className="h-3 w-3 text-primary-foreground" strokeWidth={3} />}
-                                </span>
-                                {t.parent_task_id && (
-                                  <span title="Subtarefa"><CornerDownRight className="h-3 w-3 text-muted-foreground shrink-0" /></span>
-                                )}
-                                <span className={cn("line-clamp-2 leading-snug break-words", done && "line-through opacity-60")}>{t.title}</span>
-                              </h3>
-                              <div className="flex items-center gap-2 shrink-0">
-                                {t.due_time && (
-                                  <span className="text-xs text-muted-foreground flex items-center gap-1">
-                                    <Clock className="h-3 w-3" /> {formatDueTime(t.due_time)}
-                                  </span>
-                                )}
-                                <Badge variant="outline" className="shrink-0">
-                                  <span className={cn("h-2 w-2 rounded-full mr-1.5", PRIORITY_COLOR[t.priority])} />
-                                  {PRIORITY_LABEL[t.priority]}
-                                </Badge>
-                              </div>
-                            </div>
-                            <div className="flex flex-wrap items-center gap-2 ml-6">
-                              {t.project_id ? (
-                                t.projects?.name && <p className="text-xs text-muted-foreground">{t.projects.name}</p>
-                              ) : (
-                                <Badge variant="outline" className="text-[10px]">Pessoal</Badge>
-                              )}
-                              {colorMode === "responsavel" && t.assignee && (
-                                <TaskAssigneeChip assignee={t.assignee} className="ml-auto" />
-                              )}
-                            </div>
-                          </button>
-                            )}
-                          </Draggable>
-                          );
-                        })}
-                        {dropProvided.placeholder}
-                      </div>
-                        )}
-                      </Droppable>
-                    )}
-                    {canEdit && (
-                      <div className="flex justify-center mt-1" onClick={(e) => e.stopPropagation()}>
-                        <NewTaskMenu prefillDate={cursor} iconOnly direct />
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              )}
-              </DragDropContext>
-            </div>
+            <TaskCalendarView
+              tasks={calendarTasks}
+              colorMode={colorMode}
+              onColorModeChange={setColorMode}
+              getTaskColor={getTaskColor}
+              onOpenTask={(t) => setSelectedTaskId(t.id)}
+              onCreate={(d) => openNewTaskDialog(d)}
+              onToggleComplete={toggleTaskDone}
+              onMoveTask={onCalendarDragEnd}
+              canEdit={canEdit}
+              canDragTask={canDragCalendarTask}
+              renderTaskMeta={renderCalendarTaskMeta}
+              storageKey="mytasks-cal"
+              headerActions={canEdit ? <div className="hidden md:inline-flex"><NewTaskMenu direct /></div> : undefined}
+            />
           )}
         </>
       )}
