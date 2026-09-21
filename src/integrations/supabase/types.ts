@@ -121,6 +121,38 @@ export type Database = {
           },
         ]
       }
+      company_workflow_roles: {
+        Row: {
+          company_id: string
+          created_at: string
+          id: string
+          role_key: string
+          user_id: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          id?: string
+          role_key: string
+          user_id: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          id?: string
+          role_key?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "company_workflow_roles_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       notifications: {
         Row: {
           created_at: string
@@ -631,6 +663,7 @@ export type Database = {
           description: string | null
           due_date: string | null
           id: string
+          is_default: boolean
           name: string
           updated_at: string
         }
@@ -643,6 +676,7 @@ export type Database = {
           description?: string | null
           due_date?: string | null
           id?: string
+          is_default?: boolean
           name: string
           updated_at?: string
         }
@@ -655,6 +689,7 @@ export type Database = {
           description?: string | null
           due_date?: string | null
           id?: string
+          is_default?: boolean
           name?: string
           updated_at?: string
         }
@@ -880,6 +915,7 @@ export type Database = {
           color: string | null
           created_at: string
           created_by: string | null
+          day_order: number | null
           description: string | null
           due_date: string | null
           due_time: string | null
@@ -903,6 +939,7 @@ export type Database = {
           color?: string | null
           created_at?: string
           created_by?: string | null
+          day_order?: number | null
           description?: string | null
           due_date?: string | null
           due_time?: string | null
@@ -926,6 +963,7 @@ export type Database = {
           color?: string | null
           created_at?: string
           created_by?: string | null
+          day_order?: number | null
           description?: string | null
           due_date?: string | null
           due_time?: string | null
