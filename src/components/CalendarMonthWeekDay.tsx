@@ -102,7 +102,7 @@ function DroppableDayCell({
           ref={provided.innerRef}
           {...provided.droppableProps}
           onClick={onClick}
-          className={cn(className, snapshot.isDraggingOver && "bg-primary/10 ring-2 ring-inset ring-primary")}
+          className={cn(className, "transition-colors", snapshot.isDraggingOver && "bg-primary/20 ring-2 ring-inset ring-primary")}
         >
           {children}
           {provided.placeholder}
@@ -148,11 +148,11 @@ function TaskList<T>({
               ref={dragProvided.innerRef}
               {...dragProvided.draggableProps}
               {...dragProvided.dragHandleProps}
-              className={cn("transition-shadow", snapshot.isDragging && "shadow-lg")}
+              className={cn("transition-all", snapshot.isDragging && "shadow-md opacity-90")}
               style={{
                 ...dragProvided.draggableProps.style,
                 transform: snapshot.isDragging
-                  ? `${dragProvided.draggableProps.style?.transform || ""} rotate(2deg)`
+                  ? `${dragProvided.draggableProps.style?.transform || ""} scale(0.95)`
                   : dragProvided.draggableProps.style?.transform,
               }}
             >
