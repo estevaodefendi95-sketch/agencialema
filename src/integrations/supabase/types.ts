@@ -631,6 +631,7 @@ export type Database = {
           description: string | null
           due_date: string | null
           id: string
+          is_default: boolean
           name: string
           updated_at: string
         }
@@ -643,6 +644,7 @@ export type Database = {
           description?: string | null
           due_date?: string | null
           id?: string
+          is_default?: boolean
           name: string
           updated_at?: string
         }
@@ -655,6 +657,7 @@ export type Database = {
           description?: string | null
           due_date?: string | null
           id?: string
+          is_default?: boolean
           name?: string
           updated_at?: string
         }
@@ -879,6 +882,7 @@ export type Database = {
           color: string | null
           created_at: string
           created_by: string | null
+          day_order: number | null
           description: string | null
           due_date: string | null
           due_time: string | null
@@ -902,6 +906,7 @@ export type Database = {
           color?: string | null
           created_at?: string
           created_by?: string | null
+          day_order?: number | null
           description?: string | null
           due_date?: string | null
           due_time?: string | null
@@ -925,6 +930,7 @@ export type Database = {
           color?: string | null
           created_at?: string
           created_by?: string | null
+          day_order?: number | null
           description?: string | null
           due_date?: string | null
           due_time?: string | null

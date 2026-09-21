@@ -12,6 +12,7 @@ import {
 } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Plus } from "lucide-react";
+import { Droppable, Draggable } from "@hello-pangea/dnd";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
 
@@ -40,6 +41,16 @@ interface GridProps<T> {
    * tarefa, por exemplo. Só se aplica à grade semanal.
    */
   renderDayFooterAction?: (day: Date) => ReactNode;
+  /**
+   * Liga o drag-and-drop (dia = Droppable, tarefa = Draggable). Precisa de um
+   * <DragDropContext> como ancestral — quem chama com dragEnabled é
+   * responsável por isso. Sem essa prop, a grade renderiza exatamente como
+   * antes (sem @hello-pangea/dnd), pra não quebrar quem usa a grade sem um
+   * DragDropContext por perto (ex: ClientCalendar, aba Calendário do Kanban).
+   */
+  dragEnabled?: boolean;
+  /** Quando dragEnabled, decide se uma tarefa específica pode ser arrastada. Default: todas podem. */
+  canDragTask?: (task: T) => boolean;
 }
 
 const WEEKDAYS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
@@ -60,21 +71,93 @@ function TaskDots<T>({ tasks, getTaskKey, getTaskColor }: { tasks: T[]; getTaskK
   );
 }
 
-function MobileDayList<T>({ day, tasks, ItemComponent, getTaskKey }: { day: Date; tasks: T[]; ItemComponent: ComponentType<{ task: T }>; getTaskKey: (task: T) => string }) {
+/** Lista de tarefas de um dia, opcionalmente arrastável (cada item vira um Draggable dentro de um Droppable com droppableId = dia em yyyy-MM-dd). */
+function TaskList<T>({
+  day,
+  tasks,
+  ItemComponent,
+  getTaskKey,
+  dragEnabled,
+  canDragTask,
+  emptyState,
+}: {
+  day: Date;
+  tasks: T[];
+  ItemComponent: ComponentType<{ task: T }>;
+  getTaskKey: (task: T) => string;
+  dragEnabled?: boolean;
+  canDragTask?: (task: T) => boolean;
+  emptyState?: ReactNode;
+}) {
+  if (!dragEnabled) {
+    return (
+      <>
+        {tasks.map((t) => (
+          <ItemComponent key={getTaskKey(t)} task={t} />
+        ))}
+        {tasks.length === 0 && emptyState}
+      </>
+    );
+  }
+
+  const droppableId = format(day, "yyyy-MM-dd");
+  return (
+    <Droppable droppableId={droppableId} type="CALENDAR_TASK">
+      {(provided) => (
+        <div ref={provided.innerRef} {...provided.droppableProps} className="contents">
+          {tasks.map((t, idx) => (
+            <Draggable key={getTaskKey(t)} draggableId={getTaskKey(t)} index={idx} isDragDisabled={canDragTask ? !canDragTask(t) : false}>
+              {(dragProvided, snapshot) => (
+                <div
+                  ref={dragProvided.innerRef}
+                  {...dragProvided.draggableProps}
+                  {...dragProvided.dragHandleProps}
+                  className={cn(snapshot.isDragging && "opacity-80")}
+                >
+                  <ItemComponent task={t} />
+                </div>
+              )}
+            </Draggable>
+          ))}
+          {provided.placeholder}
+          {tasks.length === 0 && emptyState}
+        </div>
+      )}
+    </Droppable>
+  );
+}
+
+function MobileDayList<T>({
+  day,
+  tasks,
+  ItemComponent,
+  getTaskKey,
+  dragEnabled,
+  canDragTask,
+}: {
+  day: Date;
+  tasks: T[];
+  ItemComponent: ComponentType<{ task: T }>;
+  getTaskKey: (task: T) => string;
+  dragEnabled?: boolean;
+  canDragTask?: (task: T) => boolean;
+}) {
   return (
     <div className="border-t p-2 space-y-2">
       <p className="text-xs font-medium text-muted-foreground px-1">
         {format(day, "EEEE, d 'de' MMMM", { locale: ptBR })}
       </p>
-      {tasks.length === 0 ? (
-        <p className="text-xs text-muted-foreground text-center py-4">Nenhuma tarefa neste dia</p>
-      ) : (
-        <div className="space-y-2">
-          {tasks.map((t) => (
-            <ItemComponent key={getTaskKey(t)} task={t} />
-          ))}
-        </div>
-      )}
+      <div className="space-y-2">
+        <TaskList
+          day={day}
+          tasks={tasks}
+          ItemComponent={ItemComponent}
+          getTaskKey={getTaskKey}
+          dragEnabled={dragEnabled}
+          canDragTask={canDragTask}
+          emptyState={<p className="text-xs text-muted-foreground text-center py-4">Nenhuma tarefa neste dia</p>}
+        />
+      </div>
     </div>
   );
 }
@@ -89,6 +172,8 @@ export function CalendarMonthGrid<T>({
   maxVisible = 3,
   getTaskColor,
   renderOverflow,
+  dragEnabled,
+  canDragTask,
 }: GridProps<T>) {
   const isMobile = useIsMobile();
   const monthStart = startOfMonth(cursor);
@@ -161,9 +246,14 @@ export function CalendarMonthGrid<T>({
                 )}
               </div>
               <div className="flex flex-col gap-0.5">
-                {visible.map((t) => (
-                  <ItemComponent key={getTaskKey(t)} task={t} />
-                ))}
+                <TaskList
+                  day={day}
+                  tasks={visible}
+                  ItemComponent={ItemComponent}
+                  getTaskKey={getTaskKey}
+                  dragEnabled={dragEnabled}
+                  canDragTask={canDragTask}
+                />
                 {overflow > 0 && (
                   renderOverflow ? (
                     renderOverflow(day, dayTasks, overflow)
@@ -177,7 +267,7 @@ export function CalendarMonthGrid<T>({
         })}
       </div>
       {isMobile && selectedDay && (
-        <MobileDayList day={selectedDay} tasks={getDayTasks(selectedDay)} ItemComponent={ItemComponent} getTaskKey={getTaskKey} />
+        <MobileDayList day={selectedDay} tasks={getDayTasks(selectedDay)} ItemComponent={ItemComponent} getTaskKey={getTaskKey} dragEnabled={dragEnabled} canDragTask={canDragTask} />
       )}
     </div>
   );
@@ -192,6 +282,8 @@ export function CalendarWeekGrid<T>({
   onAddDay,
   getTaskColor,
   renderDayFooterAction,
+  dragEnabled,
+  canDragTask,
 }: GridProps<T>) {
   const isMobile = useIsMobile();
   const ws = startOfWeek(cursor, { weekStartsOn: 0 });
@@ -230,7 +322,7 @@ export function CalendarWeekGrid<T>({
             );
           })}
         </div>
-        <MobileDayList day={selectedDay} tasks={getDayTasks(selectedDay)} ItemComponent={ItemComponent} getTaskKey={getTaskKey} />
+        <MobileDayList day={selectedDay} tasks={getDayTasks(selectedDay)} ItemComponent={ItemComponent} getTaskKey={getTaskKey} dragEnabled={dragEnabled} canDragTask={canDragTask} />
       </div>
     );
   }
@@ -260,12 +352,19 @@ export function CalendarWeekGrid<T>({
                   </button>
                 )}
               </div>
-              <div className="p-1.5 flex flex-col gap-1 flex-1 overflow-y-auto">
-                {dayTasks.length === 0 ? (
-                  <span className="text-[10px] text-muted-foreground text-center mt-4">—</span>
-                ) : (
-                  dayTasks.map((t) => <ItemComponent key={getTaskKey(t)} task={t} />)
-                )}
+              <div
+                className="p-1.5 flex flex-col gap-1 flex-1 overflow-y-auto"
+                onClick={() => onDayClick(day)}
+              >
+                <TaskList
+                  day={day}
+                  tasks={dayTasks}
+                  ItemComponent={ItemComponent}
+                  getTaskKey={getTaskKey}
+                  dragEnabled={dragEnabled}
+                  canDragTask={canDragTask}
+                  emptyState={<span className="text-[10px] text-muted-foreground text-center mt-4">—</span>}
+                />
                 {renderDayFooterAction && (
                   <div className="flex justify-center mt-1" onClick={(e) => e.stopPropagation()}>
                     {renderDayFooterAction(day)}
