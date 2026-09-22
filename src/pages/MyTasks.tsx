@@ -48,7 +48,7 @@ type Task = {
   day_order: number | null;
   created_at: string;
   color: string | null;
-  projects: { name: string; company_id: string; color: string | null; companies: { id: string; name: string; color: string | null } | null } | null;
+  projects: { name: string; company_id: string; color: string | null; companies: { id: string; name: string; logo_url: string | null; color: string | null } | null } | null;
   assignee?: { full_name: string | null; nickname: string | null; avatar_url: string | null; color: string | null } | null;
 };
 
@@ -221,7 +221,7 @@ export default function MyTasks() {
     setLoading(true);
     const { data, error } = await supabase
       .from("tasks")
-      .select("id, title, description, status, priority, due_date, due_time, assigned_to, created_by, parent_task_id, project_id, position, day_order, created_at, color, projects(name, company_id, color, companies(id, name, color))")
+      .select("id, title, description, status, priority, due_date, due_time, assigned_to, created_by, parent_task_id, project_id, position, day_order, created_at, color, projects(name, company_id, color, companies(id, name, logo_url, color))")
       .eq("assigned_to", uid)
       .not("project_id", "is", null)
       .order("due_date", { ascending: true, nullsFirst: false });
@@ -237,7 +237,7 @@ export default function MyTasks() {
     if (extraTaskIds.length > 0) {
       const { data: extraData, error: extraError } = await supabase
         .from("tasks")
-        .select("id, title, description, status, priority, due_date, due_time, assigned_to, created_by, parent_task_id, project_id, position, day_order, created_at, color, projects(name, company_id, color, companies(id, name, color))")
+        .select("id, title, description, status, priority, due_date, due_time, assigned_to, created_by, parent_task_id, project_id, position, day_order, created_at, color, projects(name, company_id, color, companies(id, name, logo_url, color))")
         .in("id", extraTaskIds)
         .not("project_id", "is", null);
       if (extraError) console.error(extraError);
