@@ -141,8 +141,11 @@ function TaskList<T>({
 
   return (
     <>
-      {tasks.map((t, idx) => (
-        <Draggable key={getTaskKey(t)} draggableId={getTaskKey(t)} index={idx} isDragDisabled={canDragTask ? !canDragTask(t) : false}>
+      {tasks.map((t, idx) => {
+        const disabled = canDragTask ? !canDragTask(t) : false;
+        console.log('[drag-debug]', { title: (t as any).title, disabled, hasCanDragTask: !!canDragTask });
+        return (
+        <Draggable key={getTaskKey(t)} draggableId={getTaskKey(t)} index={idx} isDragDisabled={disabled}>
           {(dragProvided, snapshot) => (
             <div
               ref={dragProvided.innerRef}
@@ -160,7 +163,8 @@ function TaskList<T>({
             </div>
           )}
         </Draggable>
-      ))}
+        );
+      })}
       {tasks.length === 0 && emptyState}
     </>
   );
