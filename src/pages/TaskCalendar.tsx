@@ -38,7 +38,7 @@ type TaskWithRelations = {
   day_order: number | null;
   created_at: string;
   parent_task_id: string | null;
-  projects: { name: string; company_id: string; color: string | null; companies: { name: string; logo_url: string | null } | null } | null;
+  projects: { name: string; company_id: string; color: string | null; companies: { name: string; logo_url: string | null; color: string | null } | null } | null;
   assignee?: { full_name: string | null; nickname?: string | null; avatar_url: string | null; color?: string | null } | null;
   comment_count?: number;
 };
@@ -188,7 +188,7 @@ export default function TaskCalendar() {
     setLoading(true);
     const { data, error } = await supabase
       .from("tasks")
-      .select("id, title, due_date, due_time, priority, assigned_to, assignee_name, project_id, created_by, status, color, day_order, created_at, parent_task_id, projects(name, company_id, color, companies(name, logo_url))")
+      .select("id, title, due_date, due_time, priority, assigned_to, assignee_name, project_id, created_by, status, color, day_order, created_at, parent_task_id, projects(name, company_id, color, companies(name, logo_url, color))")
       .not("due_date", "is", null)
       .order("due_date", { ascending: true });
 
@@ -416,6 +416,7 @@ export default function TaskCalendar() {
     getTaskColorForMode({
       manualColor: task.color,
       companyId: task.projects?.company_id || "pessoal",
+      companyColor: task.projects?.companies?.color,
       assignedTo: task.assigned_to,
       assigneeColor: task.assignee?.color,
       assigneeName: task.assignee_name,
@@ -434,7 +435,7 @@ export default function TaskCalendar() {
         if (!map.has(companyId)) {
           map.set(companyId, {
             label: t.projects?.companies?.name || "Empresa",
-            color: getEntityColor(companyId, null, PROJECT_COLOR_PALETTE),
+            color: getEntityColor(companyId, t.projects?.companies?.color ?? null, PROJECT_COLOR_PALETTE),
           });
         }
       } else {

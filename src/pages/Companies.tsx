@@ -17,6 +17,8 @@ import { Plus, Building2, Pencil, Trash2, Upload, X, LayoutGrid, List, Globe, Ca
 import ImageCropper from "@/components/ImageCropper";
 import { CompanyDocuments } from "@/components/CompanyDocuments";
 import { AssigneeMultiSelect } from "@/components/AssigneeMultiSelect";
+import { ColorSwatchPicker } from "@/components/ColorSwatchPicker";
+import { getEntityColor, PROJECT_COLOR_PALETTE } from "@/lib/colorPalette";
 import { WORKFLOW_ROLES } from "@/lib/workflowRoles";
 import { useIsMobile } from "@/hooks/use-mobile";
 
@@ -53,6 +55,7 @@ interface Company {
   planning_label: string | null;
   is_master: boolean;
   created_at: string;
+  color: string | null;
 }
 
 export default function Companies() {
@@ -70,6 +73,7 @@ export default function Companies() {
   const [websiteUrl, setWebsiteUrl] = useState("");
   const [instagramUrl, setInstagramUrl] = useState("");
   const [planningLabel, setPlanningLabel] = useState("");
+  const [companyColor, setCompanyColor] = useState<string | null>(null);
   const [cropFile, setCropFile] = useState<File | null>(null);
   const canManageDocs = isAdmin || isEditor;
   const isMobile = useIsMobile();
@@ -88,7 +92,9 @@ export default function Companies() {
 
   const load = async () => {
     const { data } = await supabase.from("companies").select("*").order("name");
-    setCompanies(data || []);
+    // "color" ainda não está nos tipos gerados (coluna nova) — cast pontual,
+    // igual já feito pra outras colunas recém-adicionadas no projeto.
+    setCompanies((data || []) as any as Company[]);
 
     const { data: projectsData } = await supabase
       .from("projects")
@@ -165,6 +171,7 @@ export default function Companies() {
     setEditing(null);
     setName(""); setDescription(""); setLogoUrl(null);
     setWebsiteUrl(""); setInstagramUrl(""); setPlanningLabel("");
+    setCompanyColor(null);
     setWorkflowSelection({});
     setOpen(true);
   };
@@ -172,6 +179,7 @@ export default function Companies() {
     setEditing(c);
     setName(c.name); setDescription(c.description || ""); setLogoUrl(c.logo_url);
     setWebsiteUrl(c.website_url || ""); setInstagramUrl(c.instagram_url || ""); setPlanningLabel(c.planning_label || "");
+    setCompanyColor(c.color || null);
     const selection: Record<string, string[]> = {};
     workflowRows.filter((r) => r.company_id === c.id).forEach((r) => {
       (selection[r.role_key] ||= []).push(r.user_id);
@@ -209,13 +217,14 @@ export default function Companies() {
       website_url: websiteUrl || null,
       instagram_url: instagramUrl || null,
       planning_label: planningLabel || null,
+      color: companyColor,
     };
     if (editing) {
-      await supabase.from("companies").update(fields).eq("id", editing.id);
+      await supabase.from("companies").update(fields as any).eq("id", editing.id);
       await saveWorkflowRoles(editing.id);
       toast({ title: "Empresa atualizada" });
     } else {
-      const { data: created } = await supabase.from("companies").insert(fields).select().single();
+      const { data: created } = await supabase.from("companies").insert(fields as any).select().single();
       if (created) await saveWorkflowRoles(created.id);
       toast({ title: "Empresa criada" });
     }
@@ -282,6 +291,10 @@ export default function Companies() {
                   </TableCell>
                   <TableCell className="font-medium">
                     <span className="flex items-center gap-1.5">
+                      <span
+                        className="h-2.5 w-2.5 rounded-full shrink-0"
+                        style={{ backgroundColor: getEntityColor(c.id, c.color, PROJECT_COLOR_PALETTE) }}
+                      />
                       {c.name}
                       {c.is_master && (
                         <Badge variant="outline" className="gap-1 text-[10px] font-normal">
@@ -360,6 +373,10 @@ export default function Companies() {
                     )}
                     <div className="min-w-0">
                       <CardTitle className="text-base flex items-center gap-1.5 group-hover/name:text-primary transition-colors truncate">
+                        <span
+                          className="h-2.5 w-2.5 rounded-full shrink-0"
+                          style={{ backgroundColor: getEntityColor(c.id, c.color, PROJECT_COLOR_PALETTE) }}
+                        />
                         {c.name}
                         {c.is_master && (
                           <Badge variant="outline" className="gap-1 text-[10px] font-normal shrink-0">
@@ -473,7 +490,16 @@ export default function Companies() {
           <div className="space-y-4">
             <div className="space-y-2">
               <Label>Nome</Label>
-              <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nome da empresa" />
+              <div className="flex items-center gap-3">
+                <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nome da empresa" className="flex-1" />
+                <ColorSwatchPicker
+                  value={companyColor}
+                  onChange={setCompanyColor}
+                  palette={PROJECT_COLOR_PALETTE}
+                  allowNone
+                  fallbackColor={getEntityColor(editing?.id || "", null, PROJECT_COLOR_PALETTE)}
+                />
+              </div>
             </div>
             <div className="space-y-3">
               <Label>Fluxo Operacional</Label>

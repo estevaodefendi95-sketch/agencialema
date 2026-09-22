@@ -17,7 +17,6 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { Plus, FolderKanban, Calendar, LayoutGrid, List, ArrowUpDown, Building2, MoreVertical, Pencil, Archive, ArchiveRestore, Trash2, Eye, EyeOff } from "lucide-react";
-import { ColorSwatchPicker } from "@/components/ColorSwatchPicker";
 import { getEntityColor, PROJECT_COLOR_PALETTE } from "@/lib/colorPalette";
 import { useIsMobile } from "@/hooks/use-mobile";
 
@@ -30,7 +29,7 @@ interface Project {
   archived: boolean;
   color: string | null;
   is_default: boolean;
-  companies?: { name: string; logo_url: string | null } | null;
+  companies?: { id: string; name: string; logo_url: string | null; color: string | null } | null;
 }
 
 interface Company { id: string; name: string; logo_url: string | null; }
@@ -84,7 +83,6 @@ export default function Projects() {
   const [description, setDescription] = useState("");
   const [companyId, setCompanyId] = useState("");
   const [dueDate, setDueDate] = useState("");
-  const [color, setColor] = useState<string | null>(null);
   const [additionalCompanyIds, setAdditionalCompanyIds] = useState<string[]>([]);
   const [showArchived, setShowArchived] = useState(false);
 
@@ -94,7 +92,6 @@ export default function Projects() {
   const [editName, setEditName] = useState("");
   const [editDescription, setEditDescription] = useState("");
   const [editDueDate, setEditDueDate] = useState("");
-  const [editColor, setEditColor] = useState<string | null>(null);
   const [editAdditionalCompanyIds, setEditAdditionalCompanyIds] = useState<string[]>([]);
 
   const [additionalCompaniesByProject, setAdditionalCompaniesByProject] = useState<Record<string, AdditionalCompany[]>>({});
@@ -116,7 +113,7 @@ export default function Projects() {
   const [tasksByProject, setTasksByProject] = useState<Record<string, { id: string; title: string; status: string; priority: string; due_date: string | null }[]>>({});
 
   const load = async () => {
-    const { data } = await supabase.from("projects").select("*, companies(name, logo_url)").order("created_at", { ascending: false });
+    const { data } = await supabase.from("projects").select("*, companies(id, name, logo_url, color)").order("created_at", { ascending: false });
     const list = (data as any[])?.map(d => ({ ...d, archived: d.archived ?? false })) || [];
     setProjects(list);
     if (canEdit) {
@@ -250,7 +247,7 @@ export default function Projects() {
   };
 
   const save = async () => {
-    const { data } = await supabase.from("projects").insert({ name, description, company_id: companyId, due_date: dueDate || null, color } as any).select().single();
+    const { data } = await supabase.from("projects").insert({ name, description, company_id: companyId, due_date: dueDate || null } as any).select().single();
     if (data) {
       await logHistory(data.id, "create", null, { name, description, due_date: dueDate || null });
       if (additionalCompanyIds.length > 0) {
@@ -259,7 +256,7 @@ export default function Projects() {
     }
     toast({ title: "Projeto criado" });
     setOpen(false);
-    setName(""); setDescription(""); setCompanyId(""); setDueDate(""); setColor(null); setAdditionalCompanyIds([]);
+    setName(""); setDescription(""); setCompanyId(""); setDueDate(""); setAdditionalCompanyIds([]);
     load();
   };
 
@@ -268,7 +265,6 @@ export default function Projects() {
     setEditName(p.name);
     setEditDescription(p.description || "");
     setEditDueDate(p.due_date || "");
-    setEditColor(p.color || null);
     setEditAdditionalCompanyIds((additionalCompaniesByProject[p.id] || []).map((c) => c.id));
     setEditOpen(true);
   };
@@ -295,10 +291,6 @@ export default function Projects() {
       prev.due_date = editProject.due_date;
       next.due_date = newDue;
     }
-    if (editColor !== (editProject.color || null)) {
-      updates.color = editColor;
-    }
-
     await syncProjectCompanies(editProject.id, editProject.company_id, editAdditionalCompanyIds);
 
     if (Object.keys(updates).length > 0) {
@@ -506,7 +498,7 @@ export default function Projects() {
                   <Card
                     key={p.id}
                     className="cursor-pointer hover:shadow-md transition-shadow relative border-l-4"
-                    style={{ borderLeftColor: getEntityColor(p.id, p.color, PROJECT_COLOR_PALETTE) }}
+                    style={{ borderLeftColor: getEntityColor(p.companies?.id || p.company_id, p.companies?.color, PROJECT_COLOR_PALETTE) }}
                     onClick={() => navigate(`/projetos/${p.id}`)}
                   >
                     <CardHeader>
@@ -618,10 +610,6 @@ export default function Projects() {
               <Label>Prazo</Label>
               <Input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
             </div>
-            <div className="space-y-2">
-              <Label>Cor</Label>
-              <ColorSwatchPicker value={color} onChange={setColor} allowNone />
-            </div>
             {companies.filter((c) => c.id !== companyId).length > 0 && (
               <div className="space-y-2">
                 <Label>Empresas adicionais vinculadas</Label>
@@ -662,15 +650,6 @@ export default function Projects() {
             <div className="space-y-2">
               <Label>Prazo</Label>
               <Input type="date" value={editDueDate} onChange={(e) => setEditDueDate(e.target.value)} />
-            </div>
-            <div className="space-y-2">
-              <Label>Cor</Label>
-              <ColorSwatchPicker
-                value={editColor}
-                onChange={setEditColor}
-                allowNone
-                fallbackColor={editProject ? getEntityColor(editProject.id, null) : undefined}
-              />
             </div>
             {editProject && companies.filter((c) => c.id !== editProject.company_id).length > 0 && (
               <div className="space-y-2">
