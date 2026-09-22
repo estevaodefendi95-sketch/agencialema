@@ -503,8 +503,7 @@ export default function MyTasks() {
   const getTaskColor = (task: Task) =>
     getTaskColorForMode({
       manualColor: task.color,
-      projectId: task.project_id || "pessoal",
-      projectColor: task.projects?.color,
+      companyId: task.projects?.company_id || "pessoal",
       assignedTo: task.assigned_to,
     });
 

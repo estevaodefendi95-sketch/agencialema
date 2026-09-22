@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { getEntityColor, PROJECT_COLOR_PALETTE, TEAM_COLOR_PALETTE } from "@/lib/colorPalette";
 
-export type CalendarColorMode = "projeto" | "responsavel";
+export type CalendarColorMode = "empresa" | "responsavel";
 
 // Mesma chave em toda tela que usar o hook, pra preferência do usuário valer
 // em qualquer calendário (TaskCalendar, MyTasks, ClientCalendar...).
@@ -9,16 +9,20 @@ const STORAGE_KEY = "calendar-color-mode";
 
 export interface TaskColorInput {
   manualColor?: string | null;
-  projectId: string;
-  projectColor?: string | null;
+  companyId: string;
+  companyColor?: string | null;
   assignedTo?: string | null;
   assigneeColor?: string | null;
   assigneeName?: string | null;
 }
 
-export function useCalendarColorMode(defaultMode: CalendarColorMode = "projeto") {
+export function useCalendarColorMode(defaultMode: CalendarColorMode = "empresa") {
   const [colorMode, setColorModeState] = useState<CalendarColorMode>(() => {
-    return (localStorage.getItem(STORAGE_KEY) as CalendarColorMode) || defaultMode;
+    // "projeto" era o nome antigo do modo "empresa" — migra quem já tinha
+    // essa preferência salva, sem cair no "responsavel" sem querer.
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved === "projeto") return "empresa";
+    return (saved as CalendarColorMode) || defaultMode;
   });
 
   function setColorMode(mode: CalendarColorMode) {
@@ -28,11 +32,11 @@ export function useCalendarColorMode(defaultMode: CalendarColorMode = "projeto")
   }
 
   // Cor manual da tarefa sempre tem precedência; senão usa a cor automática
-  // (com hash estável) do projeto ou do responsável, conforme colorMode.
+  // (com hash estável) da empresa ou do responsável, conforme colorMode.
   function getTaskColor(task: TaskColorInput): string {
     if (task.manualColor) return task.manualColor;
-    if (colorMode === "projeto") {
-      return getEntityColor(task.projectId, task.projectColor ?? null, PROJECT_COLOR_PALETTE);
+    if (colorMode === "empresa") {
+      return getEntityColor(task.companyId, task.companyColor ?? null, PROJECT_COLOR_PALETTE);
     }
     if (task.assignedTo) {
       return getEntityColor(task.assignedTo, task.assigneeColor ?? null, TEAM_COLOR_PALETTE);

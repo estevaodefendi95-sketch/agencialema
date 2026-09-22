@@ -415,8 +415,7 @@ export default function TaskCalendar() {
   const getTaskColor = (task: TaskWithRelations): string =>
     getTaskColorForMode({
       manualColor: task.color,
-      projectId: task.project_id,
-      projectColor: task.projects?.color,
+      companyId: task.projects?.company_id || "pessoal",
       assignedTo: task.assigned_to,
       assigneeColor: task.assignee?.color,
       assigneeName: task.assignee_name,
@@ -429,12 +428,13 @@ export default function TaskCalendar() {
   const legendItems = useMemo(() => {
     const map = new Map<string, { label: string; color: string }>();
     periodTasks.forEach((t) => {
-      if (colorMode === "projeto") {
-        if (!t.project_id) return;
-        if (!map.has(t.project_id)) {
-          map.set(t.project_id, {
-            label: t.projects?.name || "Projeto",
-            color: getEntityColor(t.project_id, t.projects?.color ?? null, PROJECT_COLOR_PALETTE),
+      if (colorMode === "empresa") {
+        const companyId = t.projects?.company_id;
+        if (!companyId) return;
+        if (!map.has(companyId)) {
+          map.set(companyId, {
+            label: t.projects?.companies?.name || "Empresa",
+            color: getEntityColor(companyId, null, PROJECT_COLOR_PALETTE),
           });
         }
       } else {
