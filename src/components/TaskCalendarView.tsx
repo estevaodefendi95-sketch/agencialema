@@ -443,7 +443,6 @@ export function TaskCalendarView<T extends CalendarViewTask>({
           getTaskColor={getTaskColor}
           dragEnabled={dragEnabled}
           canDragTask={canDragTask}
-          renderOverflow={renderDayOverflow}
           renderDayFooterAction={canEdit ? (d) => <NewTaskButton day={d} iconOnly /> : undefined}
         />
       )}
