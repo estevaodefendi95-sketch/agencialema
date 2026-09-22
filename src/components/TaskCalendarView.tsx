@@ -393,6 +393,29 @@ export function TaskCalendarView<T extends CalendarViewTask>({
     );
   };
 
+  // Popover com a lista completa quando um dia tem mais tarefas do que cabe
+  // visível (Mês e Semana) — compartilhado pelas duas grades.
+  const renderDayOverflow = (day: Date, dayTasks: T[], overflow: number) => (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button
+          onClick={(e) => e.stopPropagation()}
+          className="text-[10px] text-muted-foreground hover:text-foreground text-left px-1.5"
+        >
+          +{overflow} mais
+        </button>
+      </PopoverTrigger>
+      <PopoverContent className="w-64 p-2" onClick={(e) => e.stopPropagation()}>
+        <p className="text-xs font-medium mb-2">{format(day, "d 'de' MMM", { locale: ptBR })}</p>
+        <div className="flex flex-col gap-1 max-h-72 overflow-y-auto">
+          {dayTasks.map((t) => (
+            <TaskPill key={t.id} task={t} />
+          ))}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+
   const grids = (
     <>
       {viewMode === "mes" && (
@@ -406,26 +429,7 @@ export function TaskCalendarView<T extends CalendarViewTask>({
           getTaskColor={getTaskColor}
           dragEnabled={dragEnabled}
           canDragTask={canDragTask}
-          renderOverflow={(day, dayTasks, overflow) => (
-            <Popover>
-              <PopoverTrigger asChild>
-                <button
-                  onClick={(e) => e.stopPropagation()}
-                  className="text-[10px] text-muted-foreground hover:text-foreground text-left px-1.5"
-                >
-                  +{overflow} mais
-                </button>
-              </PopoverTrigger>
-              <PopoverContent className="w-64 p-2" onClick={(e) => e.stopPropagation()}>
-                <p className="text-xs font-medium mb-2">{format(day, "d 'de' MMM", { locale: ptBR })}</p>
-                <div className="flex flex-col gap-1 max-h-72 overflow-y-auto">
-                  {dayTasks.map((t) => (
-                    <TaskPill key={t.id} task={t} />
-                  ))}
-                </div>
-              </PopoverContent>
-            </Popover>
-          )}
+          renderOverflow={renderDayOverflow}
         />
       )}
       {viewMode === "semana" && (
@@ -439,6 +443,7 @@ export function TaskCalendarView<T extends CalendarViewTask>({
           getTaskColor={getTaskColor}
           dragEnabled={dragEnabled}
           canDragTask={canDragTask}
+          renderOverflow={renderDayOverflow}
           renderDayFooterAction={canEdit ? (d) => <NewTaskButton day={d} iconOnly /> : undefined}
         />
       )}
