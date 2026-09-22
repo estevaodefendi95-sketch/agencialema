@@ -64,6 +64,13 @@
       "when": 1790101908554,
       "tag": "0008_create_task_assignees",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1790103056797,
+      "tag": "0009_user_company_access_profiles_fkey",
+      "breakpoints": true
     }
   ]
 }
