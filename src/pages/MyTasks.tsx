@@ -48,7 +48,7 @@ type Task = {
   day_order: number | null;
   created_at: string;
   color: string | null;
-  projects: { name: string; company_id: string; color: string | null; companies: { name: string } | null } | null;
+  projects: { name: string; company_id: string; color: string | null; companies: { id: string; name: string; color: string | null } | null } | null;
   assignee?: { full_name: string | null; nickname: string | null; avatar_url: string | null; color: string | null } | null;
 };
 
@@ -221,7 +221,7 @@ export default function MyTasks() {
     setLoading(true);
     const { data, error } = await supabase
       .from("tasks")
-      .select("id, title, description, status, priority, due_date, due_time, assigned_to, created_by, parent_task_id, project_id, position, day_order, created_at, color, projects(name, company_id, color, companies(name))")
+      .select("id, title, description, status, priority, due_date, due_time, assigned_to, created_by, parent_task_id, project_id, position, day_order, created_at, color, projects(name, company_id, color, companies(id, name, color))")
       .eq("assigned_to", uid)
       .not("project_id", "is", null)
       .order("due_date", { ascending: true, nullsFirst: false });
@@ -237,7 +237,7 @@ export default function MyTasks() {
     if (extraTaskIds.length > 0) {
       const { data: extraData, error: extraError } = await supabase
         .from("tasks")
-        .select("id, title, description, status, priority, due_date, due_time, assigned_to, created_by, parent_task_id, project_id, position, day_order, created_at, color, projects(name, company_id, color, companies(name))")
+        .select("id, title, description, status, priority, due_date, due_time, assigned_to, created_by, parent_task_id, project_id, position, day_order, created_at, color, projects(name, company_id, color, companies(id, name, color))")
         .in("id", extraTaskIds)
         .not("project_id", "is", null);
       if (extraError) console.error(extraError);
@@ -504,6 +504,7 @@ export default function MyTasks() {
     getTaskColorForMode({
       manualColor: task.color,
       companyId: task.projects?.company_id || "pessoal",
+      companyColor: task.projects?.companies?.color,
       assignedTo: task.assigned_to,
     });
 
@@ -669,7 +670,7 @@ export default function MyTasks() {
                                     )}
                                     style={{
                                       ...p.draggableProps.style,
-                                      borderLeft: `4px solid ${t.color || getEntityColor(t.project_id || "pessoal", t.projects?.color ?? null, PROJECT_COLOR_PALETTE)}`,
+                                      borderLeft: `4px solid ${t.color || getEntityColor(t.projects?.companies?.id || t.project_id || "pessoal", t.projects?.companies?.color ?? null, PROJECT_COLOR_PALETTE)}`,
                                     }}
                                   >
                                     <div className="p-3">

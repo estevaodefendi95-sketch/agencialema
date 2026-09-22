@@ -18,7 +18,6 @@ import {
   Building2, Globe, Camera, FolderKanban, Calendar, Plus, MoreVertical, Pencil,
   Archive, ArchiveRestore, Trash2, ClipboardList,
 } from "lucide-react";
-import { ColorSwatchPicker } from "@/components/ColorSwatchPicker";
 import { getEntityColor, PROJECT_COLOR_PALETTE } from "@/lib/colorPalette";
 import { CompanyDocuments } from "@/components/CompanyDocuments";
 
@@ -31,6 +30,7 @@ interface Company {
   website_url: string | null;
   instagram_url: string | null;
   planning_label: string | null;
+  color: string | null;
 }
 
 interface Project {
@@ -59,7 +59,6 @@ export default function CompanyDetail() {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [dueDate, setDueDate] = useState("");
-  const [color, setColor] = useState<string | null>(null);
 
   // Editar projeto
   const [editOpen, setEditOpen] = useState(false);
@@ -67,7 +66,6 @@ export default function CompanyDetail() {
   const [editName, setEditName] = useState("");
   const [editDescription, setEditDescription] = useState("");
   const [editDueDate, setEditDueDate] = useState("");
-  const [editColor, setEditColor] = useState<string | null>(null);
 
   const [deleteProjectId, setDeleteProjectId] = useState<string | null>(null);
   const [planningPopoverOpen, setPlanningPopoverOpen] = useState(false);
@@ -76,7 +74,9 @@ export default function CompanyDetail() {
     if (!companyId) return;
     setLoading(true);
     const { data: c } = await supabase.from("companies").select("*").eq("id", companyId).maybeSingle();
-    setCompany(c as Company | null);
+    // "color" ainda não está nos tipos gerados (coluna nova) — cast pontual,
+    // igual já feito em Companies.tsx.
+    setCompany((c || null) as any as Company | null);
 
     const { data: p } = await supabase
       .from("projects")
@@ -122,13 +122,13 @@ export default function CompanyDetail() {
     if (!companyId || !name.trim()) return;
     const { data } = await supabase
       .from("projects")
-      .insert({ name, description, company_id: companyId, due_date: dueDate || null, color } as any)
+      .insert({ name, description, company_id: companyId, due_date: dueDate || null } as any)
       .select()
       .single();
     if (data) await logHistory(data.id, "create", null, { name, description, due_date: dueDate || null });
     toast({ title: "Projeto criado" });
     setOpen(false);
-    setName(""); setDescription(""); setDueDate(""); setColor(null);
+    setName(""); setDescription(""); setDueDate("");
     load();
   };
 
@@ -137,7 +137,6 @@ export default function CompanyDetail() {
     setEditName(p.name);
     setEditDescription(p.description || "");
     setEditDueDate(p.due_date || "");
-    setEditColor(p.color || null);
     setEditOpen(true);
   };
 
@@ -150,7 +149,6 @@ export default function CompanyDetail() {
     if (editDescription !== (editProject.description || "")) { updates.description = editDescription || null; prev.description = editProject.description; next.description = editDescription || null; }
     const newDue = editDueDate || null;
     if (newDue !== editProject.due_date) { updates.due_date = newDue; prev.due_date = editProject.due_date; next.due_date = newDue; }
-    if (editColor !== (editProject.color || null)) updates.color = editColor;
 
     if (Object.keys(updates).length === 0) { setEditOpen(false); return; }
 
@@ -328,7 +326,7 @@ export default function CompanyDetail() {
               <Card
                 key={p.id}
                 className="cursor-pointer hover:shadow-md transition-shadow relative border-l-4"
-                style={{ borderLeftColor: getEntityColor(p.id, p.color, PROJECT_COLOR_PALETTE) }}
+                style={{ borderLeftColor: getEntityColor(company.id, company.color, PROJECT_COLOR_PALETTE) }}
                 onClick={() => navigate(`/projetos/${p.id}`)}
               >
                 <CardHeader>
@@ -394,10 +392,6 @@ export default function CompanyDetail() {
               <Label>Prazo</Label>
               <Input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
             </div>
-            <div className="space-y-2">
-              <Label>Cor</Label>
-              <ColorSwatchPicker value={color} onChange={setColor} allowNone />
-            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
@@ -422,15 +416,6 @@ export default function CompanyDetail() {
             <div className="space-y-2">
               <Label>Prazo</Label>
               <Input type="date" value={editDueDate} onChange={(e) => setEditDueDate(e.target.value)} />
-            </div>
-            <div className="space-y-2">
-              <Label>Cor</Label>
-              <ColorSwatchPicker
-                value={editColor}
-                onChange={setEditColor}
-                allowNone
-                fallbackColor={editProject ? getEntityColor(editProject.id, null) : undefined}
-              />
             </div>
           </div>
           <DialogFooter>

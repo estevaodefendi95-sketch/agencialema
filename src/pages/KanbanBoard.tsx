@@ -164,6 +164,7 @@ export default function KanbanBoard() {
   const [companyName, setCompanyName] = useState("");
   const [companyLogo, setCompanyLogo] = useState<string | null>(null);
   const [companyId, setCompanyId] = useState<string | null>(null);
+  const [companyColor, setCompanyColor] = useState<string | null>(null);
   // Perfis de quem já tem acesso liberado à empresa deste projeto — a aba
   // "Equipe do Projeto" lista a partir daqui (não mais busca/convite por e-mail).
   const [companyAccessProfiles, setCompanyAccessProfiles] = useState<
@@ -248,11 +249,12 @@ export default function KanbanBoard() {
 
   const load = useCallback(async () => {
     if (!projectId) return;
-    const { data: proj } = await supabase.from("projects").select("name, company_id, companies(name, logo_url)").eq("id", projectId).single();
+    const { data: proj } = await supabase.from("projects").select("name, company_id, companies(name, logo_url, color)").eq("id", projectId).single();
     setProjectName(proj?.name || "");
     setCompanyName((proj?.companies as any)?.name || "");
     setCompanyLogo((proj?.companies as any)?.logo_url || null);
     setCompanyId(proj?.company_id || null);
+    setCompanyColor((proj?.companies as any)?.color || null);
     const { data } = await supabase.from("tasks").select("*").eq("project_id", projectId).order("position");
     const taskList = ((data as any[]) || []).map((t) => ({ ...t, status: t.status || "a_fazer", color: t.color || null })) as Task[];
     setTasks(taskList);
@@ -520,6 +522,7 @@ export default function KanbanBoard() {
     return getTaskColorForMode({
       manualColor: t.color,
       companyId: companyId || t.project_id,
+      companyColor,
       assignedTo: t.assigned_to,
       assigneeColor: assigneeProfile?.color,
       assigneeName: t.assignee_name,
