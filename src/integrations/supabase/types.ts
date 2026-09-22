@@ -1105,8 +1105,10 @@ export type Database = {
       team_workload: {
         Row: {
           avatar_url: string | null
+          color: string | null
           email: string | null
           full_name: string | null
+          nickname: string | null
           tarefas_aprovadas: number | null
           tarefas_ativas: number | null
           tarefas_atrasadas: number | null
