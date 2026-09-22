@@ -31,7 +31,7 @@ export function CalendarTaskPill<T extends CalendarTaskLike>({
 }: {
   task: T;
   color: string;
-  colorMode: "projeto" | "responsavel";
+  colorMode: "empresa" | "responsavel";
   priorityColor: Record<string, string>;
   onOpen: (task: T) => void;
   onToggleDone: (task: T, e?: React.MouseEvent) => void;
@@ -63,7 +63,7 @@ export function CalendarTaskPill<T extends CalendarTaskLike>({
       {colorMode === "responsavel" && (task.assigned_to || task.assignee_name) && (
         <AssigneeAvatar url={task.assignee?.avatar_url} name={assigneeName} className="h-5 w-5 shrink-0" />
       )}
-      {colorMode === "projeto" && companyLogo && (
+      {colorMode === "empresa" && companyLogo && (
         <img src={companyLogo} alt="" className="h-5 w-5 rounded-full object-cover shrink-0 border border-background/60 mt-0.5" />
       )}
       {task.parent_task_id && (

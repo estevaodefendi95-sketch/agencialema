@@ -519,7 +519,7 @@ export default function KanbanBoard() {
     const assigneeProfile = t.assigned_to ? assigneeProfiles[t.assigned_to] : null;
     return getTaskColorForMode({
       manualColor: t.color,
-      projectId: t.project_id,
+      companyId: companyId || t.project_id,
       assignedTo: t.assigned_to,
       assigneeColor: assigneeProfile?.color,
       assigneeName: t.assignee_name,
