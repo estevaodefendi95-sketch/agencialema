@@ -23,14 +23,10 @@ import { useIsMobile } from "@/hooks/use-mobile";
 type WorkflowProfile = { id: string; full_name: string | null; nickname: string | null; avatar_url: string | null };
 type WorkflowRow = { company_id: string; role_key: string; user_id: string };
 
-const WORKFLOW_SHORT_LABEL: Record<string, string> = {
-  planejamento: "Planejamento",
-  copy: "Copy",
-  postagem_feed: "Feed",
-  postagem_story: "Story",
-};
-
-function formatWorkflowSummary(rows: WorkflowRow[], profileMap: Record<string, WorkflowProfile>): string {
+// Uma linha por função preenchida (pula as vazias), ex: "Planejamento: Duda"
+// e "Copy: Clara, Ana" quando tem mais de uma pessoa. Sem linha nenhuma
+// quando ninguém foi atribuído a nenhuma função ainda.
+function formatWorkflowLines(rows: WorkflowRow[], profileMap: Record<string, WorkflowProfile>): string[] {
   const byRole = new Map<string, string[]>();
   rows.forEach((r) => {
     const p = profileMap[r.user_id];
@@ -38,12 +34,12 @@ function formatWorkflowSummary(rows: WorkflowRow[], profileMap: Record<string, W
     if (!byRole.has(r.role_key)) byRole.set(r.role_key, []);
     byRole.get(r.role_key)!.push(name);
   });
-  const parts: string[] = [];
+  const lines: string[] = [];
   WORKFLOW_ROLES.forEach((r) => {
     const names = byRole.get(r.key);
-    if (names && names.length > 0) parts.push(`${WORKFLOW_SHORT_LABEL[r.key] || r.label}: ${names.join("/")}`);
+    if (names && names.length > 0) lines.push(`${r.label}: ${names.join(", ")}`);
   });
-  return parts.join(" · ");
+  return lines;
 }
 
 interface Company {
@@ -297,11 +293,11 @@ export default function Companies() {
                   <TableCell className="text-muted-foreground text-sm">{c.slug}</TableCell>
                   <TableCell className="text-muted-foreground text-sm max-w-[200px]">
                     {(() => {
-                      const summary = formatWorkflowSummary(workflowRows.filter((r) => r.company_id === c.id), workflowProfiles);
+                      const lines = formatWorkflowLines(workflowRows.filter((r) => r.company_id === c.id), workflowProfiles);
                       return (
                         <>
-                          {summary && <p className="text-[11px] truncate">{summary}</p>}
-                          <p className="truncate">{c.description || (summary ? "" : "—")}</p>
+                          {lines.map((line) => <p key={line} className="text-[11px] truncate">{line}</p>)}
+                          <p className="truncate">{c.description || (lines.length > 0 ? "" : "—")}</p>
                         </>
                       );
                     })()}
@@ -347,7 +343,7 @@ export default function Companies() {
             {companies.map((c) => {
               const companyProjects = projectsByCompany[c.id] || [];
               const planningLabel = c.planning_label || "Planejamento";
-              const workflowSummary = formatWorkflowSummary(workflowRows.filter((r) => r.company_id === c.id), workflowProfiles);
+              const workflowLines = formatWorkflowLines(workflowRows.filter((r) => r.company_id === c.id), workflowProfiles);
               return (
               <Card key={c.id}>
                 <CardHeader className="flex flex-row items-start justify-between">
@@ -381,9 +377,13 @@ export default function Companies() {
                     </div>
                   )}
                 </CardHeader>
-                {(c.description || workflowSummary || c.website_url || c.instagram_url || companyProjects.length > 0) && (
+                {(c.description || workflowLines.length > 0 || c.website_url || c.instagram_url || companyProjects.length > 0) && (
                   <CardContent className="space-y-3">
-                    {workflowSummary && <p className="text-xs text-muted-foreground truncate">{workflowSummary}</p>}
+                    {workflowLines.length > 0 && (
+                      <div className="space-y-0.5">
+                        {workflowLines.map((line) => <p key={line} className="text-xs text-muted-foreground truncate">{line}</p>)}
+                      </div>
+                    )}
                     {c.description && <p className="text-sm text-muted-foreground line-clamp-2 break-words">{c.description}</p>}
                     {(c.website_url || c.instagram_url || companyProjects.length > 0) && (
                       <div className="flex items-center justify-between gap-2">
