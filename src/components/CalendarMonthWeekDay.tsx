@@ -11,7 +11,7 @@ import {
   eachDayOfInterval,
 } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Plus } from "lucide-react";
+import { Plus, GripVertical } from "lucide-react";
 import { Droppable, Draggable } from "@hello-pangea/dnd";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -128,6 +128,8 @@ function TaskList<T>({
   canDragTask?: (task: T) => boolean;
   emptyState?: ReactNode;
 }) {
+  const isMobile = useIsMobile();
+
   if (!dragEnabled) {
     return (
       <>
@@ -142,13 +144,12 @@ function TaskList<T>({
   return (
     <>
       {tasks.map((t, idx) => (
-        <Draggable key={getTaskKey(t)} draggableId={getTaskKey(t)} index={idx} isDragDisabled={false}>
+        <Draggable key={getTaskKey(t)} draggableId={getTaskKey(t)} index={idx} isDragDisabled={canDragTask ? !canDragTask(t) : false}>
           {(dragProvided, snapshot) => (
             <div
               ref={dragProvided.innerRef}
               {...dragProvided.draggableProps}
-              {...dragProvided.dragHandleProps}
-              className={cn("transition-all", snapshot.isDragging && "shadow-md opacity-90")}
+              className={cn("group/drag flex items-stretch gap-0.5 transition-all", snapshot.isDragging && "shadow-md opacity-90")}
               style={{
                 ...dragProvided.draggableProps.style,
                 transform: snapshot.isDragging
@@ -156,7 +157,23 @@ function TaskList<T>({
                   : dragProvided.draggableProps.style?.transform,
               }}
             >
-              <ItemComponent task={t} />
+              {/* Handle separado do card: o card inteiro é um <button> (CalendarTaskPill) e
+                  um botão nativo dentro de uma área draggable="true" costuma vencer a disputa
+                  com o navegador e cancelar o arrasto — por isso o handle fica isolado aqui,
+                  fora da área clicável. */}
+              <div
+                {...dragProvided.dragHandleProps}
+                className={cn(
+                  "flex items-center justify-center w-3 shrink-0 cursor-grab text-muted-foreground transition-opacity",
+                  isMobile ? "opacity-100" : "opacity-0 group-hover/drag:opacity-100",
+                )}
+                title="Arrastar"
+              >
+                <GripVertical className="h-3 w-3" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <ItemComponent task={t} />
+              </div>
             </div>
           )}
         </Draggable>
