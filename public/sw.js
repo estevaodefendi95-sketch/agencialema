@@ -38,11 +38,17 @@ self.addEventListener("push", (event) => {
   try { data = event.data ? event.data.json() : {}; } catch { data = {}; }
   const title = data.title || "AgênciaLema";
   const link = data.link || "/";
+  // Sempre exibir uma notificação: navegadores penalizam pushes silenciosos.
   event.waitUntil(
     self.registration.showNotification(title, {
       body: data.message || "",
       icon: "/icons/icon-192.png?v=2",
       badge: "/icons/badge-96.png?v=2",
+      tag: data.tag || `lema-${Date.now()}`,
+      renotify: true,
+      requireInteraction: false,
+      vibrate: [120, 60, 120],
+      timestamp: Date.now(),
       data: { link },
     })
   );
