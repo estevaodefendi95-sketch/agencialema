@@ -319,9 +319,7 @@ export function CalendarWeekGrid<T>({
   getTaskKey,
   onDayClick,
   onAddDay,
-  maxVisible = 3,
   getTaskColor,
-  renderOverflow,
   renderDayFooterAction,
   dragEnabled,
   canDragTask,
@@ -374,14 +372,8 @@ export function CalendarWeekGrid<T>({
         {days.map((day) => {
           const today = isToday(day);
           const dayTasks = getDayTasks(day);
-          // Com drag ligado, a célula não pode ter rolagem própria (Droppable
-          // + overflow-y-auto quebra o drag-and-drop em vários navegadores) —
-          // por isso limita a N visíveis + "+N mais", igual à grade Mês. Sem
-          // drag (ex: ClientCalendar), mantém a lista inteira com rolagem.
-          const visible = dragEnabled ? dayTasks.slice(0, maxVisible) : dayTasks;
-          const overflow = dayTasks.length - visible.length;
           return (
-            <div key={day.toISOString()} className={cn("group border-r last:border-r-0 flex flex-col", dragEnabled ? "min-h-[180px]" : "min-h-[500px]")}>
+            <div key={day.toISOString()} className={cn("group border-r last:border-r-0 flex flex-col", dragEnabled ? "min-h-[140px]" : "min-h-[500px]")}>
               <div className={cn("flex items-center justify-between px-2 py-2 border-b", today && "bg-primary/5")}>
                 <button onClick={() => onDayClick(day)} className="text-left hover:opacity-80 flex-1 transition-colors">
                   <div className="text-[10px] uppercase text-muted-foreground tracking-wide">{format(day, "EEE", { locale: ptBR })}</div>
@@ -399,6 +391,11 @@ export function CalendarWeekGrid<T>({
                   </button>
                 )}
               </div>
+              {/* Sem overflow/max-height quando dragEnabled: a célula cresce
+                  com o conteúdo e quem rola é a página, não a célula — uma
+                  célula com scroll próprio dentro de um Droppable quebra o
+                  drag-and-drop. Sem drag (ex: ClientCalendar), mantém a
+                  rolagem interna de antes. */}
               <DroppableDayCell
                 day={day}
                 dragEnabled={dragEnabled}
@@ -406,20 +403,13 @@ export function CalendarWeekGrid<T>({
                 className={cn("p-1.5 flex flex-col gap-1 flex-1", !dragEnabled && "overflow-y-auto")}
               >
                 <TaskList
-                  tasks={visible}
+                  tasks={dayTasks}
                   ItemComponent={ItemComponent}
                   getTaskKey={getTaskKey}
                   dragEnabled={dragEnabled}
                   canDragTask={canDragTask}
                   emptyState={<span className="text-[10px] text-muted-foreground text-center mt-4">—</span>}
                 />
-                {overflow > 0 && (
-                  renderOverflow ? (
-                    renderOverflow(day, dayTasks, overflow)
-                  ) : (
-                    <span className="text-[10px] text-muted-foreground px-1.5">+{overflow} mais</span>
-                  )
-                )}
                 {renderDayFooterAction && (
                   <div className="flex justify-center mt-1" onClick={(e) => e.stopPropagation()}>
                     {renderDayFooterAction(day)}
