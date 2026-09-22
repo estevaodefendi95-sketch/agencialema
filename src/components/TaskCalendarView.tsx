@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   format,
   startOfMonth,
@@ -193,9 +193,28 @@ export function TaskCalendarView<T extends CalendarViewTask>({
   // nem as próprias tarefas pessoais.
   const dragEnabled = !!onMoveTask;
 
+  // Guard contra o "clique fantasma": o @hello-pangea/dnd usa o drag nativo
+  // do HTML5 (draggable + dragstart/dragend), e é comportamento conhecido do
+  // navegador disparar um click sintético no elemento sob o cursor logo após
+  // um drop nativo — se isso cair em cima do botão "+"/área de criar tarefa
+  // da célula, abre "Nova Tarefa" sozinho. Fica true do início do arrasto até
+  // 300ms depois do fim, tempo suficiente pra engolir esse clique fantasma.
+  const justDraggedRef = useRef(false);
+
+  const handleDragStart = () => {
+    justDraggedRef.current = true;
+  };
+
   const handleDragEnd = (result: DropResult) => {
     if (!onMoveTask) return;
     onMoveTask(result);
+    justDraggedRef.current = true;
+    setTimeout(() => { justDraggedRef.current = false; }, 300);
+  };
+
+  const guardedCreate = (day: Date) => {
+    if (justDraggedRef.current) return;
+    onCreate(day);
   };
 
   // Ação rápida do popover de calendário no card do dia: monta um DropResult
@@ -222,14 +241,14 @@ export function TaskCalendarView<T extends CalendarViewTask>({
   const NewTaskButton = ({ day, iconOnly }: { day: Date; iconOnly?: boolean }) =>
     iconOnly ? (
       <button
-        onClick={(e) => { e.stopPropagation(); onCreate(day); }}
+        onClick={(e) => { e.stopPropagation(); guardedCreate(day); }}
         className="opacity-0 group-hover:opacity-100 h-6 w-6 inline-flex items-center justify-center rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-opacity"
         title="Nova tarefa"
       >
         <Plus className="h-3.5 w-3.5" />
       </button>
     ) : (
-      <Button className="gap-2" size="sm" onClick={() => onCreate(day)}>
+      <Button className="gap-2" size="sm" onClick={() => guardedCreate(day)}>
         <Plus className="h-4 w-4" /> Nova Tarefa
       </Button>
     );
@@ -369,7 +388,7 @@ export function TaskCalendarView<T extends CalendarViewTask>({
             ) : dayTasks.length === 0 ? (
               <div
                 className="flex-1 flex items-center justify-center text-center text-muted-foreground cursor-pointer"
-                onClick={() => canEdit && onCreate(cursor)}
+                onClick={() => canEdit && guardedCreate(cursor)}
               >
                 Nenhuma tarefa neste dia
               </div>
@@ -424,8 +443,8 @@ export function TaskCalendarView<T extends CalendarViewTask>({
           getDayTasks={getDayTasks}
           ItemComponent={TaskPill}
           getTaskKey={(t) => t.id}
-          onDayClick={onCreate}
-          onAddDay={canEdit ? onCreate : undefined}
+          onDayClick={guardedCreate}
+          onAddDay={canEdit ? guardedCreate : undefined}
           getTaskColor={getTaskColor}
           dragEnabled={dragEnabled}
           canDragTask={canDragTask}
@@ -438,8 +457,8 @@ export function TaskCalendarView<T extends CalendarViewTask>({
           getDayTasks={getDayTasks}
           ItemComponent={TaskPill}
           getTaskKey={(t) => t.id}
-          onDayClick={onCreate}
-          onAddDay={canEdit ? onCreate : undefined}
+          onDayClick={guardedCreate}
+          onAddDay={canEdit ? guardedCreate : undefined}
           getTaskColor={getTaskColor}
           dragEnabled={dragEnabled}
           canDragTask={canDragTask}
@@ -483,7 +502,7 @@ export function TaskCalendarView<T extends CalendarViewTask>({
         <CalendarColorToggle colorMode={colorMode} onChange={onColorModeChange} className="shrink-0" />
       </div>
 
-      {dragEnabled ? <DragDropContext onDragEnd={handleDragEnd}>{grids}</DragDropContext> : grids}
+      {dragEnabled ? <DragDropContext onDragStart={handleDragStart} onDragEnd={handleDragEnd}>{grids}</DragDropContext> : grids}
     </div>
   );
 }
