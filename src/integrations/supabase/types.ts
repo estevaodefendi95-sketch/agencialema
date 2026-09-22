@@ -46,6 +46,7 @@ export type Database = {
       }
       companies: {
         Row: {
+          color: string | null
           created_at: string
           description: string | null
           id: string
@@ -59,6 +60,7 @@ export type Database = {
           website_url: string | null
         }
         Insert: {
+          color?: string | null
           created_at?: string
           description?: string | null
           id?: string
@@ -72,6 +74,7 @@ export type Database = {
           website_url?: string | null
         }
         Update: {
+          color?: string | null
           created_at?: string
           description?: string | null
           id?: string

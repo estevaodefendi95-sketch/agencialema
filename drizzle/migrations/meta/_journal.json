@@ -71,6 +71,13 @@
       "when": 1790103056797,
       "tag": "0009_user_company_access_profiles_fkey",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1790104481303,
+      "tag": "0010_companies_color_column",
+      "breakpoints": true
     }
   ]
 }
