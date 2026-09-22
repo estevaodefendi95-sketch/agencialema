@@ -14,7 +14,7 @@ import { getExistingPushSubscription, getPushSupportState, subscribeToPush, type
 // Fallback embutido: o app publicado no Lovable não recebe VITE_VAPID_PUBLIC_KEY
 // (variável de build não configurável lá), então a chave pública (não é segredo)
 // também fica hardcoded aqui.
-const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY || "BJ1wDZgSH13r-YRSlG9u-IT6m9fONnOtdvBetb6YnU7exypdDvtJbrtkRV0To2uuFaMIqfwiv2345BjFNkgGr1U";
+const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY || "BPs09Vddl5ICjJLyE3VIUc-co275nRY5OXYSzGF36719ETFjkjZtVtB9OEi1eD5OBZFVBIyMESaubE4wAkfKr9I";
 // Placeholder ainda não preenchido não conta como configurado.
 const VAPID_KEY_CONFIGURED = !!VAPID_PUBLIC_KEY && !VAPID_PUBLIC_KEY.startsWith("<");
 
