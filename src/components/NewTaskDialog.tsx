@@ -223,12 +223,12 @@ export function NewTaskDialog({
       if (cached) {
         targetProjectId = cached.id;
       } else {
-        const { data: defaultProject } = await (supabase.from("projects") as any)
+        const { data: defaultProjects } = await (supabase.from("projects") as any)
           .select("id")
           .eq("company_id", ntCompany)
           .eq("is_default", true)
-          .maybeSingle();
-        targetProjectId = defaultProject?.id || "";
+          .limit(1);
+        targetProjectId = defaultProjects?.[0]?.id || "";
       }
     }
     if (!isPersonal && !targetProjectId) {
