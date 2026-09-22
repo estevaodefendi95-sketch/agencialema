@@ -325,9 +325,22 @@ export default function Team() {
               </div>
 
               <div className="space-y-2">
-                <Label className="flex items-center gap-2">
-                  <Building2 className="h-4 w-4" /> Empresas com acesso
-                </Label>
+                <div className="flex items-center justify-between gap-2">
+                  <Label className="flex items-center gap-2">
+                    <Building2 className="h-4 w-4" /> Empresas com acesso
+                  </Label>
+                  {companies.length > 0 && (
+                    <button
+                      type="button"
+                      className="text-xs text-primary hover:underline"
+                      onClick={() =>
+                        setEditCompanies(editCompanies.length === companies.length ? [] : companies.map((c) => c.id))
+                      }
+                    >
+                      {editCompanies.length === companies.length ? "Desmarcar todas" : "Selecionar todas"}
+                    </button>
+                  )}
+                </div>
                 <div className="space-y-2 max-h-48 overflow-y-auto border rounded-lg p-3">
                   {companies.map((c) => (
                     <div key={c.id} className="flex items-center gap-2">

@@ -125,6 +125,13 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted, projectMemb
   // Fluxo Operacional) e as funções cadastradas nela.
   const [parentCompanyId, setParentCompanyId] = useState<string | null>(null);
   const [companyWorkflowRoles, setCompanyWorkflowRoles] = useState<{ role_key: string; user_id: string }[]>([]);
+  // Fallback quando a tela que abriu o TaskDetail não passou
+  // companyAccessProfiles (Calendário e Minhas Tarefas, diferente do
+  // KanbanBoard) — busca aqui dentro com o mesmo critério já usado em
+  // NewTaskDialog/Companies (quem tem user_company_access aprovado na
+  // empresa do projeto, exceto clientes, + admins). Tarefas pessoais (sem
+  // projeto/empresa) não buscam nada.
+  const [internalAccessProfiles, setInternalAccessProfiles] = useState<AccessProfile[]>([]);
 
   const load = async () => {
     setLoadingTask(true);
@@ -240,6 +247,40 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted, projectMemb
   }, [parentCompanyId]);
 
   useEffect(() => {
+    if (companyAccessProfiles.length > 0) return;
+    if (!parentCompanyId) { setInternalAccessProfiles([]); return; }
+    let cancelled = false;
+    (async () => {
+      const [{ data: accessRows }, { data: adminProfiles }] = await Promise.all([
+        (supabase.from as any)("user_company_access")
+          .select("user_id, profiles(id, full_name, nickname, email, avatar_url, status)")
+          .eq("company_id", parentCompanyId),
+        (supabase.rpc as any)("get_admin_profiles"),
+      ]);
+      const candidateIds = Array.from(new Set((accessRows || []).map((r: any) => r.user_id)));
+      let roleByUser: Record<string, string> = {};
+      if (candidateIds.length > 0) {
+        const { data: roleRows } = await (supabase.from as any)("user_roles").select("user_id, role").in("user_id", candidateIds);
+        (roleRows || []).forEach((r: any) => { roleByUser[r.user_id] = r.role; });
+      }
+      const byId: Record<string, AccessProfile> = {};
+      (accessRows || []).forEach((r: any) => {
+        const p = r.profiles;
+        if (p && p.status === "aprovado" && roleByUser[r.user_id] !== "cliente") {
+          byId[p.id] = { id: p.id, full_name: p.full_name, nickname: p.nickname, email: p.email, avatar_url: p.avatar_url };
+        }
+      });
+      (adminProfiles || []).forEach((p: any) => {
+        byId[p.id] = { id: p.id, full_name: p.full_name, nickname: p.nickname, email: p.email, avatar_url: p.avatar_url };
+      });
+      if (!cancelled) setInternalAccessProfiles(Object.values(byId));
+    })();
+    return () => { cancelled = true; };
+  }, [parentCompanyId, companyAccessProfiles.length]);
+
+  const effectiveAccessProfiles = companyAccessProfiles.length > 0 ? companyAccessProfiles : internalAccessProfiles;
+
+  useEffect(() => {
     if (activityOpen) activityBottomRef.current?.scrollIntoView({ block: "end" });
   }, [activityOpen, comments.length, history.length]);
 
@@ -247,7 +288,7 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted, projectMemb
   // não passam essa prop, como Calendário e Minhas Tarefas), busca o perfil
   // direto pra exibição não depender de quem renderizou o TaskDetail.
   useEffect(() => {
-    if (!editAssignedTo || companyAccessProfiles.some((p) => p.id === editAssignedTo)) {
+    if (!editAssignedTo || effectiveAccessProfiles.some((p) => p.id === editAssignedTo)) {
       setResolvedAssigneeProfile(null);
       return;
     }
@@ -262,7 +303,7 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted, projectMemb
       if (!cancelled && data) setResolvedAssigneeProfile(data as AccessProfile);
     })();
     return () => { cancelled = true; };
-  }, [editAssignedTo, companyAccessProfiles]);
+  }, [editAssignedTo, effectiveAccessProfiles]);
 
   // Save task edits
   const saveTaskEdits = async () => {
@@ -590,7 +631,7 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted, projectMemb
   };
 
   const assignedProfile = editAssignedTo
-    ? companyAccessProfiles.find((p) => p.id === editAssignedTo)
+    ? effectiveAccessProfiles.find((p) => p.id === editAssignedTo)
       || (resolvedAssigneeProfile?.id === editAssignedTo ? resolvedAssigneeProfile : null)
     : null;
   const assigneeDisplayName = assignedProfile
@@ -707,7 +748,7 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted, projectMemb
                       <span className="italic text-muted-foreground">Sem responsável</span>
                       {!editAssignedTo && !editAssigneeName && <Check className="h-3 w-3 ml-auto text-primary" />}
                     </button>
-                    {companyAccessProfiles.map((p) => {
+                    {effectiveAccessProfiles.map((p) => {
                       const name = p.nickname?.trim() || p.full_name || p.email || "Sem nome";
                       const isSelected = editAssignedTo === p.id;
                       return (
@@ -762,7 +803,7 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted, projectMemb
           <div className="flex items-center gap-2 mt-2 flex-wrap">
             <span className="text-xs text-muted-foreground">Também responsável:</span>
             {extraAssigneeIds.map((id) => {
-              const p = companyAccessProfiles.find((cp) => cp.id === id);
+              const p = effectiveAccessProfiles.find((cp) => cp.id === id);
               const name = p?.nickname?.trim() || p?.full_name || p?.email || "Usuário";
               return (
                 <span key={id} className="flex items-center gap-1.5 pl-1 pr-1.5 py-0.5 rounded-full bg-accent text-xs">
@@ -792,7 +833,7 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted, projectMemb
                 </PopoverTrigger>
                 <PopoverContent align="start" className="w-64 p-2">
                   <div className="space-y-1 max-h-56 overflow-y-auto">
-                    {companyAccessProfiles
+                    {effectiveAccessProfiles
                       .filter((p) => p.id !== editAssignedTo && !extraAssigneeIds.includes(p.id))
                       .map((p) => {
                         const name = p.nickname?.trim() || p.full_name || p.email || "Sem nome";
@@ -811,7 +852,7 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted, projectMemb
                           </button>
                         );
                       })}
-                    {companyAccessProfiles.filter((p) => p.id !== editAssignedTo && !extraAssigneeIds.includes(p.id)).length === 0 && (
+                    {effectiveAccessProfiles.filter((p) => p.id !== editAssignedTo && !extraAssigneeIds.includes(p.id)).length === 0 && (
                       <p className="text-xs text-muted-foreground px-2 py-1.5">Ninguém mais disponível pra adicionar.</p>
                     )}
                   </div>
@@ -863,7 +904,7 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted, projectMemb
                     const isDone = DONE_LIKE_STATUSES.includes(st.status);
                     const resolveProfile = (id: string) =>
                       projectMembers.find((m) => m.user_id === id)?.profiles
-                      || companyAccessProfiles.find((p) => p.id === id)
+                      || effectiveAccessProfiles.find((p) => p.id === id)
                       || null;
                     const primaryProfile = st.assigned_to ? resolveProfile(st.assigned_to) : null;
                     const primaryName = (primaryProfile as any)?.nickname?.trim() || primaryProfile?.full_name || st.assignee_name || null;
@@ -909,7 +950,7 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted, projectMemb
                       autoFocus
                     />
                     <AssigneeMultiSelect
-                      profiles={companyAccessProfiles}
+                      profiles={effectiveAccessProfiles}
                       selected={newSubtaskAssignees}
                       onChange={setNewSubtaskAssignees}
                       currentUserId={user?.id}
@@ -1247,7 +1288,7 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted, projectMemb
         onClose={() => { setViewingSubtaskId(null); load(); }}
         onTaskDeleted={() => { setViewingSubtaskId(null); load(); }}
         projectMembers={projectMembers}
-        companyAccessProfiles={companyAccessProfiles}
+        companyAccessProfiles={effectiveAccessProfiles}
       />
     )}
     </>
