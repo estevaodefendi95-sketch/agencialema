@@ -65,7 +65,7 @@ function compareDayOrder(a: TaskWithRelations, b: TaskWithRelations): number {
 
 export default function TaskCalendar() {
   const navigate = useNavigate();
-  const { avatarUrl, user, canEdit, isAdmin } = useAuth();
+  const { avatarUrl, user, canEdit } = useAuth();
   const { toast } = useToast();
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [tasks, setTasks] = useState<TaskWithRelations[]>([]);
@@ -325,7 +325,6 @@ export default function TaskCalendar() {
   // próprio autor (mesmo sendo redundante com a RLS, que já só deixa o
   // autor ver a própria tarefa pessoal — fica explícito aqui também).
   const canDragCalendarTask = (t: TaskWithRelations) => {
-    console.log('[drag-debug]', { taskId: t.id, title: t.title, project_id: t.project_id, canEdit, isAdmin });
     if (!t.project_id) return t.created_by === user?.id;
     return canEdit;
   };
