@@ -20,14 +20,23 @@ import { Button } from "@/components/ui/button";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { DragDropContext, type DropResult } from "@hello-pangea/dnd";
-import { ChevronLeft, ChevronRight, ChevronDown, Plus, Clock, CornerDownRight, Check, CalendarClock } from "lucide-react";
+import { DragDropContext, Droppable, Draggable, type DropResult } from "@hello-pangea/dnd";
+import { ChevronLeft, ChevronRight, ChevronDown, Plus, Clock, CornerDownRight, Check, CalendarClock, GripVertical } from "lucide-react";
 import { CalendarTaskPill, type CalendarTaskLike } from "@/components/CalendarTaskPill";
 import { CalendarColorToggle } from "@/components/CalendarColorToggle";
 import { CalendarMonthGrid, CalendarWeekGrid } from "@/components/CalendarMonthWeekDay";
 import type { CalendarColorMode } from "@/hooks/useCalendarColorMode";
 import { formatDueTime } from "@/lib/taskReminders";
 import { cn } from "@/lib/utils";
+import { useIsMobile } from "@/hooks/use-mobile";
+
+// droppableId fixo do Droppable de reordenar dentro do dia na visão Dia — só
+// existe um dia visível por vez, então não precisa ser dinâmico por data
+// como nas grades Mês/Semana. handleDragEnd traduz esse id pro formato
+// yyyy-MM-dd (o mesmo do dia do cursor) antes de repassar pro onMoveTask da
+// tela-pai, assim o "mesmo dia = só reordena" já existente ali funciona sem
+// precisar duplicar lógica.
+const DAY_LIST_DROPPABLE_ID = "day-list";
 
 // Layout único de calendário de tarefas, usado por Calendário (TaskCalendar),
 // Minhas Tarefas → Calendário (MyTasks) e Projeto → Calendário (KanbanBoard).
@@ -123,6 +132,7 @@ export function TaskCalendarView<T extends CalendarViewTask>({
   });
   const [cursor, setCursor] = useState<Date>(new Date());
   const [miniMonthOpen, setMiniMonthOpen] = useState(false);
+  const isMobile = useIsMobile();
 
   useEffect(() => {
     if (!onPeriodChange) return;
@@ -207,7 +217,23 @@ export function TaskCalendarView<T extends CalendarViewTask>({
 
   const handleDragEnd = (result: DropResult) => {
     if (!onMoveTask) return;
-    onMoveTask(result);
+    // Reordenar na visão Dia usa um droppableId fixo (DAY_LIST_DROPPABLE_ID),
+    // já que só existe um dia visível por vez. Traduz pro id real (yyyy-MM-dd
+    // do cursor) antes de repassar — assim origem e destino ficam iguais e o
+    // onMoveTask da tela-pai já reconhece como "mesmo dia, só reordena" (a
+    // mesma regra que Mês/Semana usam), sem precisar de um caminho separado.
+    let toApply = result;
+    if (result.source.droppableId === DAY_LIST_DROPPABLE_ID || result.destination?.droppableId === DAY_LIST_DROPPABLE_ID) {
+      const cursorDay = format(cursor, "yyyy-MM-dd");
+      toApply = {
+        ...result,
+        source: { ...result.source, droppableId: result.source.droppableId === DAY_LIST_DROPPABLE_ID ? cursorDay : result.source.droppableId },
+        destination: result.destination
+          ? { ...result.destination, droppableId: result.destination.droppableId === DAY_LIST_DROPPABLE_ID ? cursorDay : result.destination.droppableId }
+          : result.destination,
+      };
+    }
+    onMoveTask(toApply);
     justDraggedRef.current = true;
     setTimeout(() => { justDraggedRef.current = false; }, 300);
   };
@@ -394,11 +420,56 @@ export function TaskCalendarView<T extends CalendarViewTask>({
               </div>
             ) : (
               <ScrollArea className="flex-1 min-h-0 pr-3">
-                <div className="space-y-2">
-                  {dayTasks.map((task) => (
-                    <DayTaskCard key={task.id} task={task} />
-                  ))}
-                </div>
+                {dragEnabled ? (
+                  <Droppable droppableId={DAY_LIST_DROPPABLE_ID} type="day-list">
+                    {(dropProvided) => (
+                      <div ref={dropProvided.innerRef} {...dropProvided.droppableProps} className="space-y-2">
+                        {dayTasks.map((task, idx) => (
+                          <Draggable
+                            key={task.id}
+                            draggableId={task.id}
+                            index={idx}
+                            isDragDisabled={canDragTask ? !canDragTask(task) : false}
+                          >
+                            {(dragProvided, snapshot) => (
+                              <div
+                                ref={dragProvided.innerRef}
+                                {...dragProvided.draggableProps}
+                                className={cn("group/drag flex items-stretch gap-0.5", snapshot.isDragging && "shadow-md opacity-90")}
+                              >
+                                {/* Handle separado do card: o card inteiro tem onClick (abre a
+                                    tarefa) e um botão nativo dentro de uma área draggable="true"
+                                    costuma vencer a disputa com o navegador e cancelar o arrasto
+                                    — por isso o handle fica isolado aqui, fora da área clicável
+                                    (mesmo padrão de CalendarMonthWeekDay.tsx). */}
+                                <div
+                                  {...dragProvided.dragHandleProps}
+                                  className={cn(
+                                    "flex items-center justify-center w-4 shrink-0 cursor-grab text-muted-foreground transition-opacity",
+                                    isMobile ? "opacity-100" : "opacity-0 group-hover/drag:opacity-100",
+                                  )}
+                                  title="Arrastar para reordenar"
+                                >
+                                  <GripVertical className="h-4 w-4" />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <DayTaskCard task={task} />
+                                </div>
+                              </div>
+                            )}
+                          </Draggable>
+                        ))}
+                        {dropProvided.placeholder}
+                      </div>
+                    )}
+                  </Droppable>
+                ) : (
+                  <div className="space-y-2">
+                    {dayTasks.map((task) => (
+                      <DayTaskCard key={task.id} task={task} />
+                    ))}
+                  </div>
+                )}
               </ScrollArea>
             )}
             {canEdit && (
