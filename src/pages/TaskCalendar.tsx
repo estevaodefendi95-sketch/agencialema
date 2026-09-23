@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   format,
   isWithinInterval,
@@ -65,11 +65,27 @@ function compareDayOrder(a: TaskWithRelations, b: TaskWithRelations): number {
 
 export default function TaskCalendar() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { avatarUrl, user, canEdit } = useAuth();
   const { toast } = useToast();
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [tasks, setTasks] = useState<TaskWithRelations[]>([]);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+
+  // Deep link (?task=<id>) usado por notificações e pelo Dashboard — abre a
+  // tarefa direto ao carregar a página. O TaskDetail já busca a tarefa pelo
+  // id sozinho, então não precisa checar se ela já está na lista carregada.
+  useEffect(() => {
+    const taskParam = searchParams.get("task");
+    if (taskParam) setSelectedTaskId(taskParam);
+  }, [searchParams]);
+
+  const clearTaskParam = () => {
+    if (!searchParams.get("task")) return;
+    const next = new URLSearchParams(searchParams);
+    next.delete("task");
+    setSearchParams(next, { replace: true });
+  };
   const [periodRange, setPeriodRange] = useState<{ start: Date; end: Date }>({ start: new Date(), end: new Date() });
   const { colorMode, setColorMode, getTaskColor: getTaskColorForMode } = useCalendarColorMode();
   const [loading, setLoading] = useState(true);
@@ -658,8 +674,8 @@ export default function TaskCalendar() {
       {selectedTaskId && (
         <TaskDetail
           taskId={selectedTaskId}
-          onClose={() => { setSelectedTaskId(null); loadTasks(); }}
-          onTaskDeleted={() => { setSelectedTaskId(null); loadTasks(); }}
+          onClose={() => { setSelectedTaskId(null); clearTaskParam(); loadTasks(); }}
+          onTaskDeleted={() => { setSelectedTaskId(null); clearTaskParam(); loadTasks(); }}
         />
       )}
     </div>

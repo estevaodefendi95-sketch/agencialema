@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -27,7 +27,7 @@ import {
   Check,
   Plus,
 } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { formatDistanceToNow, format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
@@ -99,6 +99,7 @@ function getActivityIcon(kind: "task" | "project", action: string) {
 export default function Dashboard() {
   const { isAdmin, user } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [stats, setStats] = useState({ companies: 0, projects: 0, tasks: 0, pendingUsers: 0, overdue: 0 });
   const [pendingTasks, setPendingTasks] = useState<PendingTask[]>([]);
   const [activity, setActivity] = useState<ActivityItem[]>([]);
@@ -140,26 +141,39 @@ export default function Dashboard() {
     load();
   }, [isAdmin]);
 
-  useEffect(() => {
+  // Extraída (em vez de inline no useEffect) pra poder ser chamada também no
+  // refetch por foco da janela e ao revisitar /dashboard, não só quando
+  // `user` muda.
+  const loadPending = useCallback(async () => {
     if (!user) return;
+    const today = format(new Date(), "yyyy-MM-dd");
+    const { data } = await supabase
+      .from("tasks")
+      .select("id, title, due_date, priority, status, project_id, projects(name)")
+      .eq("assigned_to", user.id)
+      .or(`due_date.lt.${today},priority.eq.urgente`)
+      .order("due_date", { ascending: true, nullsFirst: false })
+      .limit(20);
 
-    const loadPending = async () => {
-      const today = format(new Date(), "yyyy-MM-dd");
-      const { data } = await supabase
-        .from("tasks")
-        .select("id, title, due_date, priority, status, project_id, projects(name)")
-        .eq("assigned_to", user.id)
-        .or(`due_date.lt.${today},priority.eq.urgente`)
-        .order("due_date", { ascending: true, nullsFirst: false })
-        .limit(20);
-
-      const filtered = ((data || []) as any[])
-        .filter((t) => t.status !== "aprovado" && t.status !== "concluido")
-        .slice(0, 5);
-      setPendingTasks(filtered as PendingTask[]);
-    };
-    loadPending();
+    const filtered = ((data || []) as any[])
+      .filter((t) => t.status !== "aprovado" && t.status !== "concluido")
+      .slice(0, 5);
+    setPendingTasks(filtered as PendingTask[]);
   }, [user]);
+
+  // Refaz ao montar (inclui revisitar /dashboard) e sempre que `user` muda —
+  // não fica preso a rodar só uma vez por sessão.
+  useEffect(() => {
+    loadPending();
+  }, [loadPending, location.pathname]);
+
+  // Refaz ao a janela ganhar foco de novo (ex: usuário volta de outra aba
+  // depois de concluir/editar uma tarefa em outro lugar).
+  useEffect(() => {
+    const onFocus = () => loadPending();
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
+  }, [loadPending]);
 
   useEffect(() => {
     const loadActivity = async () => {
@@ -366,7 +380,7 @@ export default function Dashboard() {
                 {pendingTasks.map((t) => (
                   <button
                     key={t.id}
-                    onClick={() => navigate(`/projetos/${t.project_id}`)}
+                    onClick={() => navigate(`/projetos/${t.project_id}?task=${t.id}`)}
                     className="w-full text-left p-2.5 rounded-lg border bg-card hover:bg-accent/50 transition-colors"
                   >
                     <div className="flex items-start justify-between gap-2">
