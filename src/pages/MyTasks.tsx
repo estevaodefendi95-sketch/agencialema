@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -109,6 +109,7 @@ type ViewMode = "cards" | "lista" | "calendario";
 export default function MyTasks() {
   const { user, isAdmin, canEdit, avatarUrl } = useAuth();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { toast } = useToast();
 
   const [view, setView] = useState<ViewMode>(() => (localStorage.getItem("mytasks-view") as ViewMode) || "cards");
@@ -116,6 +117,21 @@ export default function MyTasks() {
 
   const [tasks, setTasks] = useState<Task[]>([]);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+
+  // Deep link (?task=<id>) usado por notificações e pelo Dashboard — abre a
+  // tarefa direto ao carregar a página. O TaskDetail já busca a tarefa pelo
+  // id sozinho, então não precisa checar se ela já está na lista carregada.
+  useEffect(() => {
+    const taskParam = searchParams.get("task");
+    if (taskParam) setSelectedTaskId(taskParam);
+  }, [searchParams]);
+
+  const clearTaskParam = () => {
+    if (!searchParams.get("task")) return;
+    const next = new URLSearchParams(searchParams);
+    next.delete("task");
+    setSearchParams(next, { replace: true });
+  };
   const [statusColumns, setStatusColumns] = useState<StatusColumn[]>(DEFAULT_STATUS_COLUMNS);
   const { containerRef: boardScrollRef, activeIndex: activeColIndex, scrollToIndex: scrollToCol } = useScrollSnapIndex<HTMLDivElement>(statusColumns.length);
   const [loading, setLoading] = useState(true);
@@ -853,8 +869,8 @@ export default function MyTasks() {
       {selectedTaskId && (
         <TaskDetail
           taskId={selectedTaskId}
-          onClose={() => { setSelectedTaskId(null); if (selectedUser) loadTasks(selectedUser); }}
-          onTaskDeleted={() => { setSelectedTaskId(null); if (selectedUser) loadTasks(selectedUser); }}
+          onClose={() => { setSelectedTaskId(null); clearTaskParam(); if (selectedUser) loadTasks(selectedUser); }}
+          onTaskDeleted={() => { setSelectedTaskId(null); clearTaskParam(); if (selectedUser) loadTasks(selectedUser); }}
         />
       )}
     </div>

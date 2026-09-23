@@ -1,6 +1,7 @@
--- Deep link para tarefas nas notificações (?task=<id>)
--- Idempotente (CREATE OR REPLACE). Apenas registrado, não executado.
-
+-- Registro no repositório (já aplicado direto no banco pelo Lovable) das duas
+-- funções que geram notificações com link de tarefa — agora incluindo
+-- ?task=<id> no link, pra abrir a tarefa automaticamente ao clicar na
+-- notificação (feat/deep-link-tarefa).
 CREATE OR REPLACE FUNCTION public.send_due_task_reminders()
  RETURNS void
  LANGUAGE plpgsql

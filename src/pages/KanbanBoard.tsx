@@ -146,7 +146,7 @@ function compareDayOrder(a: Task, b: Task): number {
 
 export default function KanbanBoard() {
   const { id: projectId } = useParams<{ id: string }>();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { isAdmin, user, canEdit, avatarUrl } = useAuth();
   const { toast } = useToast();
   const appSettings = useAppSettings();
@@ -178,6 +178,21 @@ export default function KanbanBoard() {
   const [newTaskOpen, setNewTaskOpen] = useState(false);
   const [newTaskDate, setNewTaskDate] = useState<Date | undefined>(undefined);
   const [selectedTask, setSelectedTask] = useState<string | null>(null);
+
+  // Deep link (?task=<id>) usado por notificações e pelo Dashboard — abre a
+  // tarefa direto ao carregar a página. O TaskDetail já busca a tarefa pelo
+  // id sozinho, então não precisa checar se ela já está na lista carregada.
+  useEffect(() => {
+    const taskParam = searchParams.get("task");
+    if (taskParam) setSelectedTask(taskParam);
+  }, [searchParams]);
+
+  const clearTaskParam = () => {
+    if (!searchParams.get("task")) return;
+    const next = new URLSearchParams(searchParams);
+    next.delete("task");
+    setSearchParams(next, { replace: true });
+  };
   const [newStatus, setNewStatus] = useState<string>("a_fazer");
   const [newColor, setNewColor] = useState<string | null>(null);
   const [newCheckItems, setNewCheckItems] = useState<string[]>([]);
@@ -1728,7 +1743,7 @@ export default function KanbanBoard() {
       {selectedTask && (
         <TaskDetail
           taskId={selectedTask}
-          onClose={() => { setSelectedTask(null); load(); }}
+          onClose={() => { setSelectedTask(null); clearTaskParam(); load(); }}
           onTaskDeleted={load}
           projectMembers={members}
           companyAccessProfiles={companyAccessProfiles}
