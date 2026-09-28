@@ -1,46 +1,46 @@
+# Revisão mobile e busca contextual
+
 ## Objetivo
+Entregar uma experiência consistente em Android e iOS em todas as áreas internas, no portal do cliente e no detalhe da tarefa, além de transformar a busca do cabeçalho em uma busca útil para a área atual.
 
-Reformular o layout da apresentação ao cliente com a linguagem visual do PDF da lema. (fundo azul forte + off-white, tipografia grande, blocos numerados, badge de DATA | HORÁRIO), com modo desktop e mobile, mantendo intactos o mockup de iPhone/Instagram e o agendamento/planejamento de posts.
+## Plano
 
-## Formato
+1. **Padronizar a estrutura mobile**
+   - Ajustar cabeçalho, conteúdo, menu lateral e navegação inferior para respeitar as áreas seguras do Android/iOS, teclado virtual e barras do navegador.
+   - Garantir títulos, ações e filtros sem sobreposição, cortes ou rolagem horizontal acidental.
+   - Padronizar alvos de toque, estados de foco, carregamento, vazio e erro.
 
-Híbrido:
-- **Mobile / padrão:** página rolável, cada seção ocupa a tela com o visual do deck.
-- **Desktop:** botão "Modo apresentação" que ativa navegação slide a slide em 16:9 (setas ←/→, teclado, contador de slides, ESC para sair). O conteúdo é o mesmo — só muda o modo de navegação.
+2. **Revisar todas as áreas**
+   - Conferir Dashboard, Empresas, detalhe da empresa, Projetos, projeto/Kanban, Calendário, Minhas Tarefas, Equipe, Notificações, Perfil e telas administrativas.
+   - Conferir também o portal do cliente, tarefas, calendário e apresentações públicas.
+   - Adaptar tabelas e barras extensas para alternativas móveis legíveis; manter scroll horizontal somente onde ele é parte natural da interação, como Kanban e calendário.
 
-Vale para a landing pública (`/c/:slug`) e para o preview interno.
+3. **Otimizar a página de tarefa**
+   - Tratar o detalhe como painel integral no celular, com cabeçalho compacto, fechamento sempre acessível e botão de salvar visível quando houver alterações.
+   - Reorganizar responsável, responsáveis adicionais, datas, prioridade, lembrete, subtarefas, mídias, checklist e atividade para uma coluna confortável.
+   - Corrigir ações que hoje dependem de passar o mouse, ampliar controles pequenos e preservar o conteúdo ao abrir teclado, seletores e anexos.
+   - Validar também a abertura direta por links com `?task=`.
 
-## Tema editável por projeto
+4. **Criar busca contextual no cabeçalho**
+   - Fazer o texto, os resultados e a ação da busca mudarem conforme a página atual.
+   - Em **Empresas**, pesquisar instantaneamente por nome, descrição, slug e responsáveis do fluxo; mostrar resultados claros e abrir diretamente a empresa escolhida.
+   - Em **Projetos**, priorizar projetos e suas empresas; dentro de um projeto, pesquisar tarefas daquele projeto e abrir a tarefa.
+   - Em **Minhas Tarefas** e **Calendário**, pesquisar tarefas visíveis ao usuário e abrir o detalhe.
+   - Em **Equipe**, pesquisar pessoas; em **Notificações**, filtrar avisos; nas demais áreas, manter uma busca geral como alternativa.
+   - Usar atraso curto de digitação, botão para limpar, mensagens específicas e navegação acessível por toque e teclado.
 
-Usar a coluna `theme` (já existe em `project_presentations`) para guardar cores editáveis: fundo, cor de destaque, cor de texto e cor do slide invertido. Padrão pré-carregado com o azul lema. Editor com seletor de cores no topo do builder + botão "restaurar padrão". Todas as seções consomem essas cores via variáveis CSS aplicadas no container da apresentação (sem cores fixas nos componentes).
+5. **Evitar buscas duplicadas**
+   - Centralizar o estado da busca contextual e permitir que cada página registre sua fonte de resultados ou filtro local.
+   - Nas listas, refletir o termo do cabeçalho imediatamente no conteúdo; em resultados navegáveis, fechar a busca após selecionar.
+   - Manter o atalho `Ctrl/⌘ + K` no computador e uma abertura simples em tela cheia no celular.
 
-## Novos blocos editáveis
-
-Todos entram como tipos novos em `presentation_blocks` (a tabela aceita qualquer tipo — sem mudança no banco) e ganham editor completo no builder:
-
-1. **Capa** — logo do cliente centralizado, palavra "PLANEJAMENTO", mês e ano, frase de topo (#tudo começa pelo seu lema.), logo da agência no rodapé. Campos: frase, palavra-chave, mês, ano, logos.
-2. **Regras / Aprovação** — fundo invertido (azul cheio), itens numerados `01`, `02`… com título e descrição, separador entre eles. Lista com adicionar/remover/reordenar.
-3. **Temas do mês** — faixa de título colorida no topo + lista numerada em duas colunas. Itens editáveis, reordenáveis.
-4. **Visão geral do feed** — título grande à esquerda ("#seu feed, seu lema." + subtítulo) e mosaico 3 colunas de imagens à direita, com upload/recorte 1:1 e reordenação. Em mobile empilha.
-
-## Reformulação das seções existentes
-
-- **Capa/hero atual:** vira o bloco Capa (o hero antigo continua funcionando como fallback).
-- **Cabeçalho e Texto:** tipografia do deck (título display grande, corpo leve), opção de alinhamento (esquerda/centro) e de fundo (claro/invertido) — ambos editáveis.
-- **Imagem e Galeria:** enquadramento em faixa horizontal como no PDF, com legenda editável e opção de proporção.
-- **Planejamento de Posts (visual apenas — lógica de agendamento intacta):** cada post vira um slide "Post 01": número grande, tipo/título ao lado, badge azul `DATA: 24/07 | HORÁRIO: 11H30` no canto superior direito, faixa horizontal de mídias e bloco "Legenda:" abaixo. Mantém carrossel no mobile e os botões de aprovação/comentário do cliente como estão hoje.
-- **Preview Instagram:** intocado, apenas herda o fundo do tema.
-- **Rodapé:** logo da agência + `#seu feed, seu lema.`
+6. **Validar Android e iOS**
+   - Testar larguras representativas de iPhone e Android, incluindo orientação vertical, teclado aberto, tema claro/escuro e conteúdo longo.
+   - Exercitar busca de empresa, busca de tarefa, abertura do detalhe, edição, salvamento, filtros, menus, modais e navegação inferior.
+   - Corrigir erros encontrados e confirmar o resultado visual com capturas das telas principais.
 
 ## Detalhes técnicos
-
-- `PresentationView.tsx` é dividido em: `PresentationDeck` (shell com modo scroll/slide, tema e navegação), `Slide` (moldura 16:9 no desktop, altura livre no mobile) e um arquivo por bloco em `src/components/presentation/blocks/`.
-- Tema aplicado via CSS vars locais (`--pres-bg`, `--pres-fg`, `--pres-accent`, `--pres-invert-bg`) — nenhuma cor hardcoded nos componentes.
-- `PresentationBuilder.tsx` ganha: painel de tema, os 4 novos tipos no menu "Adicionar bloco" e editores dedicados; drag-and-drop e o fluxo de versões/lançamento continuam iguais.
-- Landing (`/c/:slug`) e preview interno usam o mesmo `PresentationDeck`.
-- Sem migração de banco: `theme` já existe e `block_type` não tem restrição de valores.
-- Tipografia: fonte display sem serifa de peso alto para títulos, mantendo a fonte atual no corpo.
-
-## Fora do escopo
-
-Mockup do iPhone/Instagram e a lógica de agendamento/aprovação de posts não são alterados.
+- Preservar as permissões e regras de dados existentes; a mudança será na interface e no comportamento de busca.
+- Reutilizar os componentes e tokens visuais atuais, acrescentando um contexto compartilhado para busca por rota.
+- A lista de Empresas atualmente não possui filtro local, e a busca global leva qualquer empresa apenas para `/empresas`; o novo fluxo abrirá `/empresas/:companyId` e filtrará a lista quando apropriado.
+- O detalhe de tarefa já é um painel de largura total no celular, mas possui espaçamentos de desktop, grades em duas colunas e ações dependentes de hover que serão adaptadas.
