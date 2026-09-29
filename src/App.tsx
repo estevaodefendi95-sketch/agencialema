@@ -8,6 +8,7 @@ import { ThemeProvider } from "@/contexts/ThemeContext";
 import { AppLayout } from "@/components/AppLayout";
 import { ClientPortalLayout } from "@/components/ClientPortalLayout";
 import { InstallAppPrompt } from "@/components/InstallAppPrompt";
+import { UpdateAvailableBanner } from "@/components/UpdateAvailableBanner";
 import Login from "@/pages/Login";
 import PendingApproval from "@/pages/PendingApproval";
 import Dashboard from "@/pages/Dashboard";
@@ -122,6 +123,7 @@ const App = () => (
             <AppRoutes />
           </BrowserRouter>
           <InstallAppPrompt />
+          <UpdateAvailableBanner />
         </TooltipProvider>
       </AuthProvider>
     </ThemeProvider>
