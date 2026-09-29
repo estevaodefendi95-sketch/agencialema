@@ -545,12 +545,18 @@ export default function KanbanBoard() {
   };
 
   // Tarefas com prazo que passam no filtro de responsável, já com o perfil
-  // do responsável embutido (a pílula/card do calendário lê task.assignee).
+  // do responsável embutido (a pílula/card do calendário lê task.assignee) e
+  // a empresa do projeto (aqui é sempre a mesma pra todas, já que o board é
+  // de um projeto só — sem join por tarefa como em TaskCalendar/MyTasks).
   const calendarTasks = useMemo(() => {
     return tasks
       .filter((t): t is Task & { due_date: string } => !!t.due_date && matchesAssignee(t))
-      .map((t) => ({ ...t, assignee: t.assigned_to ? assigneeProfiles[t.assigned_to] ?? null : null }));
-  }, [tasks, assigneeFilter, assigneeProfiles]);
+      .map((t) => ({
+        ...t,
+        assignee: t.assigned_to ? assigneeProfiles[t.assigned_to] ?? null : null,
+        projects: { companies: { name: companyName || null, logo_url: companyLogo } },
+      }));
+  }, [tasks, assigneeFilter, assigneeProfiles, companyName, companyLogo]);
 
   const renderCalendarTaskMeta = (task: (typeof calendarTasks)[number]) =>
     colorMode === "responsavel" && (task.assigned_to || task.assignee_name) ? (
