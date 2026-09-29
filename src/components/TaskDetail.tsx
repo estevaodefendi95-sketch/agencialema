@@ -124,6 +124,7 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted, projectMemb
   // Empresa do projeto pai (pra agrupar Responsáveis da subtarefa pelo
   // Fluxo Operacional) e as funções cadastradas nela.
   const [parentCompanyId, setParentCompanyId] = useState<string | null>(null);
+  const [companyName, setCompanyName] = useState<string | null>(null);
   const [companyWorkflowRoles, setCompanyWorkflowRoles] = useState<{ role_key: string; user_id: string }[]>([]);
   // Fallback quando a tela que abriu o TaskDetail não passou
   // companyAccessProfiles (Calendário e Minhas Tarefas, diferente do
@@ -144,10 +145,12 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted, projectMemb
       return;
     }
     if (t?.project_id) {
-      const { data: proj } = await supabase.from("projects").select("company_id").eq("id", t.project_id).maybeSingle();
+      const { data: proj } = await supabase.from("projects").select("company_id, companies(name)").eq("id", t.project_id).maybeSingle();
       setParentCompanyId(proj?.company_id || null);
+      setCompanyName((proj?.companies as any)?.name || null);
     } else {
       setParentCompanyId(null);
+      setCompanyName(null);
     }
     if (t) {
       setEditTitle(t.title);
@@ -691,6 +694,9 @@ export default function TaskDetail({ taskId, onClose, onTaskDeleted, projectMemb
         className="w-full sm:max-w-3xl h-full flex flex-col p-0 gap-0 overflow-hidden"
       >
         <SheetHeader className="px-8 pt-8 pb-5 border-b shrink-0 pr-14 text-left space-y-0">
+          {companyName && (
+            <p className="text-sm text-muted-foreground">{companyName}</p>
+          )}
           <div className="flex items-center justify-between gap-2">
             {editingTitle ? (
               <Input
