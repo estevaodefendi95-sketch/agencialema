@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Download, X, Share } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useAppUpdateAvailable } from "@/hooks/useAppUpdate";
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
@@ -12,6 +13,7 @@ const DISMISS_KEY = "install-prompt-dismissed";
 
 export function InstallAppPrompt() {
   const isMobile = useIsMobile();
+  const updateAvailable = useAppUpdateAvailable();
   const [deferred, setDeferred] = useState<BeforeInstallPromptEvent | null>(null);
   const [showIosHint, setShowIosHint] = useState(false);
   const [hidden, setHidden] = useState(() => localStorage.getItem(DISMISS_KEY) === "1");
@@ -38,7 +40,9 @@ export function InstallAppPrompt() {
     return () => window.removeEventListener("beforeinstallprompt", onPrompt);
   }, []);
 
-  if (hidden || (!deferred && !showIosHint)) return null;
+  // Aviso de nova versão tem prioridade — evita empilhar os dois avisos na
+  // mesma posição da tela.
+  if (updateAvailable || hidden || (!deferred && !showIosHint)) return null;
 
   const dismiss = () => {
     localStorage.setItem(DISMISS_KEY, "1");
