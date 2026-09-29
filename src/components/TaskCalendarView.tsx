@@ -445,8 +445,8 @@ export function TaskCalendarView<T extends CalendarViewTask>({
                                 <div
                                   {...dragProvided.dragHandleProps}
                                   className={cn(
-                                    "flex items-center justify-center w-4 shrink-0 cursor-grab text-muted-foreground transition-opacity",
-                                    isMobile ? "opacity-100" : "opacity-0 group-hover/drag:opacity-100",
+                                    "flex items-center justify-center shrink-0 cursor-grab text-muted-foreground transition-opacity",
+                                    isMobile ? "w-8 opacity-100" : "w-4 opacity-0 group-hover/drag:opacity-100",
                                   )}
                                   title="Arrastar para reordenar"
                                 >
