@@ -23,6 +23,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { DragDropContext, Droppable, Draggable, type DropResult } from "@hello-pangea/dnd";
 import { ChevronLeft, ChevronRight, ChevronDown, Plus, Clock, CornerDownRight, Check, CalendarClock, GripVertical } from "lucide-react";
 import { CalendarTaskPill, type CalendarTaskLike } from "@/components/CalendarTaskPill";
+import { TaskDualAvatar } from "@/components/TaskDualAvatar";
 import { CalendarColorToggle } from "@/components/CalendarColorToggle";
 import { CalendarMonthGrid, CalendarWeekGrid } from "@/components/CalendarMonthWeekDay";
 import type { CalendarColorMode } from "@/hooks/useCalendarColorMode";
@@ -310,69 +311,90 @@ export function TaskCalendarView<T extends CalendarViewTask>({
   const DayTaskCard = ({ task }: { task: T }) => {
     const color = getTaskColor(task);
     const done = task.status === "concluido";
+    const assigneeName = (task.assignee as any)?.nickname?.trim() || task.assignee?.full_name || task.assignee_name || null;
+    const companyLogo = task.projects?.companies?.logo_url;
+    const companyName = task.projects?.companies?.name;
+    const hasAssignee = !!(task.assigned_to || task.assignee_name);
+    // Mesmo colorMode que já decide a cor da borda do card — a foto grande
+    // segue o filtro ativo, a pequena sobreposta é a outra.
+    const showAvatar = colorMode === "responsavel" ? hasAssignee : !!companyLogo;
+
     return (
       <div
         onClick={(e) => { e.stopPropagation(); onOpenTask(task); }}
         className="w-full text-left p-3 rounded-lg border border-l-4 transition-colors cursor-pointer"
         style={{ borderLeftColor: color, backgroundColor: `${color}15` }}
       >
-        <div className="flex items-start justify-between gap-2 mb-2">
-          <h3 className="font-medium text-sm flex items-center gap-1.5">
-            <span
-              role="button"
-              onClick={(e) => { e.stopPropagation(); onToggleComplete(task, e); }}
-              className={cn(
-                "h-4 w-4 rounded-sm border shrink-0 flex items-center justify-center transition-colors",
-                done ? "bg-primary border-primary" : "border-muted-foreground/40 hover:border-primary",
-              )}
-              title={done ? "Marcar como não concluída" : "Marcar como concluída"}
-            >
-              {done && <Check className="h-3 w-3 text-primary-foreground" strokeWidth={3} />}
-            </span>
-            {task.parent_task_id && (
-              <span title="Subtarefa"><CornerDownRight className="h-3 w-3 text-muted-foreground shrink-0" /></span>
-            )}
-            <span className={cn("line-clamp-2 leading-snug break-words", done && "line-through opacity-60")}>{task.title}</span>
-          </h3>
-          <div className="flex items-center gap-2 shrink-0">
-            {task.due_time && (
-              <span className="text-xs text-muted-foreground flex items-center gap-1">
-                <Clock className="h-3 w-3" /> {formatDueTime(task.due_time)}
-              </span>
-            )}
-            <Badge variant="outline" className="shrink-0">
-              <span className={cn("h-2 w-2 rounded-full mr-1.5", priorityColor[task.priority])} />
-              {priorityLabel[task.priority] || task.priority}
-            </Badge>
-            {dragEnabled && (!canDragTask || canDragTask(task)) && (
-              <Popover>
-                <PopoverTrigger asChild>
-                  <button
-                    onClick={(e) => e.stopPropagation()}
-                    className="h-6 w-6 inline-flex items-center justify-center rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-colors shrink-0"
-                    title="Mudar data"
-                  >
-                    <CalendarClock className="h-3.5 w-3.5" />
-                  </button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" onClick={(e) => e.stopPropagation()}>
-                  <Calendar
-                    mode="single"
-                    selected={new Date(`${task.due_date}T00:00:00`)}
-                    onSelect={(d) => d && quickMoveTask(task, d)}
-                    locale={ptBR}
-                    className="pointer-events-auto"
-                  />
-                </PopoverContent>
-              </Popover>
+        <div className="flex items-start gap-3">
+          {showAvatar && (
+            <TaskDualAvatar
+              primaryUrl={colorMode === "responsavel" ? task.assignee?.avatar_url : companyLogo}
+              primaryName={colorMode === "responsavel" ? assigneeName : companyName}
+              secondaryUrl={colorMode === "responsavel" ? companyLogo : (hasAssignee ? task.assignee?.avatar_url : null)}
+              size="h-8 w-8"
+              className="mt-0.5"
+            />
+          )}
+          <div className="flex-1 min-w-0">
+            <div className="flex items-start justify-between gap-2 mb-2">
+              <h3 className="font-medium text-sm flex items-center gap-1.5">
+                <span
+                  role="button"
+                  onClick={(e) => { e.stopPropagation(); onToggleComplete(task, e); }}
+                  className={cn(
+                    "h-4 w-4 rounded-sm border shrink-0 flex items-center justify-center transition-colors",
+                    done ? "bg-primary border-primary" : "border-muted-foreground/40 hover:border-primary",
+                  )}
+                  title={done ? "Marcar como não concluída" : "Marcar como concluída"}
+                >
+                  {done && <Check className="h-3 w-3 text-primary-foreground" strokeWidth={3} />}
+                </span>
+                {task.parent_task_id && (
+                  <span title="Subtarefa"><CornerDownRight className="h-3 w-3 text-muted-foreground shrink-0" /></span>
+                )}
+                <span className={cn("line-clamp-2 leading-snug break-words", done && "line-through opacity-60")}>{task.title}</span>
+              </h3>
+              <div className="flex items-center gap-2 shrink-0">
+                {task.due_time && (
+                  <span className="text-xs text-muted-foreground flex items-center gap-1">
+                    <Clock className="h-3 w-3" /> {formatDueTime(task.due_time)}
+                  </span>
+                )}
+                <Badge variant="outline" className="shrink-0">
+                  <span className={cn("h-2 w-2 rounded-full mr-1.5", priorityColor[task.priority])} />
+                  {priorityLabel[task.priority] || task.priority}
+                </Badge>
+                {dragEnabled && (!canDragTask || canDragTask(task)) && (
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <button
+                        onClick={(e) => e.stopPropagation()}
+                        className="h-6 w-6 inline-flex items-center justify-center rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-colors shrink-0"
+                        title="Mudar data"
+                      >
+                        <CalendarClock className="h-3.5 w-3.5" />
+                      </button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" onClick={(e) => e.stopPropagation()}>
+                      <Calendar
+                        mode="single"
+                        selected={new Date(`${task.due_date}T00:00:00`)}
+                        onSelect={(d) => d && quickMoveTask(task, d)}
+                        locale={ptBR}
+                        className="pointer-events-auto"
+                      />
+                    </PopoverContent>
+                  </Popover>
+                )}
+              </div>
+            </div>
+            {renderTaskMeta && (
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                {renderTaskMeta(task)}
+              </div>
             )}
           </div>
         </div>
-        {renderTaskMeta && (
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-            {renderTaskMeta(task)}
-          </div>
-        )}
       </div>
     );
   };

@@ -1,5 +1,5 @@
 import { cn } from "@/lib/utils";
-import { AssigneeAvatar } from "@/components/AssigneeAvatar";
+import { TaskDualAvatar } from "@/components/TaskDualAvatar";
 import { Check, CornerDownRight } from "lucide-react";
 import { formatDueTime } from "@/lib/taskReminders";
 
@@ -12,7 +12,7 @@ export type CalendarTaskLike = {
   assignee_name?: string | null;
   status: string;
   parent_task_id?: string | null;
-  projects?: { companies?: ({ logo_url?: string | null } & Record<string, unknown>) | null } | null;
+  projects?: { companies?: ({ name?: string | null; logo_url?: string | null } & Record<string, unknown>) | null } | null;
   assignee?: { full_name?: string | null; nickname?: string | null; avatar_url?: string | null } | null;
 };
 
@@ -39,6 +39,8 @@ export function CalendarTaskPill<T extends CalendarTaskLike>({
   const assigneeName = (task.assignee as any)?.nickname?.trim() || task.assignee?.full_name || task.assignee_name || null;
   const done = task.status === "concluido";
   const companyLogo = task.projects?.companies?.logo_url;
+  const companyName = task.projects?.companies?.name;
+  const hasAssignee = !!(task.assigned_to || task.assignee_name);
 
   return (
     <button
@@ -60,11 +62,21 @@ export function CalendarTaskPill<T extends CalendarTaskLike>({
         {done && <Check className="h-3.5 w-3.5 md:h-2.5 md:w-2.5 text-primary-foreground" strokeWidth={3} />}
       </span>
       <span className={cn("h-1.5 w-1.5 rounded-full shrink-0 mt-1.5", priorityColor[task.priority])} />
-      {colorMode === "responsavel" && (task.assigned_to || task.assignee_name) && (
-        <AssigneeAvatar url={task.assignee?.avatar_url} name={assigneeName} className="h-5 w-5 shrink-0" />
+      {colorMode === "responsavel" && hasAssignee && (
+        <TaskDualAvatar
+          primaryUrl={task.assignee?.avatar_url}
+          primaryName={assigneeName}
+          secondaryUrl={companyLogo}
+          size="h-5 w-5"
+        />
       )}
       {colorMode === "empresa" && companyLogo && (
-        <img src={companyLogo} alt="" className="h-5 w-5 rounded-full object-cover shrink-0 border border-background/60 mt-0.5" />
+        <TaskDualAvatar
+          primaryUrl={companyLogo}
+          primaryName={companyName}
+          secondaryUrl={hasAssignee ? task.assignee?.avatar_url : null}
+          size="h-5 w-5"
+        />
       )}
       {task.parent_task_id && (
         <span title="Subtarefa" className="shrink-0 mt-0.5"><CornerDownRight className="h-3 w-3" /></span>
