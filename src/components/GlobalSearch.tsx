@@ -87,9 +87,9 @@ export function GlobalSearch() {
     }
   }, [open]);
 
-  function goToCompanies() {
+  function goToCompany(id: string) {
     setOpen(false);
-    navigate("/empresas");
+    navigate(`/empresas/${id}`);
   }
   function goToProject(id: string) {
     setOpen(false);
@@ -138,7 +138,7 @@ export function GlobalSearch() {
               {companies.length > 0 && (
                 <CommandGroup heading="Empresas">
                   {companies.map((c) => (
-                    <CommandItem key={`company-${c.id}`} value={`company-${c.id}`} onSelect={goToCompanies}>
+                    <CommandItem key={`company-${c.id}`} value={`company-${c.id}`} onSelect={() => goToCompany(c.id)}>
                       <Building2 className="mr-2 shrink-0 text-muted-foreground" />
                       <span className="truncate">{c.name}</span>
                     </CommandItem>
