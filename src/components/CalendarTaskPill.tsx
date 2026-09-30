@@ -41,65 +41,59 @@ export function CalendarTaskPill<T extends CalendarTaskLike>({
   const companyLogo = task.projects?.companies?.logo_url;
   const companyName = task.projects?.companies?.name;
   const hasAssignee = !!(task.assigned_to || task.assignee_name);
+  const primaryUrl = colorMode === "responsavel" ? task.assignee?.avatar_url : companyLogo;
+  const primaryName = colorMode === "responsavel" ? assigneeName : companyName;
+  const secondaryUrl = colorMode === "responsavel" ? companyLogo : (hasAssignee ? task.assignee?.avatar_url : null);
+  const hasPhoto = colorMode === "responsavel" ? hasAssignee : !!companyLogo;
 
   return (
     <button
       onClick={(e) => { e.stopPropagation(); onOpen(task); }}
-      className="relative w-full min-h-14 md:min-h-[50px] text-left px-2 py-1.5 pb-5 rounded-md text-[13px] flex items-start gap-2 overflow-hidden group/pill"
+      className="w-full text-left px-2 py-1.5 rounded-md text-[13px] flex items-start gap-2 overflow-hidden group/pill"
       style={{ backgroundColor: `${color}30`, boxShadow: `inset 3px 0 0 0 ${color}` }}
       title={task.title}
     >
-      <span
-        role="button"
-        onClick={(e) => onToggleDone(task, e)}
-        className={cn(
-          "relative h-5 w-5 md:h-3.5 md:w-3.5 mt-0.5 rounded-sm border shrink-0 flex items-center justify-center transition-colors bg-background/70",
-          "before:content-[''] before:absolute before:-inset-1.5 md:before:hidden",
-          done ? "bg-primary border-primary" : "border-muted-foreground/50 hover:border-primary",
+      {/* Coluna estreita: checkbox + bolinha de prioridade no topo, foto
+          coladinha logo abaixo (gap-1). Sem foto, a coluna só tem essa
+          primeira linha — não sobra vão vazio embaixo. */}
+      <div className="flex flex-col items-center gap-1 shrink-0">
+        <div className="flex items-center gap-1">
+          <span
+            role="button"
+            onClick={(e) => onToggleDone(task, e)}
+            className={cn(
+              "relative h-5 w-5 md:h-3.5 md:w-3.5 rounded-sm border shrink-0 flex items-center justify-center transition-colors bg-background/70",
+              "before:content-[''] before:absolute before:-inset-1.5 md:before:hidden",
+              done ? "bg-primary border-primary" : "border-muted-foreground/50 hover:border-primary",
+            )}
+            title={done ? "Marcar como não concluída" : "Marcar como concluída"}
+          >
+            {done && <Check className="h-3.5 w-3.5 md:h-2.5 md:w-2.5 text-primary-foreground" strokeWidth={3} />}
+          </span>
+          <span className={cn("h-1.5 w-1.5 rounded-full shrink-0", priorityColor[task.priority])} />
+        </div>
+        {hasPhoto && (
+          <TaskDualAvatar
+            primaryUrl={primaryUrl}
+            primaryName={primaryName}
+            secondaryUrl={secondaryUrl}
+            size="h-8 w-8"
+          />
         )}
-        title={done ? "Marcar como não concluída" : "Marcar como concluída"}
-      >
-        {done && <Check className="h-3.5 w-3.5 md:h-2.5 md:w-2.5 text-primary-foreground" strokeWidth={3} />}
-      </span>
-      <span className={cn("h-1.5 w-1.5 rounded-full shrink-0 mt-2", priorityColor[task.priority])} />
-      {task.parent_task_id && (
-        <span title="Subtarefa" className="shrink-0 mt-0.5"><CornerDownRight className="h-3 w-3" /></span>
-      )}
-      {/* Título e horário ocupam a linha inteira que sobra — checkbox e
-          bolinha de prioridade são os únicos irmãos dessa coluna. A foto fica
-          fora do fluxo (canto inferior esquerdo, position: absolute). O
-          min-h no <button> (não só o pb-5) é o que garante que checkbox
-          (topo) e foto (base) nunca colidam mesmo num título de 1 linha sem
-          horário — sem min-h, o card encolhe pro tamanho do conteúdo e os
-          dois se sobrepõem. */}
+      </div>
       <div className="min-w-0 flex-1 flex flex-col">
-        <span className={cn("line-clamp-2 leading-snug break-normal", done && "line-through opacity-60")}>
-          {task.title}
-        </span>
+        <div className="flex items-start gap-1">
+          {task.parent_task_id && (
+            <span title="Subtarefa" className="shrink-0 mt-0.5"><CornerDownRight className="h-3 w-3" /></span>
+          )}
+          <span className={cn("line-clamp-2 leading-snug break-normal", done && "line-through opacity-60")}>
+            {task.title}
+          </span>
+        </div>
         {task.due_time && (
           <span className="text-[10px] text-muted-foreground leading-none mt-0.5">{formatDueTime(task.due_time)}</span>
         )}
       </div>
-      {colorMode === "responsavel" && hasAssignee && (
-        <TaskDualAvatar
-          primaryUrl={task.assignee?.avatar_url}
-          primaryName={assigneeName}
-          secondaryUrl={companyLogo}
-          size="h-5 w-5"
-          secondarySize="w-3 h-3"
-          className="absolute left-1.5 bottom-1 z-10"
-        />
-      )}
-      {colorMode === "empresa" && companyLogo && (
-        <TaskDualAvatar
-          primaryUrl={companyLogo}
-          primaryName={companyName}
-          secondaryUrl={hasAssignee ? task.assignee?.avatar_url : null}
-          size="h-5 w-5"
-          secondarySize="w-3 h-3"
-          className="absolute left-1.5 bottom-1 z-10"
-        />
-      )}
     </button>
   );
 }
