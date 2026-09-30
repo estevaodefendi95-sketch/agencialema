@@ -8,7 +8,7 @@ interface Props {
   primaryName?: string | null;
   /** Foto pequena sobreposta no canto — a outra metade do par (empresa ou responsável). */
   secondaryUrl?: string | null;
-  /** Classe de tamanho da foto principal (ex: "h-5 w-5"). A pequena fica em ~40% disso, relativo ao wrapper. */
+  /** Classe de tamanho da foto principal (ex: "h-5 w-5"). A pequena tem tamanho fixo (14px), não proporcional. */
   size?: string;
   className?: string;
 }
@@ -28,7 +28,7 @@ export function TaskDualAvatar({ primaryUrl, primaryName, secondaryUrl, size = "
         <img
           src={secondaryUrl}
           alt=""
-          className="absolute -bottom-0.5 -right-0.5 w-[40%] h-[40%] rounded-full object-cover border-2 border-background"
+          className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full object-cover border-2 border-background"
         />
       )}
     </span>

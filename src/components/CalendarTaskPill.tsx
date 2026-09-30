@@ -45,7 +45,7 @@ export function CalendarTaskPill<T extends CalendarTaskLike>({
   return (
     <button
       onClick={(e) => { e.stopPropagation(); onOpen(task); }}
-      className="w-full text-left px-2 py-1 rounded-md text-xs flex items-start gap-1.5 overflow-hidden group/pill"
+      className="w-full text-left px-2.5 py-1.5 rounded-md text-[13px] flex items-start gap-2 overflow-hidden group/pill"
       style={{ backgroundColor: `${color}30`, boxShadow: `inset 3px 0 0 0 ${color}` }}
       title={task.title}
     >
@@ -61,13 +61,13 @@ export function CalendarTaskPill<T extends CalendarTaskLike>({
       >
         {done && <Check className="h-3.5 w-3.5 md:h-2.5 md:w-2.5 text-primary-foreground" strokeWidth={3} />}
       </span>
-      <span className={cn("h-1.5 w-1.5 rounded-full shrink-0 mt-1.5", priorityColor[task.priority])} />
+      <span className={cn("h-1.5 w-1.5 rounded-full shrink-0 mt-2", priorityColor[task.priority])} />
       {colorMode === "responsavel" && hasAssignee && (
         <TaskDualAvatar
           primaryUrl={task.assignee?.avatar_url}
           primaryName={assigneeName}
           secondaryUrl={companyLogo}
-          size="h-5 w-5"
+          size="h-6 w-6"
         />
       )}
       {colorMode === "empresa" && companyLogo && (
@@ -75,13 +75,13 @@ export function CalendarTaskPill<T extends CalendarTaskLike>({
           primaryUrl={companyLogo}
           primaryName={companyName}
           secondaryUrl={hasAssignee ? task.assignee?.avatar_url : null}
-          size="h-5 w-5"
+          size="h-6 w-6"
         />
       )}
       {task.parent_task_id && (
         <span title="Subtarefa" className="shrink-0 mt-0.5"><CornerDownRight className="h-3 w-3" /></span>
       )}
-      <span className={cn("line-clamp-2 min-w-0 flex-1 leading-snug break-words", done && "line-through opacity-60")}>
+      <span className={cn("line-clamp-3 min-w-0 flex-1 leading-snug break-words", done && "line-through opacity-60")}>
         {task.title}
       </span>
       {task.due_time && (
