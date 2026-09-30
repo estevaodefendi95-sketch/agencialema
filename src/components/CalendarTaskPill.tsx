@@ -81,12 +81,19 @@ export function CalendarTaskPill<T extends CalendarTaskLike>({
       {task.parent_task_id && (
         <span title="Subtarefa" className="shrink-0 mt-0.5"><CornerDownRight className="h-3 w-3" /></span>
       )}
-      <span className={cn("line-clamp-3 min-w-0 flex-1 leading-snug break-words", done && "line-through opacity-60")}>
-        {task.title}
-      </span>
-      {task.due_time && (
-        <span className="text-[10px] text-muted-foreground shrink-0 mt-0.5">{formatDueTime(task.due_time)}</span>
-      )}
+      {/* Título e horário empilhados numa coluna própria — evita os dois
+          disputarem largura na mesma linha (o que forçava o título a quebrar
+          no meio das palavras nas colunas estreitas da Semana). Checkbox,
+          bolinha e foto continuam na mesma linha do início do texto, como
+          irmãos flex desse bloco — não viram uma linha separada acima. */}
+      <div className="min-w-0 flex-1 flex flex-col">
+        <span className={cn("line-clamp-2 leading-snug break-normal", done && "line-through opacity-60")}>
+          {task.title}
+        </span>
+        {task.due_time && (
+          <span className="text-[10px] text-muted-foreground leading-none mt-0.5">{formatDueTime(task.due_time)}</span>
+        )}
+      </div>
     </button>
   );
 }
