@@ -45,7 +45,7 @@ export function CalendarTaskPill<T extends CalendarTaskLike>({
   return (
     <button
       onClick={(e) => { e.stopPropagation(); onOpen(task); }}
-      className="relative w-full text-left px-2.5 py-1.5 pb-6 rounded-md text-[13px] flex items-start gap-2 overflow-hidden group/pill"
+      className="relative w-full min-h-14 md:min-h-[50px] text-left px-2 py-1.5 pb-5 rounded-md text-[13px] flex items-start gap-2 overflow-hidden group/pill"
       style={{ backgroundColor: `${color}30`, boxShadow: `inset 3px 0 0 0 ${color}` }}
       title={task.title}
     >
@@ -67,9 +67,11 @@ export function CalendarTaskPill<T extends CalendarTaskLike>({
       )}
       {/* Título e horário ocupam a linha inteira que sobra — checkbox e
           bolinha de prioridade são os únicos irmãos dessa coluna. A foto fica
-          fora do fluxo (canto inferior esquerdo, position: absolute), então
-          não disputa largura com o texto. pb-6 no card garante respiro pra
-          ela nunca ficar em cima do horário ou de um título de 2 linhas. */}
+          fora do fluxo (canto inferior esquerdo, position: absolute). O
+          min-h no <button> (não só o pb-5) é o que garante que checkbox
+          (topo) e foto (base) nunca colidam mesmo num título de 1 linha sem
+          horário — sem min-h, o card encolhe pro tamanho do conteúdo e os
+          dois se sobrepõem. */}
       <div className="min-w-0 flex-1 flex flex-col">
         <span className={cn("line-clamp-2 leading-snug break-normal", done && "line-through opacity-60")}>
           {task.title}
@@ -83,7 +85,8 @@ export function CalendarTaskPill<T extends CalendarTaskLike>({
           primaryUrl={task.assignee?.avatar_url}
           primaryName={assigneeName}
           secondaryUrl={companyLogo}
-          size="h-6 w-6"
+          size="h-5 w-5"
+          secondarySize="w-3 h-3"
           className="absolute left-1.5 bottom-1 z-10"
         />
       )}
@@ -92,7 +95,8 @@ export function CalendarTaskPill<T extends CalendarTaskLike>({
           primaryUrl={companyLogo}
           primaryName={companyName}
           secondaryUrl={hasAssignee ? task.assignee?.avatar_url : null}
-          size="h-6 w-6"
+          size="h-5 w-5"
+          secondarySize="w-3 h-3"
           className="absolute left-1.5 bottom-1 z-10"
         />
       )}
