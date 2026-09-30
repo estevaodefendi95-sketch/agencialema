@@ -284,7 +284,7 @@ export function CalendarMonthGrid<T>({
               dragEnabled={dragEnabled}
               onClick={() => onDayClick(day)}
               className={cn(
-                "group min-h-[110px] border-r border-b last:border-r-0 p-1.5 flex flex-col gap-1 cursor-pointer hover:bg-accent/30 transition-colors",
+                "group min-h-[110px] border-r border-b last:border-r-0 p-1 flex flex-col gap-0.5 cursor-pointer hover:bg-accent/30 transition-colors",
                 !inMonth && "bg-muted/20 text-muted-foreground",
               )}
             >
