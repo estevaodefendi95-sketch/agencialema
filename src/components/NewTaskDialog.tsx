@@ -26,6 +26,8 @@ type Profile = { id: string; full_name: string | null; nickname: string | null; 
 export interface CreatedTaskInfo {
   id: string;
   project_id: string | null;
+  /** Prazo escolhido (yyyy-MM-dd) — usado pelos calendários pra pular até o período da tarefa nova. */
+  due_date: string | null;
 }
 
 export interface NewTaskDialogProps {
@@ -299,7 +301,7 @@ export function NewTaskDialog({
     toast({ title: isPersonal ? "Tarefa pessoal criada" : "Tarefa criada" });
     onOpenChange(false);
     if (created) {
-      await onCreated?.({ id: created.id, project_id: created.project_id }, { isPersonal, statusSlug });
+      await onCreated?.({ id: created.id, project_id: created.project_id, due_date: ntDue || null }, { isPersonal, statusSlug });
     }
   };
 

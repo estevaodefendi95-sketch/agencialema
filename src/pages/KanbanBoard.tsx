@@ -177,6 +177,8 @@ export default function KanbanBoard() {
   >({});
   const [newTaskOpen, setNewTaskOpen] = useState(false);
   const [newTaskDate, setNewTaskDate] = useState<Date | undefined>(undefined);
+  // Prazo da última tarefa criada — o calendário pula pro período dela.
+  const [calendarFocusDate, setCalendarFocusDate] = useState<Date | null>(null);
   const [selectedTask, setSelectedTask] = useState<string | null>(null);
 
   // Deep link (?task=<id>) usado por notificações e pelo Dashboard — abre a
@@ -473,7 +475,8 @@ export default function KanbanBoard() {
     }
   };
 
-  const handleTaskCreated = async (created: { id: string; project_id: string | null }) => {
+  const handleTaskCreated = async (created: { id: string; project_id: string | null; due_date: string | null }) => {
+    if (created.due_date) setCalendarFocusDate(new Date(`${created.due_date}T00:00:00`));
     await (supabase.from as any)("task_history").insert({
       task_id: created.id,
       user_id: user?.id,
@@ -1346,6 +1349,7 @@ export default function KanbanBoard() {
           canDragTask={canDragCalendarTask}
           renderTaskMeta={renderCalendarTaskMeta}
           storageKey="kanban-cal-view-mode"
+          focusDate={calendarFocusDate}
         />
       ) : (
         <DragDropContext onDragEnd={onColumnDragEnd}>

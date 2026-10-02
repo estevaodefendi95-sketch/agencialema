@@ -106,6 +106,8 @@ export default function TaskCalendar() {
   // Nova tarefa direto do calendário
   const [newTaskOpen, setNewTaskOpen] = useState(false);
   const [newTaskDefaults, setNewTaskDefaults] = useState<{ date?: Date; companyId?: string; projectId?: string; personal?: boolean }>({});
+  // Prazo da última tarefa criada — o calendário pula pro período dela.
+  const [calendarFocusDate, setCalendarFocusDate] = useState<Date | null>(null);
 
   const handleCompanyChange = (value: string) => {
     setCompanyFilter(value);
@@ -539,6 +541,7 @@ export default function TaskCalendar() {
         storageKey="calendar-view-mode"
         loading={loading}
         onPeriodChange={setPeriodRange}
+        focusDate={calendarFocusDate}
         filters={
           <>
             {/* Filters */}
@@ -668,7 +671,10 @@ export default function TaskCalendar() {
         defaultCompanyId={newTaskDefaults.companyId}
         defaultProjectId={newTaskDefaults.projectId}
         defaultPersonal={newTaskDefaults.personal}
-        onCreated={() => loadTasks()}
+        onCreated={(task) => {
+          loadTasks();
+          if (task.due_date) setCalendarFocusDate(new Date(`${task.due_date}T00:00:00`));
+        }}
       />
 
       {selectedTaskId && (

@@ -168,8 +168,8 @@ export default function ClientCalendar() {
   const periodLabel = useMemo(() => {
     if (viewMode === "mes") return format(cursor, "MMMM 'de' yyyy", { locale: ptBR });
     if (viewMode === "semana") {
-      const ws = startOfWeek(cursor, { weekStartsOn: 0 });
-      const we = endOfWeek(cursor, { weekStartsOn: 0 });
+      const ws = startOfWeek(cursor, { weekStartsOn: 1 });
+      const we = endOfWeek(cursor, { weekStartsOn: 1 });
       return `${format(ws, "d 'de' MMM", { locale: ptBR })} – ${format(we, "d 'de' MMM 'de' yyyy", { locale: ptBR })}`;
     }
     return format(cursor, "EEEE, d 'de' MMMM 'de' yyyy", { locale: ptBR });
