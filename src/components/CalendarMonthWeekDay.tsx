@@ -53,7 +53,7 @@ interface GridProps<T> {
   canDragTask?: (task: T) => boolean;
 }
 
-const WEEKDAYS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
+const WEEKDAYS = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"];
 const DEFAULT_DOT_COLOR = "hsl(var(--muted-foreground))";
 
 function TaskDots<T>({ tasks, getTaskKey, getTaskColor }: { tasks: T[]; getTaskKey: (task: T) => string; getTaskColor?: (task: T) => string }) {
@@ -233,8 +233,8 @@ export function CalendarMonthGrid<T>({
   const isMobile = useIsMobile();
   const monthStart = startOfMonth(cursor);
   const monthEnd = endOfMonth(cursor);
-  const gridStart = startOfWeek(monthStart, { weekStartsOn: 0 });
-  const gridEnd = endOfWeek(monthEnd, { weekStartsOn: 0 });
+  const gridStart = startOfWeek(monthStart, { weekStartsOn: 1 });
+  const gridEnd = endOfWeek(monthEnd, { weekStartsOn: 1 });
   const days = eachDayOfInterval({ start: gridStart, end: gridEnd });
 
   const [selectedDay, setSelectedDay] = useState<Date | null>(null);
@@ -342,8 +342,8 @@ export function CalendarWeekGrid<T>({
   canDragTask,
 }: GridProps<T>) {
   const isMobile = useIsMobile();
-  const ws = startOfWeek(cursor, { weekStartsOn: 0 });
-  const we = endOfWeek(cursor, { weekStartsOn: 0 });
+  const ws = startOfWeek(cursor, { weekStartsOn: 1 });
+  const we = endOfWeek(cursor, { weekStartsOn: 1 });
   const days = eachDayOfInterval({ start: ws, end: we });
 
   const [selectedDay, setSelectedDay] = useState<Date>(() => days.find((d) => isToday(d)) ?? days[0]);

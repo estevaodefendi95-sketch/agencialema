@@ -146,6 +146,8 @@ export default function MyTasks() {
   // Nova tarefa
   const [newTaskOpen, setNewTaskOpen] = useState(false);
   const [newTaskDefaults, setNewTaskDefaults] = useState<{ date?: Date; statusSlug?: string; personal?: boolean }>({});
+  // Prazo da última tarefa criada — o calendário pula pro período dela.
+  const [calendarFocusDate, setCalendarFocusDate] = useState<Date | null>(null);
 
   const changeView = (v: ViewMode) => {
     if (!v) return;
@@ -851,6 +853,7 @@ export default function MyTasks() {
               canDragTask={canDragCalendarTask}
               renderTaskMeta={renderCalendarTaskMeta}
               storageKey="mytasks-cal"
+              focusDate={calendarFocusDate}
               headerActions={canEdit ? <div className="hidden md:inline-flex"><NewTaskMenu direct /></div> : undefined}
             />
           )}
@@ -863,7 +866,10 @@ export default function MyTasks() {
         defaultDate={newTaskDefaults.date}
         defaultStatusSlug={newTaskDefaults.statusSlug}
         defaultPersonal={newTaskDefaults.personal}
-        onCreated={() => { if (selectedUser) loadTasks(selectedUser); }}
+        onCreated={(task) => {
+          if (selectedUser) loadTasks(selectedUser);
+          if (task.due_date) setCalendarFocusDate(new Date(`${task.due_date}T00:00:00`));
+        }}
       />
 
       {selectedTaskId && (

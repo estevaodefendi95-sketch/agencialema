@@ -108,6 +108,8 @@ export interface TaskCalendarViewProps<T extends CalendarViewTask> {
   loading?: boolean;
   /** Chamado sempre que o modo ou o cursor mudam — pra quem precisa saber o período visível (ex: legenda escopada ao período, como no Calendário). */
   onPeriodChange?: (range: { start: Date; end: Date }) => void;
+  /** Leva o calendário até essa data (ex: prazo da tarefa recém-criada). Cada objeto Date novo dispara um salto — mesmo que a data seja igual à anterior, já que o usuário pode ter navegado pra longe depois. */
+  focusDate?: Date | null;
 }
 
 export function TaskCalendarView<T extends CalendarViewTask>({
@@ -127,6 +129,7 @@ export function TaskCalendarView<T extends CalendarViewTask>({
   storageKey,
   loading,
   onPeriodChange,
+  focusDate,
 }: TaskCalendarViewProps<T>) {
   const [viewMode, setViewMode] = useState<CalendarViewMode>(() => {
     return (localStorage.getItem(storageKey) as CalendarViewMode) || "mes";
@@ -136,11 +139,15 @@ export function TaskCalendarView<T extends CalendarViewTask>({
   const isMobile = useIsMobile();
 
   useEffect(() => {
+    if (focusDate) setCursor(focusDate);
+  }, [focusDate]);
+
+  useEffect(() => {
     if (!onPeriodChange) return;
     if (viewMode === "mes") {
-      onPeriodChange({ start: startOfWeek(startOfMonth(cursor), { weekStartsOn: 0 }), end: endOfWeek(endOfMonth(cursor), { weekStartsOn: 0 }) });
+      onPeriodChange({ start: startOfWeek(startOfMonth(cursor), { weekStartsOn: 1 }), end: endOfWeek(endOfMonth(cursor), { weekStartsOn: 1 }) });
     } else if (viewMode === "semana") {
-      onPeriodChange({ start: startOfWeek(cursor, { weekStartsOn: 0 }), end: endOfWeek(cursor, { weekStartsOn: 0 }) });
+      onPeriodChange({ start: startOfWeek(cursor, { weekStartsOn: 1 }), end: endOfWeek(cursor, { weekStartsOn: 1 }) });
     } else {
       onPeriodChange({ start: cursor, end: cursor });
     }
@@ -167,8 +174,8 @@ export function TaskCalendarView<T extends CalendarViewTask>({
   const periodLabel = (() => {
     if (viewMode === "mes") return format(cursor, "MMMM 'de' yyyy", { locale: ptBR });
     if (viewMode === "semana") {
-      const ws = startOfWeek(cursor, { weekStartsOn: 0 });
-      const we = endOfWeek(cursor, { weekStartsOn: 0 });
+      const ws = startOfWeek(cursor, { weekStartsOn: 1 });
+      const we = endOfWeek(cursor, { weekStartsOn: 1 });
       return `${format(ws, "d 'de' MMM", { locale: ptBR })} – ${format(we, "d 'de' MMM 'de' yyyy", { locale: ptBR })}`;
     }
     return format(cursor, "EEEE, d 'de' MMMM 'de' yyyy", { locale: ptBR });
@@ -288,6 +295,7 @@ export function TaskCalendarView<T extends CalendarViewTask>({
           selected={cursor}
           onSelect={(d) => d && setCursor(d)}
           locale={ptBR}
+          weekStartsOn={1}
           modifiers={{ hasTasks: datesWithTasks }}
           modifiersClassNames={{
             hasTasks:
@@ -381,6 +389,7 @@ export function TaskCalendarView<T extends CalendarViewTask>({
                         selected={new Date(`${task.due_date}T00:00:00`)}
                         onSelect={(d) => d && quickMoveTask(task, d)}
                         locale={ptBR}
+                        weekStartsOn={1}
                         className="pointer-events-auto"
                       />
                     </PopoverContent>
