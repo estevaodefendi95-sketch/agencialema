@@ -1,3 +1,5 @@
+import BrandLockup from "./BrandLockup";
+
 export type CoverData = {
   tagline?: string;
   label?: string;
@@ -30,7 +32,7 @@ export default function CoverSlide({
 
       <div className="flex-1 flex items-center justify-center py-6">
         {logo ? (
-          <img src={logo} alt="Logo do cliente" className="max-h-[38vh] max-w-[70%] object-contain" />
+          <BrandLockup clientLogo={logo} agencyLogo={agency} size="lg" />
         ) : (
           <span className="pres-display text-4xl md:text-7xl tracking-tight opacity-80">
             {data.label || "PLANEJAMENTO"}
@@ -48,7 +50,7 @@ export default function CoverSlide({
               {data.month}
             </span>
           )}
-          {agency && <img src={agency} alt="" className="h-7 md:h-9 object-contain opacity-80" />}
+          {!logo && <BrandLockup agencyLogo={agency} />}
         </div>
       </div>
     </div>
