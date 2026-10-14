@@ -66,7 +66,7 @@ Deno.serve(async (req) => {
         );
         sent++;
       } catch (err) {
-        const statusCode = err?.statusCode;
+        const statusCode = (err as { statusCode?: number })?.statusCode;
         if (statusCode === 404 || statusCode === 410) {
           await adminClient.from("push_subscriptions").delete().eq("id", sub.id);
           removed++;
