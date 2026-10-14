@@ -3,12 +3,14 @@ import { format, parseISO } from "date-fns";
 import { Carousel, CarouselContent, CarouselItem, CarouselPrevious, CarouselNext, type CarouselApi } from "@/components/ui/carousel";
 import { ChevronLeft, ChevronRight, ChevronDown, Plus, Grid3x3, Play, UserSquare2, Presentation as PresentationIcon, X } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { getGalleryItems, getPostMediaItems, type MediaItem, type PostMediaRow } from "./mediaUtils";
+import { detectMediaType, getFeedItems, getGalleryItems, getPostMediaItems, type MediaItem, type PostMediaRow } from "./mediaUtils";
 import { normalizeTheme, themeVars } from "./theme";
 import CoverSlide from "./blocks/CoverSlide";
 import RulesSlide from "./blocks/RulesSlide";
 import ThemesSlide from "./blocks/ThemesSlide";
 import FeedOverviewSlide from "./blocks/FeedOverviewSlide";
+import BrandLockup from "./blocks/BrandLockup";
+import FeedTypeBadge from "./FeedTypeBadge";
 
 export type { PostMediaRow } from "./mediaUtils";
 
@@ -170,9 +172,7 @@ export default function PresentationView({
               <span className="pres-display text-sm md:text-base text-[color:var(--pres-accent)]">
                 #seu feed, seu lema.
               </span>
-              {pres.agency_logo_url && (
-                <img src={pres.agency_logo_url} alt="" className="h-8 object-contain opacity-70" />
-              )}
+              <BrandLockup agencyLogo={pres.agency_logo_url} className="opacity-70" />
             </footer>
 
             {slides.length > 0 && (
@@ -371,17 +371,8 @@ function HeroSlide({ pres }: { pres: PresentationData }) {
       <div className="relative w-full h-full min-h-[85vh] md:min-h-screen">
         <img src={pres.hero_image_url} alt="" className="absolute inset-0 w-full h-full object-cover" />
         <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/25 to-black/40" />
-        <div className="absolute inset-x-0 top-8 md:top-12 px-6 md:px-16 flex items-center justify-center gap-10">
-          {pres.client_logo_url && (
-            <div className="h-12 md:h-16 flex items-center justify-center bg-white/90 rounded px-4 py-2">
-              <img src={pres.client_logo_url} alt="Logo do cliente" className="max-h-full max-w-full object-contain" />
-            </div>
-          )}
-          {pres.agency_logo_url && (
-            <div className="h-10 md:h-14 flex items-center justify-center bg-white/90 rounded px-4 py-2">
-              <img src={pres.agency_logo_url} alt="" className="max-h-full max-w-full object-contain" />
-            </div>
-          )}
+        <div className="absolute inset-x-0 top-8 md:top-12 px-6 md:px-16 flex items-center justify-center">
+          <BrandLockup clientLogo={pres.client_logo_url} agencyLogo={pres.agency_logo_url} onPhoto />
         </div>
         <div className="absolute inset-x-0 bottom-12 md:bottom-20 px-6 md:px-16 text-center">
           <span className="pres-display block text-xs md:text-sm uppercase tracking-[0.2em] text-white/80 mb-3">
@@ -402,17 +393,8 @@ function HeroSlide({ pres }: { pres: PresentationData }) {
 
   return (
     <div>
-      <div className="flex items-center justify-center gap-16 pb-8 mb-10 border-b border-current/15">
-        {pres.client_logo_url && (
-          <div className="h-20 md:h-28 flex items-center justify-center">
-            <img src={pres.client_logo_url} alt="Logo do cliente" className="max-h-full max-w-full object-contain" />
-          </div>
-        )}
-        {pres.agency_logo_url && (
-          <div className="h-20 md:h-28 flex items-center justify-center">
-            <img src={pres.agency_logo_url} alt="" className="max-h-full max-w-full object-contain opacity-70" />
-          </div>
-        )}
+      <div className="flex items-center justify-center pb-8 mb-10 border-b border-current/15">
+        <BrandLockup clientLogo={pres.client_logo_url} agencyLogo={pres.agency_logo_url} size="lg" />
       </div>
       <div className="text-center">
         <span className="pres-display block text-xs md:text-sm uppercase tracking-[0.2em] text-[color:var(--pres-accent)] mb-4">
@@ -633,7 +615,7 @@ function MediaTile({ item, className }: { item: MediaItem; className?: string })
 }
 
 function InstagramPreview({ data }: { data: any }) {
-  const images: string[] = data?.images || [];
+  const items = getFeedItems(data);
   const layout: "feed_only" | "full_profile" = data?.layout || "feed_only";
   const isFull = layout === "full_profile";
   const highlights: { id: string; title: string; cover_url: string }[] = data?.highlights || [];
@@ -706,18 +688,20 @@ function InstagramPreview({ data }: { data: any }) {
 
                 {/* Feed grid */}
                 <div className="grid grid-cols-3 gap-px bg-neutral-200">
-                  {images.length === 0 ? (
+                  {items.length === 0 ? (
                     <div className="col-span-3 aspect-[3/4] flex items-center justify-center text-neutral-400 p-6 text-sm text-center bg-white">
                       Sem imagens no feed
                     </div>
                   ) : (
-                    images.map((url, i) => (
-                      <img
-                        key={i}
-                        src={url}
-                        alt=""
-                        className="aspect-square w-full object-cover bg-neutral-100"
-                      />
+                    items.map((item, i) => (
+                      <div key={i} className="relative aspect-square bg-neutral-100">
+                        {detectMediaType(item.url) === "video" ? (
+                          <video src={item.url} muted playsInline preload="metadata" className="w-full h-full object-cover" />
+                        ) : (
+                          <img src={item.url} alt="" className="w-full h-full object-cover" />
+                        )}
+                        <FeedTypeBadge type={item.type} />
+                      </div>
                     ))
                   )}
                 </div>

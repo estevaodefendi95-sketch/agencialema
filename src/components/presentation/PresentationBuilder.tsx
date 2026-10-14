@@ -12,12 +12,15 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useToast } from "@/hooks/use-toast";
 import { DragDropContext, Droppable, Draggable, type DropResult } from "@hello-pangea/dnd";
-import { Plus, GripVertical, Trash2, Image as ImageIcon, Type, Smartphone, ListOrdered, Eye, ExternalLink, Copy, Heading, Upload, Play, X, Rocket, History as HistoryIcon, LayoutTemplate, ListChecks, Hash, Grid3x3, Palette, RefreshCw, ChevronLeft, ChevronRight, RectangleHorizontal, LayoutGrid } from "lucide-react";
+import { Plus, GripVertical, Trash2, Image as ImageIcon, Type, Smartphone, ListOrdered, Eye, ExternalLink, Copy, Heading, Upload, Play, X, Rocket, History as HistoryIcon, LayoutTemplate, ListChecks, Hash, Grid3x3, Palette, RefreshCw, ChevronLeft, ChevronRight, RectangleHorizontal, LayoutGrid, ChevronDown, Calendar, Clock, Check, Loader2 } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import FeedTypeBadge from "./FeedTypeBadge";
+import { LEMA_LOGO_URL } from "@/lib/brand";
 import CanvasEditor, { type CanvasData } from "./blocks/CanvasEditor";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import ImageCropper, { processInstagramFile, uploadProcessedImage } from "@/components/ImageCropper";
-import { detectMediaType, getGalleryItems, getPostMediaItems, isLegacyPostMedia, type MediaItem, type PostMediaRow } from "./mediaUtils";
+import { detectMediaType, getFeedItems, getGalleryItems, getPostMediaItems, isLegacyPostMedia, type FeedItem, type FeedItemType, type MediaItem, type PostMediaRow } from "./mediaUtils";
 import PresentationView from "./PresentationView";
 import { THEME_FIELDS, normalizeTheme, DEFAULT_THEME, FONT_OPTIONS } from "./theme";
 
@@ -110,6 +113,56 @@ const BLOCK_META = {
 
 const ADDABLE_BLOCK_TYPES: Block["block_type"][] = ["canvas", "instagram_preview", "posts_plan"];
 
+// Visual "painel limpo" da Lema, usado só nos editores dos blocos Preview
+// Instagram e Planejamento de Posts.
+const LEMA_PANEL = "rounded-2xl bg-[#F6F4EF] text-[#141414] font-['Archivo',ui-sans-serif,system-ui,sans-serif]";
+const LEMA_INPUT = "rounded-xl border-black/10 bg-white focus-visible:ring-[#1B1BC7]/30";
+
+const INSTA_LAYOUTS: { value: "feed_only" | "full_profile"; label: string; hint: string }[] = [
+  { value: "feed_only", label: "Só feed", hint: "Apenas o grid 3×N" },
+  { value: "full_profile", label: "Perfil completo", hint: "Cabeçalho + stories + feed" },
+];
+
+const FEED_TYPE_OPTIONS: { value: FeedItemType; label: string; icon: typeof ImageIcon }[] = [
+  { value: "photo", label: "Foto", icon: ImageIcon },
+  { value: "carousel", label: "Carrossel", icon: Copy },
+  { value: "video", label: "Vídeo", icon: Play },
+];
+
+function FieldLabel({ children }: { children: React.ReactNode }) {
+  return <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[#141414]/55">{children}</p>;
+}
+
+// Seletor do tipo do tile do grid (marcação manual da equipe).
+function FeedTypeSelect({ value, onChange }: { value: FeedItemType; onChange: (t: FeedItemType) => void }) {
+  const current = FEED_TYPE_OPTIONS.find((o) => o.value === value) || FEED_TYPE_OPTIONS[0];
+  const Icon = current.icon;
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          className="min-w-0 inline-flex items-center gap-0.5 rounded-full bg-white/95 shadow-sm pl-1.5 pr-1 h-5 text-[10px] font-semibold text-[#141414]"
+          title="Tipo do post"
+        >
+          <Icon className="h-3 w-3 shrink-0" />
+          <span className="truncate">{current.label}</span>
+          <ChevronDown className="h-3 w-3 shrink-0 opacity-60" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="center" className="min-w-[140px]">
+        {FEED_TYPE_OPTIONS.map((o) => (
+          <DropdownMenuItem key={o.value} onSelect={() => onChange(o.value)} className="text-xs gap-2">
+            <o.icon className="h-3.5 w-3.5" />
+            {o.label}
+            {o.value === value && <Check className="h-3.5 w-3.5 ml-auto text-[#1B1BC7]" />}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
 function slugify(s: string) {
   return s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
     .replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "").slice(0, 60);
@@ -164,7 +217,7 @@ export default function PresentationBuilder({ projectId, projectName }: { projec
           following_count: igBlock.data?.following_count,
           highlights: igBlock.data?.highlights || [],
           layout: igBlock.data?.layout,
-          images: [],
+          items: [],
         }
       : null;
 
@@ -220,9 +273,23 @@ export default function PresentationBuilder({ projectId, projectName }: { projec
     if (!p && canEdit) {
       const baseSlug = slugify(projectName) || projectId.slice(0, 8);
       const slug = `${baseSlug}-${projectId.slice(0, 6)}`;
+      // Logo do cliente vem do cadastro da empresa (projects.company_id →
+      // companies.logo_url); continua editável por apresentação.
+      let companyLogo: string | null = null;
+      const { data: proj } = await supabase.from("projects").select("company_id").eq("id", projectId).maybeSingle();
+      if (proj?.company_id) {
+        const { data: company } = await supabase.from("companies").select("logo_url").eq("id", proj.company_id).maybeSingle();
+        companyLogo = company?.logo_url || null;
+      }
       const { data: created, error } = await supabase
         .from("project_presentations")
-        .insert({ project_id: projectId, slug, hero_title: projectName })
+        .insert({
+          project_id: projectId,
+          slug,
+          hero_title: projectName,
+          client_logo_url: companyLogo,
+          agency_logo_url: LEMA_LOGO_URL,
+        })
         .select("*")
         .single();
       if (error) {
@@ -356,7 +423,7 @@ export default function PresentationBuilder({ projectId, projectName }: { projec
       text: { content: "" },
       image: { url: "", caption: "" },
       gallery: { images: [] },
-      instagram_preview: { images: [] },
+      instagram_preview: { items: [] },
       posts_plan: {},
     };
 
@@ -417,6 +484,18 @@ export default function PresentationBuilder({ projectId, projectName }: { projec
       if (!block) return;
       const items = getGalleryItems(block.data);
       const reordered = Array.from(items);
+      const [moved] = reordered.splice(r.source.index, 1);
+      reordered.splice(r.destination.index, 0, moved);
+      const { images: _legacy, ...rest } = block.data;
+      await patchBlock(blockId, { ...rest, items: reordered });
+      return;
+    }
+
+    if (droppableId.startsWith("feed-items:")) {
+      const blockId = droppableId.slice("feed-items:".length);
+      const block = blocks.find((b) => b.id === blockId);
+      if (!block) return;
+      const reordered = Array.from(getFeedItems(block.data));
       const [moved] = reordered.splice(r.source.index, 1);
       reordered.splice(r.destination.index, 0, moved);
       const { images: _legacy, ...rest } = block.data;
@@ -901,8 +980,48 @@ function BlockEditor({ block, onChange, posts, postMedia, onAddPost, onPatchPost
     }
   }
 
+  // Grid do Instagram: grava sempre no formato novo `items` (descarta o
+  // `images` legado, que já foi convertido por getFeedItems).
+  function setFeedItems(items: FeedItem[]) {
+    const { images: _legacy, ...rest } = block.data;
+    onChange({ ...rest, items });
+  }
+
+  // Mesmo padrão de handleGalleryFiles: vídeo sobe direto, imagem vai pra
+  // fila de recorte.
+  async function handleFeedFiles(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files || []);
+    e.target.value = "";
+    if (!files.length) return;
+    const videos = files.filter((f) => detectMediaType(f.name) === "video");
+    const images = files.filter((f) => detectMediaType(f.name) !== "video");
+
+    if (videos.length > 0) {
+      setUploadingGallery(true);
+      let accItems = getFeedItems(block.data);
+      for (const file of videos) {
+        const { url, error } = await uploadRawMedia(file, "presentations/media");
+        if (error) {
+          toast({ title: "Erro ao enviar vídeo", description: error, variant: "destructive" });
+          continue;
+        }
+        if (url) {
+          accItems = [...accItems, { url, type: "video" as const }];
+          setFeedItems(accItems);
+        }
+      }
+      setUploadingGallery(false);
+    }
+    if (images.length > 0) {
+      setQueue(images.slice(1));
+      setCurrent(images[0]);
+    }
+  }
+
   function handleCropped(url: string, isMulti: boolean) {
-    if (isGallery) {
+    if (isInsta) {
+      setFeedItems([...getFeedItems(block.data), { url, type: "photo" }]);
+    } else if (isGallery) {
       const items = getGalleryItems(block.data);
       const { images: _legacy, ...rest } = block.data;
       onChange({ ...rest, items: [...items, { url, type: "image" as const }] });
@@ -936,7 +1055,11 @@ function BlockEditor({ block, onChange, posts, postMedia, onAddPost, onPatchPost
       }
     }
     if (newUrls.length > 0) {
-      onChange({ ...block.data, images: [...(block.data.images || []), ...newUrls] });
+      if (isInsta) {
+        setFeedItems([...getFeedItems(block.data), ...newUrls.map((url) => ({ url, type: "photo" as const }))]);
+      } else {
+        onChange({ ...block.data, images: [...(block.data.images || []), ...newUrls] });
+      }
     }
   }
 
@@ -1175,102 +1298,138 @@ function BlockEditor({ block, onChange, posts, postMedia, onAddPost, onPatchPost
     );
   }
   if (isInsta) {
-    const images: string[] = block.data.images || [];
+    const feedItems = getFeedItems(block.data);
     const layout: "feed_only" | "full_profile" = block.data.layout || "feed_only";
     const highlights: { id: string; title: string; cover_url: string }[] = block.data.highlights || [];
+    const activeLayout = INSTA_LAYOUTS.find((l) => l.value === layout) || INSTA_LAYOUTS[0];
+
+    function moveFeedItem(from: number, to: number) {
+      if (to < 0 || to >= feedItems.length) return;
+      const reordered = Array.from(feedItems);
+      const [moved] = reordered.splice(from, 1);
+      reordered.splice(to, 0, moved);
+      setFeedItems(reordered);
+    }
+
     return (
-      <div className="space-y-3">
-        <div className="space-y-3 p-3 rounded-md bg-muted/40 border">
-          <div>
-            <Label className="text-xs">Formato da apresentação</Label>
-            <div className="grid grid-cols-2 gap-2 mt-1.5">
+      <div className={cn(LEMA_PANEL, "p-4 md:p-5 space-y-6")}>
+        <div className="space-y-2">
+          <FieldLabel>Formato da apresentação</FieldLabel>
+          <div className="inline-flex rounded-full bg-black/[0.06] p-1" role="radiogroup">
+            {INSTA_LAYOUTS.map((opt) => (
               <button
+                key={opt.value}
                 type="button"
+                role="radio"
+                aria-checked={layout === opt.value}
                 disabled={disabled}
-                onClick={() => onChange({ ...block.data, layout: "feed_only" })}
+                onClick={() => onChange({ ...block.data, layout: opt.value })}
                 className={cn(
-                  "text-xs px-3 py-2 rounded border text-left transition-colors",
-                  layout === "feed_only" ? "border-primary bg-primary/10 text-primary font-medium" : "border-input hover:bg-accent",
+                  "rounded-full px-4 py-1.5 text-xs font-semibold transition-colors disabled:cursor-not-allowed",
+                  layout === opt.value ? "bg-[#1B1BC7] text-white shadow-sm" : "text-[#141414]/60 hover:text-[#141414]",
                 )}
               >
-                📱 Só feed
-                <span className="block text-[10px] opacity-70 font-normal mt-0.5">Apenas o grid 3×N</span>
+                {opt.label}
               </button>
-              <button
-                type="button"
-                disabled={disabled}
-                onClick={() => onChange({ ...block.data, layout: "full_profile" })}
-                className={cn(
-                  "text-xs px-3 py-2 rounded border text-left transition-colors",
-                  layout === "full_profile" ? "border-primary bg-primary/10 text-primary font-medium" : "border-input hover:bg-accent",
-                )}
-              >
-                👤 Perfil completo
-                <span className="block text-[10px] opacity-70 font-normal mt-0.5">Cabeçalho + stories + feed</span>
-              </button>
-            </div>
+            ))}
           </div>
-          {layout === "full_profile" && (
-            <ProfileFieldsEditor block={block} onChange={onChange} disabled={disabled} highlights={highlights} />
-          )}
+          <p className="text-[11px] text-[#141414]/55">{activeLayout.hint}</p>
         </div>
-        <p className="text-xs text-muted-foreground">Escolha manter a imagem original ou formatar sem cortar (recomendado 1:1 para o grid). Use as setas pra reordenar.</p>
-        <div className="grid gap-2 grid-cols-3 max-w-xs">
-          {images.map((url, i) => (
-            <div key={i} className="group relative aspect-square rounded border overflow-hidden">
-              <img src={url} alt="" className="w-full h-full object-cover" />
-              <span className="absolute top-1 left-1 h-4 w-4 rounded-full bg-foreground text-background text-[9px] flex items-center justify-center font-medium pointer-events-none">
-                {i + 1}
-              </span>
-              {!disabled && (
-                <button
-                  onClick={() => onChange({ ...block.data, images: images.filter((_, j) => j !== i) })}
-                  className="absolute top-1 right-1 h-5 w-5 rounded-full bg-background/90 border border-border flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                >
-                  <X className="h-3 w-3" />
-                </button>
-              )}
-              {!disabled && images.length > 1 && (
-                <div className="absolute inset-x-0 bottom-0 flex items-center justify-between px-0.5 pb-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button
-                    onClick={() => {
-                      if (i === 0) return;
-                      const reordered = Array.from(images);
-                      const [moved] = reordered.splice(i, 1);
-                      reordered.splice(i - 1, 0, moved);
-                      onChange({ ...block.data, images: reordered });
-                    }}
-                    disabled={i === 0}
-                    className="h-5 w-5 rounded-full bg-background/90 border border-border flex items-center justify-center disabled:opacity-30"
-                    title="Mover pra esquerda"
-                  >
-                    <ChevronLeft className="h-3 w-3" />
-                  </button>
-                  <button
-                    onClick={() => {
-                      if (i === images.length - 1) return;
-                      const reordered = Array.from(images);
-                      const [moved] = reordered.splice(i, 1);
-                      reordered.splice(i + 1, 0, moved);
-                      onChange({ ...block.data, images: reordered });
-                    }}
-                    disabled={i === images.length - 1}
-                    className="h-5 w-5 rounded-full bg-background/90 border border-border flex items-center justify-center disabled:opacity-30"
-                    title="Mover pra direita"
-                  >
-                    <ChevronRight className="h-3 w-3" />
-                  </button>
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-        {!disabled && (
-          <label className="cursor-pointer inline-block">
-            <Input type="file" accept="image/*" multiple className="hidden" onChange={handleFiles} />
-            <Button asChild variant="outline" size="sm"><span><Upload className="h-3.5 w-3.5 mr-1.5" />Adicionar imagens do feed</span></Button>
-          </label>
+
+        {layout === "full_profile" && (
+          <ProfileFieldsEditor block={block} onChange={onChange} disabled={disabled} highlights={highlights} />
         )}
+
+        <div className="space-y-2">
+          <FieldLabel>Feed</FieldLabel>
+          <p className="text-[11px] text-[#141414]/55 leading-snug">
+            Arraste os tiles pra reordenar e marque cada post como foto, carrossel ou vídeo. Imagens podem ser
+            formatadas sem cortar (recomendado 1:1); vídeos sobem direto, até {MAX_MEDIA_MB}MB por arquivo.
+          </p>
+          <Droppable droppableId={`feed-items:${block.id}`} direction="horizontal" isDropDisabled={disabled}>
+            {(dprov) => (
+              <div ref={dprov.innerRef} {...dprov.droppableProps} className="grid gap-2 grid-cols-3 max-w-sm">
+                {feedItems.map((item, i) => (
+                  <Draggable key={`feed-item:${block.id}:${i}`} draggableId={`feed-item:${block.id}:${i}`} index={i} isDragDisabled={disabled}>
+                    {(p) => (
+                      <div
+                        ref={p.innerRef}
+                        {...p.draggableProps}
+                        {...p.dragHandleProps}
+                        className={cn(
+                          "group relative aspect-square rounded-xl overflow-hidden bg-black/5",
+                          !disabled && "cursor-grab active:cursor-grabbing",
+                        )}
+                      >
+                        {detectMediaType(item.url) === "video" ? (
+                          <video src={item.url} muted playsInline preload="metadata" className="w-full h-full object-cover" />
+                        ) : (
+                          <img src={item.url} alt="" className="w-full h-full object-cover" />
+                        )}
+                        <span className="absolute top-1.5 left-1.5 h-5 min-w-5 px-1 rounded-full bg-white/95 text-[#141414] text-[10px] font-bold flex items-center justify-center shadow-sm pointer-events-none">
+                          {i + 1}
+                        </span>
+                        <FeedTypeBadge type={item.type} className={cn(!disabled && "transition-opacity group-hover:opacity-0")} />
+                        {!disabled && (
+                          <button
+                            type="button"
+                            onClick={() => setFeedItems(feedItems.filter((_, j) => j !== i))}
+                            className="absolute top-1.5 right-1.5 h-5 w-5 rounded-full bg-white/95 shadow-sm flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                            title="Remover"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        )}
+                        {!disabled && (
+                          <div className="absolute inset-x-1.5 bottom-1.5 flex items-center justify-between gap-1">
+                            <button
+                              type="button"
+                              onClick={() => moveFeedItem(i, i - 1)}
+                              disabled={i === 0}
+                              className="h-5 w-5 shrink-0 rounded-full bg-white/95 shadow-sm flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity disabled:!opacity-0"
+                              title="Mover pra esquerda"
+                            >
+                              <ChevronLeft className="h-3 w-3" />
+                            </button>
+                            <FeedTypeSelect
+                              value={item.type}
+                              onChange={(type) => setFeedItems(feedItems.map((it, j) => (j === i ? { ...it, type } : it)))}
+                            />
+                            <button
+                              type="button"
+                              onClick={() => moveFeedItem(i, i + 1)}
+                              disabled={i === feedItems.length - 1}
+                              className="h-5 w-5 shrink-0 rounded-full bg-white/95 shadow-sm flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity disabled:!opacity-0"
+                              title="Mover pra direita"
+                            >
+                              <ChevronRight className="h-3 w-3" />
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </Draggable>
+                ))}
+                {dprov.placeholder}
+                {!disabled && (
+                  <label
+                    className={cn(
+                      "aspect-square rounded-xl border-2 border-dashed border-[#1B1BC7]/30 text-[#1B1BC7] flex flex-col items-center justify-center gap-1 cursor-pointer hover:bg-[#1B1BC7]/5 hover:border-[#1B1BC7]/60 transition-colors",
+                      uploadingGallery && "pointer-events-none opacity-60",
+                    )}
+                    title="Adicionar imagens ou vídeos do feed"
+                  >
+                    <input type="file" accept="image/*,video/*" multiple className="hidden" onChange={handleFeedFiles} disabled={uploadingGallery} />
+                    {uploadingGallery ? <Loader2 className="h-5 w-5 animate-spin" /> : <Plus className="h-6 w-6" />}
+                    <span className="text-[10px] font-semibold uppercase tracking-wider">
+                      {uploadingGallery ? "Enviando" : "Adicionar"}
+                    </span>
+                  </label>
+                )}
+              </div>
+            )}
+          </Droppable>
+        </div>
         {current && (
           <ImageCropper
             file={current}
@@ -1368,9 +1527,9 @@ function BlockEditor({ block, onChange, posts, postMedia, onAddPost, onPatchPost
   }
   if (block.block_type === "posts_plan") {
     return (
-      <div className="space-y-3">
-        <div className="space-y-2">
-          {posts.length === 0 && <p className="text-xs text-muted-foreground">Nenhum post planejado ainda.</p>}
+      <div className={cn(LEMA_PANEL, "p-4 md:p-5 space-y-4")}>
+        <div className="space-y-3">
+          {posts.length === 0 && <p className="text-xs text-[#141414]/55">Nenhum post planejado ainda.</p>}
           {posts.map((p: Post) => (
             <PostEditor
               key={p.id}
@@ -1386,7 +1545,13 @@ function BlockEditor({ block, onChange, posts, postMedia, onAddPost, onPatchPost
           ))}
         </div>
         {!disabled && (
-          <Button variant="outline" size="sm" onClick={onAddPost}><Plus className="h-3.5 w-3.5 mr-1.5" /> Adicionar post</Button>
+          <button
+            type="button"
+            onClick={onAddPost}
+            className="inline-flex items-center gap-1.5 rounded-full border-[1.5px] border-[#1B1BC7] px-4 py-2 text-sm font-semibold text-[#1B1BC7] hover:bg-[#1B1BC7]/5 transition-colors"
+          >
+            <Plus className="h-4 w-4" /> Adicionar post
+          </button>
         )}
       </div>
     );
@@ -1481,10 +1646,10 @@ function PostEditor({
   }
 
   return (
-    <div className="border rounded-lg p-3 grid grid-cols-1 md:grid-cols-[160px_1fr_auto] gap-3">
-      <div className="space-y-1.5">
+    <div className="relative rounded-2xl bg-white border border-black/[0.06] shadow-[0_1px_2px_rgba(20,20,20,0.04)] p-4 flex flex-col md:flex-row gap-4 md:gap-5">
+      <div className="space-y-1.5 md:w-[180px] shrink-0">
         {items.length === 0 ? (
-          <div className="aspect-[4/5] w-full border-2 border-dashed rounded flex items-center justify-center text-muted-foreground">
+          <div className="aspect-[4/5] w-full border-2 border-dashed border-black/10 rounded-xl flex items-center justify-center text-[#141414]/30">
             <ImageIcon className="h-5 w-5" />
           </div>
         ) : (
@@ -1492,7 +1657,7 @@ function PostEditor({
             {items.map((item, i) => (
               <div
                 key={item.id}
-                className="group relative w-20 h-20 shrink-0 rounded border overflow-hidden"
+                className="group relative w-20 h-20 shrink-0 rounded-xl border border-black/[0.06] overflow-hidden"
               >
                 {item.media_type === "video" ? (
                   <video src={item.media_url} muted className="w-full h-full object-cover" />
@@ -1566,28 +1731,69 @@ function PostEditor({
           />
         )}
       </div>
-      <div className="space-y-2">
-        <Input
-          placeholder="Formato (Reels, Carrossel, Estático...)"
-          list="post-format-suggestions"
-          value={post.format_type || ""}
-          onChange={(e) => onPatch({ format_type: e.target.value })}
-          disabled={disabled}
-        />
-        <datalist id="post-format-suggestions">
-          <option value="Reels" />
-          <option value="Carrossel" />
-          <option value="Estático" />
-        </datalist>
-        <Input placeholder="Título do post" value={post.title || ""} onChange={(e) => onPatch({ title: e.target.value })} disabled={disabled} />
-        <div className="flex gap-2">
-          <Input type="date" className="flex-1" value={post.publish_date || ""} onChange={(e) => onPatch({ publish_date: e.target.value })} disabled={disabled} />
-          <Input type="time" className="flex-1" value={post.publish_time || ""} onChange={(e) => onPatch({ publish_time: e.target.value })} disabled={disabled} />
+      <div className="flex-1 min-w-0 space-y-3">
+        <div className={cn("flex flex-wrap items-center gap-2", !disabled && "pr-9")}>
+          <input
+            placeholder="Formato"
+            list="post-format-suggestions"
+            value={post.format_type || ""}
+            onChange={(e) => onPatch({ format_type: e.target.value })}
+            disabled={disabled}
+            className="h-8 w-32 rounded-full bg-[#1B1BC7]/10 px-3.5 text-xs font-semibold text-[#1B1BC7] placeholder:text-[#1B1BC7]/50 outline-none focus-visible:ring-2 focus-visible:ring-[#1B1BC7]/30 disabled:opacity-70"
+          />
+          <datalist id="post-format-suggestions">
+            <option value="Reels" />
+            <option value="Carrossel" />
+            <option value="Estático" />
+          </datalist>
+          <input
+            placeholder="Título do post"
+            value={post.title || ""}
+            onChange={(e) => onPatch({ title: e.target.value })}
+            disabled={disabled}
+            className="h-8 flex-1 min-w-[160px] rounded-lg bg-transparent px-1.5 text-base font-semibold text-[#141414] placeholder:text-[#141414]/35 outline-none hover:bg-black/[0.03] focus-visible:bg-black/[0.03] disabled:opacity-70"
+          />
         </div>
-        <Textarea placeholder="Copy / texto do post" value={post.copy || ""} onChange={(e) => onPatch({ copy: e.target.value })} rows={3} disabled={disabled} />
+        <div className="flex flex-wrap gap-2">
+          <label className="inline-flex h-8 items-center gap-1.5 rounded-full border border-black/10 bg-white px-3 text-xs font-medium text-[#141414] focus-within:ring-2 focus-within:ring-[#1B1BC7]/30">
+            <Calendar className="h-3.5 w-3.5 text-[#1B1BC7]" />
+            <input
+              type="date"
+              value={post.publish_date || ""}
+              onChange={(e) => onPatch({ publish_date: e.target.value })}
+              disabled={disabled}
+              aria-label="Data de publicação"
+              className="bg-transparent outline-none disabled:opacity-70"
+            />
+          </label>
+          <label className="inline-flex h-8 items-center gap-1.5 rounded-full border border-black/10 bg-white px-3 text-xs font-medium text-[#141414] focus-within:ring-2 focus-within:ring-[#1B1BC7]/30">
+            <Clock className="h-3.5 w-3.5 text-[#1B1BC7]" />
+            <input
+              type="time"
+              value={post.publish_time || ""}
+              onChange={(e) => onPatch({ publish_time: e.target.value })}
+              disabled={disabled}
+              aria-label="Horário de publicação"
+              className="bg-transparent outline-none disabled:opacity-70"
+            />
+          </label>
+        </div>
+        <div className="rounded-xl bg-[#F6F4EF] px-3.5 pt-2.5 pb-2 focus-within:ring-2 focus-within:ring-[#1B1BC7]/20">
+          <FieldLabel>Legenda</FieldLabel>
+          <textarea
+            placeholder="Copy / texto do post"
+            value={post.copy || ""}
+            onChange={(e) => onPatch({ copy: e.target.value })}
+            rows={3}
+            disabled={disabled}
+            className="mt-1 w-full resize-y bg-transparent text-sm leading-relaxed text-[#141414] placeholder:text-[#141414]/35 outline-none disabled:opacity-70"
+          />
+        </div>
       </div>
       {!disabled && (
-        <Button variant="ghost" size="icon" className="self-start h-8 w-8" onClick={onRemove}><Trash2 className="h-4 w-4" /></Button>
+        <Button variant="ghost" size="icon" className="absolute top-3 right-3 h-8 w-8 text-[#141414]/50 hover:text-[#141414]" onClick={onRemove} title="Remover post">
+          <Trash2 className="h-4 w-4" />
+        </Button>
       )}
     </div>
   );
@@ -1622,8 +1828,8 @@ function ProfileFieldsEditor({
   }
 
   return (
-    <div className="space-y-3 pt-2 border-t">
-      <div className="flex items-start gap-3">
+    <div className="space-y-4 pt-5 border-t border-black/[0.08]">
+      <div className="flex items-start gap-4">
         <div className="shrink-0">
           {block.data.avatar_url ? (
             <img src={block.data.avatar_url} alt="" className="h-16 w-16 rounded-full object-cover border" />
@@ -1646,24 +1852,33 @@ function ProfileFieldsEditor({
             </label>
           )}
         </div>
-        <div className="flex-1 space-y-2">
-          <Input placeholder="@username" value={block.data.username || ""} onChange={(e) => patch({ username: e.target.value })} disabled={disabled} />
-          <Input placeholder="Nome de exibição" value={block.data.display_name || ""} onChange={(e) => patch({ display_name: e.target.value })} disabled={disabled} />
+        <div className="flex-1 space-y-3">
+          <div className="space-y-1">
+            <FieldLabel>@usuário</FieldLabel>
+            <Input className={LEMA_INPUT} placeholder="@username" value={block.data.username || ""} onChange={(e) => patch({ username: e.target.value })} disabled={disabled} />
+          </div>
+          <div className="space-y-1">
+            <FieldLabel>Nome de exibição</FieldLabel>
+            <Input className={LEMA_INPUT} placeholder="Nome de exibição" value={block.data.display_name || ""} onChange={(e) => patch({ display_name: e.target.value })} disabled={disabled} />
+          </div>
         </div>
       </div>
-      <Textarea placeholder="Bio (use quebras de linha)" value={block.data.bio || ""} onChange={(e) => patch({ bio: e.target.value })} rows={3} disabled={disabled} />
+      <div className="space-y-1">
+        <FieldLabel>Bio</FieldLabel>
+        <Textarea className={LEMA_INPUT} placeholder="Bio (use quebras de linha)" value={block.data.bio || ""} onChange={(e) => patch({ bio: e.target.value })} rows={3} disabled={disabled} />
+      </div>
       <div className="grid grid-cols-3 gap-2">
-        <div>
-          <Label className="text-[10px] text-muted-foreground">Posts</Label>
-          <Input placeholder="683" value={block.data.posts_count ?? ""} onChange={(e) => patch({ posts_count: e.target.value })} disabled={disabled} />
+        <div className="space-y-1">
+          <FieldLabel>Posts</FieldLabel>
+          <Input className={LEMA_INPUT} placeholder="683" value={block.data.posts_count ?? ""} onChange={(e) => patch({ posts_count: e.target.value })} disabled={disabled} />
         </div>
-        <div>
-          <Label className="text-[10px] text-muted-foreground">Followers</Label>
-          <Input placeholder="14,1 mil" value={block.data.followers_count ?? ""} onChange={(e) => patch({ followers_count: e.target.value })} disabled={disabled} />
+        <div className="space-y-1">
+          <FieldLabel>Followers</FieldLabel>
+          <Input className={LEMA_INPUT} placeholder="14,1 mil" value={block.data.followers_count ?? ""} onChange={(e) => patch({ followers_count: e.target.value })} disabled={disabled} />
         </div>
-        <div>
-          <Label className="text-[10px] text-muted-foreground">Following</Label>
-          <Input placeholder="1 000" value={block.data.following_count ?? ""} onChange={(e) => patch({ following_count: e.target.value })} disabled={disabled} />
+        <div className="space-y-1">
+          <FieldLabel>Following</FieldLabel>
+          <Input className={LEMA_INPUT} placeholder="1 000" value={block.data.following_count ?? ""} onChange={(e) => patch({ following_count: e.target.value })} disabled={disabled} />
         </div>
       </div>
 

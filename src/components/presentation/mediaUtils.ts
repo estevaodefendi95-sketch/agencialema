@@ -43,3 +43,17 @@ export function getPostMediaItems(
 export function isLegacyPostMedia(id: string): boolean {
   return id.startsWith("legacy-");
 }
+
+// Itens do grid do bloco "Preview Instagram". O tipo é uma marcação manual
+// da equipe (o tile mostra só a miniatura que representa o post), usada pra
+// desenhar o badge de carrossel/vídeo no canto.
+export type FeedItemType = "photo" | "carousel" | "video";
+export type FeedItem = { url: string; type: FeedItemType };
+
+// Espelha getGalleryItems: blocos antigos só tinham `images: string[]` (tudo
+// foto); normaliza pro formato novo `items: { url, type }[]` sem migração.
+export function getFeedItems(data: any): FeedItem[] {
+  if (Array.isArray(data?.items)) return data.items;
+  if (Array.isArray(data?.images)) return data.images.map((url: string) => ({ url, type: "photo" as const }));
+  return [];
+}
