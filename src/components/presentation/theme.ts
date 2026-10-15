@@ -29,16 +29,10 @@ export const FONT_OPTIONS: { label: string; value: string; sample: string }[] = 
   { label: "Sora", value: "Sora", sample: "Sora" },
 ];
 
-export function normalizeTheme(raw: any): PresentationTheme {
-  if (!raw || typeof raw !== "object") return DEFAULT_THEME;
-  return {
-    bg: typeof raw.bg === "string" && raw.bg ? raw.bg : DEFAULT_THEME.bg,
-    fg: typeof raw.fg === "string" && raw.fg ? raw.fg : DEFAULT_THEME.fg,
-    accent: typeof raw.accent === "string" && raw.accent ? raw.accent : DEFAULT_THEME.accent,
-    invert_bg: typeof raw.invert_bg === "string" && raw.invert_bg ? raw.invert_bg : DEFAULT_THEME.invert_bg,
-    invert_fg: typeof raw.invert_fg === "string" && raw.invert_fg ? raw.invert_fg : DEFAULT_THEME.invert_fg,
-    font: typeof raw.font === "string" && raw.font ? raw.font : DEFAULT_THEME.font,
-  };
+// A identidade visual é sempre a padrão da Lema — o valor salvo em
+// project_presentations.theme (inclusive em versões já lançadas) é ignorado.
+export function normalizeTheme(_raw?: any): PresentationTheme {
+  return DEFAULT_THEME;
 }
 
 export function themeVars(theme: PresentationTheme): React.CSSProperties {

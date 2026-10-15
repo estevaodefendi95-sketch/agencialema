@@ -7,12 +7,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useToast } from "@/hooks/use-toast";
 import { DragDropContext, Droppable, Draggable, type DropResult } from "@hello-pangea/dnd";
-import { Plus, GripVertical, Trash2, Image as ImageIcon, Type, Smartphone, ListOrdered, Eye, ExternalLink, Copy, Heading, Upload, Play, X, Rocket, History as HistoryIcon, LayoutTemplate, ListChecks, Hash, Grid3x3, Palette, RefreshCw, ChevronLeft, ChevronRight, RectangleHorizontal, LayoutGrid, ChevronDown, Calendar, Clock, Check, Loader2 } from "lucide-react";
+import { Plus, GripVertical, Trash2, Image as ImageIcon, Type, Smartphone, ListOrdered, Eye, ExternalLink, Copy, Heading, Upload, Play, X, Rocket, History as HistoryIcon, LayoutTemplate, ListChecks, Hash, Grid3x3, RefreshCw, ChevronLeft, ChevronRight, RectangleHorizontal, LayoutGrid, ChevronDown, Calendar, Clock, Check, Loader2 } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import FeedTypeBadge from "./FeedTypeBadge";
 import { LEMA_LOGO_URL } from "@/lib/brand";
@@ -22,7 +21,6 @@ import { format } from "date-fns";
 import ImageCropper, { processInstagramFile, uploadProcessedImage } from "@/components/ImageCropper";
 import { detectMediaType, getFeedItems, getGalleryItems, getPostMediaItems, isLegacyPostMedia, type FeedItem, type FeedItemType, type MediaItem, type PostMediaRow } from "./mediaUtils";
 import PresentationView from "./PresentationView";
-import { THEME_FIELDS, normalizeTheme, DEFAULT_THEME, FONT_OPTIONS } from "./theme";
 
 
 const MAX_MEDIA_MB = 50;
@@ -111,7 +109,14 @@ const BLOCK_META = {
   posts_plan: { label: "Planejamento de Posts", icon: ListOrdered },
 };
 
-const ADDABLE_BLOCK_TYPES: Block["block_type"][] = ["canvas", "instagram_preview", "posts_plan"];
+// Níveis fixos da edição, nessa ordem (a Capa vem antes e usa os campos da
+// própria apresentação). Outros tipos só existem em apresentações antigas:
+// continuam editáveis/renderizáveis, mas não dá pra criar novos.
+const FIXED_BLOCK_TYPES = ["instagram_preview", "posts_plan"] as const;
+const FIXED_BLOCK_DEFAULTS: Record<(typeof FIXED_BLOCK_TYPES)[number], any> = {
+  instagram_preview: { items: [] },
+  posts_plan: {},
+};
 
 // Visual "painel limpo" da Lema, usado só nos editores dos blocos Preview
 // Instagram e Planejamento de Posts.
@@ -168,18 +173,6 @@ function slugify(s: string) {
     .replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "").slice(0, 60);
 }
 
-async function uploadImage(file: File, folder: string): Promise<string | null> {
-  const ext = file.name.split(".").pop() || "png";
-  const path = `${folder}/${crypto.randomUUID()}.${ext}`;
-  const { error } = await supabase.storage.from("attachments").upload(path, file, { upsert: false });
-  if (error) {
-    console.error(error);
-    return null;
-  }
-  const { data } = supabase.storage.from("attachments").getPublicUrl(path);
-  return data.publicUrl;
-}
-
 type PresentationVersion = {
   id: string;
   name: string;
@@ -233,14 +226,10 @@ export default function PresentationBuilder({ projectId, projectName }: { projec
       return;
     }
 
-    if (preservedIgData) {
-      await supabase.from("presentation_blocks").insert({
-        presentation_id: pres.id,
-        block_type: "instagram_preview",
-        position: 0,
-        data: preservedIgData,
-      });
-    }
+    await supabase.from("presentation_blocks").insert([
+      { presentation_id: pres.id, block_type: "instagram_preview", position: 0, data: preservedIgData || FIXED_BLOCK_DEFAULTS.instagram_preview },
+      { presentation_id: pres.id, block_type: "posts_plan", position: 1, data: FIXED_BLOCK_DEFAULTS.posts_plan },
+    ]);
 
     await supabase.from("project_presentations").update({ hero_title: "", hero_description: "" }).eq("id", pres.id);
 
@@ -269,18 +258,32 @@ export default function PresentationBuilder({ projectId, projectName }: { projec
       .eq("project_id", projectId)
       .maybeSingle();
 
-    let p: Presentation | null = existing as any;
-    if (!p && canEdit) {
-      const baseSlug = slugify(projectName) || projectId.slice(0, 8);
-      const slug = `${baseSlug}-${projectId.slice(0, 6)}`;
-      // Logo do cliente vem do cadastro da empresa (projects.company_id →
-      // companies.logo_url); continua editável por apresentação.
-      let companyLogo: string | null = null;
+    // Logo do cliente vem do cadastro da empresa (projects.company_id →
+    // companies.logo_url) e o da Lema é fixo — não há mais upload manual.
+    let companyLogo: string | null = null;
+    if (canEdit) {
       const { data: proj } = await supabase.from("projects").select("company_id").eq("id", projectId).maybeSingle();
       if (proj?.company_id) {
         const { data: company } = await supabase.from("companies").select("logo_url").eq("id", proj.company_id).maybeSingle();
         companyLogo = company?.logo_url || null;
       }
+    }
+
+    let p: Presentation | null = existing as any;
+    if (p && canEdit) {
+      // Apresentações já existentes: sincroniza os logos com o cadastro.
+      // Se a empresa não tiver logo, mantém o que já estava salvo.
+      const logoPatch: Partial<Presentation> = {};
+      if (companyLogo && p.client_logo_url !== companyLogo) logoPatch.client_logo_url = companyLogo;
+      if (p.agency_logo_url !== LEMA_LOGO_URL) logoPatch.agency_logo_url = LEMA_LOGO_URL;
+      if (Object.keys(logoPatch).length > 0) {
+        const { error } = await supabase.from("project_presentations").update(logoPatch).eq("id", p.id);
+        if (!error) p = { ...p, ...logoPatch };
+      }
+    }
+    if (!p && canEdit) {
+      const baseSlug = slugify(projectName) || projectId.slice(0, 8);
+      const slug = `${baseSlug}-${projectId.slice(0, 6)}`;
       const { data: created, error } = await supabase
         .from("project_presentations")
         .insert({
@@ -307,7 +310,7 @@ export default function PresentationBuilder({ projectId, projectName }: { projec
         supabase.from("presentation_blocks").select("*").eq("presentation_id", p.id).order("position"),
         supabase.from("presentation_posts").select("*").eq("presentation_id", p.id).order("position"),
       ]);
-      setBlocks((b || []) as any);
+      setBlocks(canEdit ? await ensureFixedBlocks(p.id, (b || []) as any) : ((b || []) as any));
       const postList = (po || []) as Post[];
       setPosts(postList);
       const postIds = postList.map((x) => x.id);
@@ -325,6 +328,24 @@ export default function PresentationBuilder({ projectId, projectName }: { projec
       loadVersions(p.id);
     }
     setLoading(false);
+  }
+
+  // A edição tem 3 níveis fixos: Capa (campos da própria apresentação),
+  // Preview Instagram e Planejamento de Posts. Cria os blocos que faltarem —
+  // apresentação nova ou antiga sem eles — no fim da lista.
+  async function ensureFixedBlocks(presentationId: string, existing: Block[]): Promise<Block[]> {
+    const missing = FIXED_BLOCK_TYPES.filter((t) => !existing.some((b) => b.block_type === t));
+    if (missing.length === 0) return existing;
+    const nextPosition = existing.reduce((max, b) => Math.max(max, b.position + 1), 0);
+    const { data, error } = await supabase
+      .from("presentation_blocks")
+      .insert(missing.map((t, i) => ({ presentation_id: presentationId, block_type: t, position: nextPosition + i, data: FIXED_BLOCK_DEFAULTS[t] })))
+      .select("*");
+    if (error) {
+      toast({ title: "Erro ao preparar a apresentação", description: error.message, variant: "destructive" });
+      return existing;
+    }
+    return [...existing, ...((data || []) as any)];
   }
 
   async function loadVersions(presentationId: string) {
@@ -409,32 +430,6 @@ export default function PresentationBuilder({ projectId, projectName }: { projec
     }
   }
 
-  async function addBlock(type: Block["block_type"]) {
-    if (!pres) return;
-    const position = blocks.length;
-    const defaults: Record<string, any> = {
-      cover: { tagline: "#tudo começa pelo seu lema.", label: "PLANEJAMENTO", month: "", year: String(new Date().getFullYear()) },
-      rules: { items: [""] },
-      themes: { title: "Temas do mês", items: [""] },
-      feed_overview: { title: "#seu feed, seu lema.", subtitle: "Visão geral", images: [] },
-      header: { title: "", subtitle: "" },
-      banner: { url: "", title: "", subtitle: "", text_position: "bottom" },
-      canvas: { background_color: "#F6F4EF", background_image_url: null, elements: [] },
-      text: { content: "" },
-      image: { url: "", caption: "" },
-      gallery: { images: [] },
-      instagram_preview: { items: [] },
-      posts_plan: {},
-    };
-
-    const { data, error } = await supabase
-      .from("presentation_blocks")
-      .insert({ presentation_id: pres.id, block_type: type, position, data: defaults[type] })
-      .select("*").single();
-    if (error) { toast({ title: "Erro", variant: "destructive" }); return; }
-    setBlocks((prev) => [...prev, data as any]);
-  }
-
   async function patchBlock(id: string, data: any) {
     setBlocks((prev) => prev.map((b) => (b.id === id ? { ...b, data } : b)));
     await supabase.from("presentation_blocks").update({ data }).eq("id", id);
@@ -445,10 +440,9 @@ export default function PresentationBuilder({ projectId, projectName }: { projec
     await supabase.from("presentation_blocks").delete().eq("id", id);
   }
 
-  // Um único DragDropContext cobre a lista de blocos e as listas aninhadas
-  // (itens da Galeria, mídia de cada post) — @hello-pangea/dnd não suporta
-  // DragDropContext aninhado, só Droppables aninhados dentro do mesmo.
-  // O droppableId de origem decide qual lista foi reordenada.
+  // Um único DragDropContext cobre as listas reordenáveis dentro dos blocos
+  // (grid do Instagram, itens da Galeria, mídia de cada post) — a ordem dos
+  // blocos em si é fixa. O droppableId de origem decide qual lista mudou.
   async function reorderPostMedia(postId: string, fromIndex: number, toIndex: number) {
     const items = getPostMediaItems(
       posts.find((p) => p.id === postId) || { id: postId, image_url: null },
@@ -468,15 +462,6 @@ export default function PresentationBuilder({ projectId, projectName }: { projec
   async function onDragEnd(r: DropResult) {
     if (!r.destination) return;
     const { droppableId } = r.source;
-
-    if (droppableId === "blocks") {
-      const reord = Array.from(blocks);
-      const [moved] = reord.splice(r.source.index, 1);
-      reord.splice(r.destination.index, 0, moved);
-      setBlocks(reord);
-      await Promise.all(reord.map((b, idx) => supabase.from("presentation_blocks").update({ position: idx }).eq("id", b.id)));
-      return;
-    }
 
     if (droppableId.startsWith("gallery-items:")) {
       const blockId = droppableId.slice("gallery-items:".length);
@@ -565,6 +550,30 @@ export default function PresentationBuilder({ projectId, projectName }: { projec
 
   const canShowLink = pres.status === "publicado" && pres.released;
 
+  // Primeiro bloco de cada tipo fixo; o resto (tipos antigos ou duplicados)
+  // fica na seção "Páginas antigas".
+  const igBlock = blocks.find((b) => b.block_type === "instagram_preview");
+  const postsBlock = blocks.find((b) => b.block_type === "posts_plan");
+  const legacyBlocks = blocks.filter((b) => b !== igBlock && b !== postsBlock);
+
+  function renderBlockEditor(b: Block) {
+    return (
+      <BlockEditor
+        block={b}
+        onChange={(d: any) => patchBlock(b.id, d)}
+        posts={posts}
+        postMedia={postMedia}
+        onAddPost={addPost}
+        onPatchPost={patchPost}
+        onRemovePost={removePost}
+        onAddPostMedia={addPostMedia}
+        onRemovePostMedia={removePostMedia}
+        onReorderPostMedia={reorderPostMedia}
+        disabled={!canEdit}
+      />
+    );
+  }
+
   return (
     <div className="space-y-4">
       {/* Toolbar */}
@@ -603,159 +612,52 @@ export default function PresentationBuilder({ projectId, projectName }: { projec
         </CardContent>
       </Card>
 
-      {/* Hero / Logos */}
-      <Card>
-        <CardContent className="p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-          <LogoField label="Logo do cliente" value={pres.client_logo_url} onChange={(url) => patchPres({ client_logo_url: url })} disabled={!canEdit} folder="presentations/logos" />
-          <LogoField label="Logo da agência" value={pres.agency_logo_url} onChange={(url) => patchPres({ agency_logo_url: url })} disabled={!canEdit} folder="presentations/logos" />
-          <div className="md:col-span-2 space-y-1.5">
-            <Label className="text-xs">Título</Label>
-            <Input value={pres.hero_title || ""} onChange={(e) => patchPres({ hero_title: e.target.value })} disabled={!canEdit} />
-            <p className="text-[10px] text-muted-foreground text-right">{(pres.hero_title || "").length}/60 recomendado</p>
-          </div>
-          <div className="md:col-span-2 space-y-1.5">
-            <Label className="text-xs">Descrição da campanha</Label>
-            <Textarea value={pres.hero_description || ""} onChange={(e) => patchPres({ hero_description: e.target.value })} disabled={!canEdit} rows={3} />
-            <p className="text-[10px] text-muted-foreground text-right">{(pres.hero_description || "").length}/200 recomendado</p>
-          </div>
-          <div className="md:col-span-2">
-            <Label className="text-xs">Banner de capa (opcional)</Label>
-            <p className="text-[10px] text-muted-foreground mb-1">Se enviar uma imagem aqui, a capa da apresentação vira um banner em tela cheia com o título/descrição por cima, em vez do fundo liso padrão.</p>
-            <BackgroundImageField
-              value={pres.hero_image_url}
-              onChange={(url) => patchPres({ hero_image_url: url })}
-              disabled={!canEdit}
-            />
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Tema visual */}
-      <Card>
-        <CardContent className="p-4">
-          <div className="flex items-center gap-2 mb-3">
-            <Palette className="h-4 w-4 text-muted-foreground" />
-            <p className="text-sm font-medium">Tema da apresentação</p>
-          </div>
-          <div className="flex flex-wrap gap-4">
-            <div className="space-y-1.5">
-              <Label className="text-xs">Fonte</Label>
-              <Select
-                value={normalizeTheme(pres.theme).font}
-                onValueChange={(v) => patchPres({ theme: { ...normalizeTheme(pres.theme), font: v } })}
-                disabled={!canEdit}
-              >
-                <SelectTrigger className="h-8 w-[190px] text-xs" style={{ fontFamily: `"${normalizeTheme(pres.theme).font}"` }}>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {FONT_OPTIONS.map((f) => (
-                    <SelectItem key={f.value} value={f.value} style={{ fontFamily: `"${f.sample}"` }}>
-                      {f.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            {THEME_FIELDS.map((f) => {
-              const theme = normalizeTheme(pres.theme);
-              return (
-                <div key={f.key} className="space-y-1.5">
-                  <Label className="text-xs">{f.label}</Label>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="color"
-                      value={theme[f.key]}
-                      disabled={!canEdit}
-                      onChange={(e) => patchPres({ theme: { ...theme, [f.key]: e.target.value } })}
-                      className="h-8 w-10 rounded border bg-background p-0.5"
-                    />
-                    <span className="text-[11px] text-muted-foreground uppercase">{theme[f.key]}</span>
-                  </div>
-                </div>
-              );
-            })}
-            {canEdit && (
-              <Button variant="ghost" size="sm" className="self-end" onClick={() => patchPres({ theme: DEFAULT_THEME })}>
-                Restaurar padrão
-              </Button>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-
-
-
-      {/* Blocks */}
+      {/* Níveis fixos da edição — ordem fixa, sem adicionar/remover/reordenar */}
       <DragDropContext onDragEnd={onDragEnd}>
-        <Droppable droppableId="blocks">
-          {(prov) => (
-            <div ref={prov.innerRef} {...prov.droppableProps} className="space-y-3">
-              {blocks.map((b, idx) => (
-                <Draggable key={b.id} draggableId={b.id} index={idx} isDragDisabled={!canEdit}>
-                  {(p) => (
-                    <Card ref={p.innerRef} {...p.draggableProps}>
-                      <CardContent className="p-4">
-                        <div className="flex items-center gap-2 mb-3">
-                          {canEdit && (
-                            <span {...p.dragHandleProps} className="cursor-grab text-muted-foreground">
-                              <GripVertical className="h-4 w-4" />
-                            </span>
-                          )}
-                          <Badge variant="secondary">{BLOCK_META[b.block_type].label}</Badge>
-                          <div className="flex-1" />
-                          {canEdit && (
-                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => removeBlock(b.id)}>
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </Button>
-                          )}
-                        </div>
-                        <BlockEditor
-                          block={b}
-                          onChange={(d) => patchBlock(b.id, d)}
-                          posts={posts}
-                          postMedia={postMedia}
-                          onAddPost={addPost}
-                          onPatchPost={patchPost}
-                          onRemovePost={removePost}
-                          onAddPostMedia={addPostMedia}
-                          onRemovePostMedia={removePostMedia}
-                          onReorderPostMedia={reorderPostMedia}
-                          disabled={!canEdit}
-                        />
-                      </CardContent>
-                    </Card>
-                  )}
-                </Draggable>
-              ))}
-              {prov.placeholder}
-            </div>
+        <div className="space-y-3">
+          <FixedLevelCard step={1} label="Capa" icon={LayoutTemplate}>
+            <CoverEditor pres={pres} onPatch={patchPres} disabled={!canEdit} hasLegacyCover={legacyBlocks.some((b) => b.block_type === "cover")} />
+          </FixedLevelCard>
+          {igBlock && (
+            <FixedLevelCard step={2} label={BLOCK_META.instagram_preview.label} icon={BLOCK_META.instagram_preview.icon}>
+              {renderBlockEditor(igBlock)}
+            </FixedLevelCard>
           )}
-        </Droppable>
-      </DragDropContext>
+          {postsBlock && (
+            <FixedLevelCard step={3} label={BLOCK_META.posts_plan.label} icon={BLOCK_META.posts_plan.icon}>
+              {renderBlockEditor(postsBlock)}
+            </FixedLevelCard>
+          )}
 
-      {/* Add block */}
-      {canEdit && (
-        <Card className="border-dashed">
-          <CardContent className="p-4">
-            <p className="text-sm font-medium mb-2">Adicionar página</p>
-            <div className="flex flex-wrap gap-2">
-              {ADDABLE_BLOCK_TYPES.map((k) => {
-                const Icon = BLOCK_META[k].icon;
-                return (
-                  <Button key={k} variant="outline" size="sm" onClick={() => addBlock(k)}>
-                    <Icon className="h-4 w-4 mr-1.5" /> {BLOCK_META[k].label}
-                  </Button>
-                );
-              })}
-            </div>
-            <p className="text-[11px] text-muted-foreground mt-2">
-              "Página livre" é onde você monta o layout (texto, imagens, cores) do jeito que quiser.
-              "Preview Instagram" e "Planejamento de Posts" são as páginas fixas de visualização pro cliente.
-            </p>
-          </CardContent>
-        </Card>
-      )}
+          {legacyBlocks.length > 0 && (
+            <>
+              <div className="pt-4">
+                <p className="text-sm font-medium">Páginas antigas</p>
+                <p className="text-[11px] text-muted-foreground">
+                  Páginas criadas no formato anterior desta apresentação. Continuam aparecendo pro cliente e podem ser
+                  editadas ou removidas, mas não é mais possível criar novas.
+                </p>
+              </div>
+              {legacyBlocks.map((b) => (
+                <Card key={b.id}>
+                  <CardContent className="p-4">
+                    <div className="flex items-center gap-2 mb-3">
+                      <Badge variant="secondary">{BLOCK_META[b.block_type]?.label || b.block_type}</Badge>
+                      <div className="flex-1" />
+                      {canEdit && (
+                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => removeBlock(b.id)} title="Remover página antiga">
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
+                    </div>
+                    {renderBlockEditor(b)}
+                  </CardContent>
+                </Card>
+              ))}
+            </>
+          )}
+        </div>
+      </DragDropContext>
 
       {/* Histórico de lançamentos */}
       <Card>
@@ -849,38 +751,77 @@ export default function PresentationBuilder({ projectId, projectName }: { projec
   );
 }
 
-function LogoField({ label, value, onChange, disabled, folder }: { label: string; value: string | null; onChange: (url: string | null) => void; disabled?: boolean; folder: string }) {
-  const { toast } = useToast();
-  const [uploading, setUploading] = useState(false);
-  async function onPick(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setUploading(true);
-    const url = await uploadImage(file, folder);
-    setUploading(false);
-    if (url) onChange(url);
-    else toast({ title: "Erro no upload", variant: "destructive" });
-  }
+// Cartão de um nível fixo da edição: sem arrastar e sem excluir.
+function FixedLevelCard({ step, label, icon: Icon, children }: { step: number; label: string; icon: typeof ImageIcon; children: React.ReactNode }) {
   return (
-    <div className="space-y-1.5">
-      <Label className="text-xs">{label}</Label>
-      <div className="flex items-center gap-3">
-        {value ? (
-          <img src={value} alt={label} className="h-16 w-16 object-contain border rounded bg-muted p-1.5" />
-        ) : (
-          <div className="h-16 w-16 border rounded flex items-center justify-center text-muted-foreground bg-muted">
-            <ImageIcon className="h-5 w-5" />
-          </div>
-        )}
-        {!disabled && (
-          <>
-            <label className="cursor-pointer">
-              <Input type="file" accept="image/*" className="hidden" onChange={onPick} disabled={uploading} />
-              <Button asChild variant="outline" size="sm"><span><Upload className="h-3.5 w-3.5 mr-1.5" />{uploading ? "Enviando..." : "Enviar"}</span></Button>
-            </label>
-            {value && <Button variant="ghost" size="sm" onClick={() => onChange(null)}>Remover</Button>}
-          </>
-        )}
+    <Card>
+      <CardContent className="p-4">
+        <div className="flex items-center gap-2 mb-3">
+          <span className="h-6 w-6 rounded-full bg-primary text-primary-foreground text-xs font-semibold flex items-center justify-center">{step}</span>
+          <Icon className="h-4 w-4 text-muted-foreground" />
+          <p className="text-sm font-medium">{label}</p>
+        </div>
+        {children}
+      </CardContent>
+    </Card>
+  );
+}
+
+function LogoPreview({ label, caption, url }: { label: string; caption: string; url: string | null }) {
+  return (
+    <div className="flex items-center gap-3">
+      {url ? (
+        <img src={url} alt={label} className="h-12 w-20 object-contain border rounded bg-muted p-1.5" />
+      ) : (
+        <div className="h-12 w-20 border border-dashed rounded flex items-center justify-center text-muted-foreground">
+          <ImageIcon className="h-4 w-4" />
+        </div>
+      )}
+      <div className="min-w-0">
+        <p className="text-xs font-medium">{label}</p>
+        <p className="text-[11px] text-muted-foreground">{url ? caption : "Empresa sem logo no cadastro"}</p>
+      </div>
+    </div>
+  );
+}
+
+// Capa: sempre o primeiro nível. Edita os campos da própria apresentação
+// (renderizados pelo HeroSlide); os logos são automáticos e só leitura.
+function CoverEditor({
+  pres,
+  onPatch,
+  disabled,
+  hasLegacyCover,
+}: {
+  pres: Presentation;
+  onPatch: (patch: Partial<Presentation>) => void;
+  disabled?: boolean;
+  hasLegacyCover?: boolean;
+}) {
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <LogoPreview label="Logo do cliente" caption="do cadastro da empresa" url={pres.client_logo_url} />
+      <LogoPreview label="Logo da agência" caption="Lema" url={pres.agency_logo_url || LEMA_LOGO_URL} />
+      {hasLegacyCover && (
+        <p className="md:col-span-2 text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-md p-2.5 leading-snug">
+          Esta apresentação ainda tem uma capa no formato antigo (em "Páginas antigas", abaixo), que é a que aparece
+          pro cliente. Remova-a pra usar esta capa.
+        </p>
+      )}
+      <div className="md:col-span-2 space-y-1.5">
+        <Label className="text-xs">Título</Label>
+        <Input value={pres.hero_title || ""} onChange={(e) => onPatch({ hero_title: e.target.value })} disabled={disabled} />
+        <p className="text-[10px] text-muted-foreground text-right">{(pres.hero_title || "").length}/60 recomendado</p>
+      </div>
+      <div className="md:col-span-2 space-y-1.5">
+        <Label className="text-xs">Descrição da campanha</Label>
+        <Textarea value={pres.hero_description || ""} onChange={(e) => onPatch({ hero_description: e.target.value })} disabled={disabled} rows={3} />
+        <p className="text-[10px] text-muted-foreground text-right">{(pres.hero_description || "").length}/200 recomendado</p>
+      </div>
+      <div className="md:col-span-2">
+        <Label className="text-xs">Banner de capa (opcional)</Label>
+        <p className="text-[10px] text-muted-foreground mb-1">Se enviar uma imagem aqui, a capa da apresentação vira um banner em tela cheia com o título/descrição por cima, em vez do fundo liso padrão.</p>
+        <BackgroundImageField value={pres.hero_image_url} onChange={(url) => onPatch({ hero_image_url: url })} disabled={disabled} />
       </div>
     </div>
   );
