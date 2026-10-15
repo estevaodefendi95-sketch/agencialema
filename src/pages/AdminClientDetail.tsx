@@ -5,14 +5,17 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
   AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Building2, ExternalLink, FileText, Loader2, Lock, Paperclip, Save, Trash2 } from "lucide-react";
-import { adminErrorMessage } from "@/lib/adminRpc";
+import { ArrowLeft, Building2, ExternalLink, FileText, Loader2, Lock, LockOpen, Paperclip, Save, Trash2 } from "lucide-react";
+import {
+  adminErrorMessage, adminGetCompanyNotes, adminSetCompanyNotes, isNotesPasswordUnset, isWrongNotesPassword, notesErrorMessage,
+} from "@/lib/adminRpc";
 
 const CONTRACTS_BUCKET = "company-contracts";
 
@@ -53,7 +56,7 @@ export default function AdminClientDetail() {
       </div>
 
       <ContractsCard companyId={companyId} />
-      <NotesCard companyId={companyId} />
+      <NotesCard key={companyId} companyId={companyId} />
     </div>
   );
 }
@@ -218,37 +221,60 @@ function ContractsCard({ companyId }: { companyId: string }) {
 
 function NotesCard({ companyId }: { companyId: string }) {
   const { toast } = useToast();
+  // Senha só em memória, enquanto a página está aberta — nunca persistida.
+  // Trocar de empresa remonta o card (key no pai), então pede a senha de novo.
+  const [password, setPassword] = useState<string | null>(null);
+  const [showUnlock, setShowUnlock] = useState(false);
+  const [pwInput, setPwInput] = useState("");
+  const [unlocking, setUnlocking] = useState(false);
+  const [unlockError, setUnlockError] = useState<string | null>(null);
   const [text, setText] = useState("");
   const [saved, setSaved] = useState("");
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-
-  useEffect(() => {
-    setLoading(true);
-    (async () => {
-      const { data, error } = await db.rpc("admin_get_company_notes", { p_company_id: companyId });
-      if (error) {
-        // Erro (inclusive "Acesso negado") nunca vira campo vazio editável —
-        // senão salvar sobrescreveria a observação existente.
-        setLoadError(adminErrorMessage(error));
-      } else {
-        setLoadError(null);
-        setText(data || "");
-        setSaved(data || "");
-      }
-      setLoading(false);
-    })();
-  }, [companyId]);
 
   const dirty = text !== saved;
 
+  function lock(message: string | null) {
+    setPassword(null);
+    setText("");
+    setSaved("");
+    setPwInput("");
+    setShowUnlock(true);
+    setUnlockError(message);
+  }
+
+  async function unlock(e: React.FormEvent) {
+    e.preventDefault();
+    if (!pwInput) return;
+    setUnlocking(true);
+    const { data, error } = await adminGetCompanyNotes(companyId, pwInput);
+    setUnlocking(false);
+    if (error) {
+      // Erro nunca vira campo vazio editável — senão salvar sobrescreveria
+      // a observação existente. Continua travado.
+      setUnlockError(notesErrorMessage(error));
+      setPwInput("");
+      return;
+    }
+    setUnlockError(null);
+    setPassword(pwInput);
+    setPwInput("");
+    setText(data || "");
+    setSaved(data || "");
+  }
+
   async function save() {
+    if (password === null) return;
     setSaving(true);
-    const { error } = await db.rpc("admin_set_company_notes", { p_company_id: companyId, p_notes: text });
+    const { error } = await adminSetCompanyNotes(companyId, text, password);
     setSaving(false);
     if (error) {
-      toast({ title: "Não foi possível salvar", description: adminErrorMessage(error), variant: "destructive" });
+      if (isWrongNotesPassword(error) || isNotesPasswordUnset(error)) {
+        // Senha mudou em Configurações enquanto a página estava aberta.
+        lock(`${notesErrorMessage(error)} — digite a senha novamente.`);
+        return;
+      }
+      toast({ title: "Não foi possível salvar", description: notesErrorMessage(error), variant: "destructive" });
       return;
     }
     setSaved(text);
@@ -258,14 +284,41 @@ function NotesCard({ companyId }: { companyId: string }) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base flex items-center gap-2"><Lock className="h-4 w-4" /> Observações confidenciais</CardTitle>
-        <CardDescription>Visível apenas para administradores — armazenado criptografado.</CardDescription>
+        <CardTitle className="text-base flex items-center gap-2">
+          {password === null ? <Lock className="h-4 w-4" /> : <LockOpen className="h-4 w-4" />} Observações confidenciais
+        </CardTitle>
+        <CardDescription>Visível apenas para administradores — armazenado criptografado e protegido por senha.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
-        {loading ? (
-          <p className="text-sm text-muted-foreground">Carregando...</p>
-        ) : loadError ? (
-          <p className="text-sm text-destructive">{loadError}</p>
+        {password === null ? (
+          showUnlock ? (
+            <form onSubmit={unlock} className="space-y-2">
+              <div className="flex gap-2">
+                <Input
+                  type="password"
+                  autoFocus
+                  autoComplete="off"
+                  value={pwInput}
+                  onChange={(e) => setPwInput(e.target.value)}
+                  placeholder="Senha das observações"
+                  className="max-w-xs"
+                />
+                <Button type="submit" size="sm" className="h-10" disabled={!pwInput || unlocking}>
+                  {unlocking ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : <LockOpen className="h-4 w-4 mr-1.5" />}
+                  Desbloquear
+                </Button>
+                <Button type="button" variant="ghost" size="sm" className="h-10" onClick={() => { setShowUnlock(false); setUnlockError(null); setPwInput(""); }}>
+                  Cancelar
+                </Button>
+              </div>
+              {unlockError && <p className="text-sm text-destructive">{unlockError}</p>}
+            </form>
+          ) : (
+            <div className="flex flex-col items-center gap-3 py-6 text-muted-foreground">
+              <Lock className="h-8 w-8" />
+              <Button variant="outline" size="sm" onClick={() => setShowUnlock(true)}>Ver observações</Button>
+            </div>
+          )
         ) : (
           <>
             <Textarea

@@ -10,8 +10,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import * as Icons from "lucide-react";
-import { Settings, Upload, X, ShieldAlert, Plus, Trash2, ArrowUp, ArrowDown, Image as ImageIcon, Sparkles } from "lucide-react";
+import { Settings, Upload, X, ShieldAlert, Plus, Trash2, ArrowUp, ArrowDown, Image as ImageIcon, Sparkles, Lock, Loader2 } from "lucide-react";
 import ImageCropper from "@/components/ImageCropper";
+import { adminHasNotesPassword, adminSetNotesPassword, notesErrorMessage } from "@/lib/adminRpc";
 
 const SERVICE_ICONS = [
   "Sparkles", "Megaphone", "Camera", "PenTool", "TrendingUp", "Users",
@@ -394,6 +395,8 @@ export default function AdminSettings() {
         </CardContent>
       </Card>
 
+      <NotesPasswordCard />
+
       {cropFile && (
         <ImageCropper
           file={cropFile}
@@ -410,5 +413,82 @@ export default function AdminSettings() {
         />
       )}
     </div>
+  );
+}
+
+// Senha única (compartilhada entre todos os admins) que protege as
+// observações confidenciais de Clientes & Contratos. Quem chega aqui já é
+// admin autenticado, então trocar não pede a senha atual.
+function NotesPasswordCard() {
+  const { toast } = useToast();
+  const [hasPassword, setHasPassword] = useState<boolean | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [newPassword, setNewPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
+
+  useEffect(() => {
+    adminHasNotesPassword().then(({ data, error }) => {
+      if (error) setLoadError(notesErrorMessage(error));
+      else setHasPassword(!!data);
+    });
+  }, []);
+
+  async function save(e: React.FormEvent) {
+    e.preventDefault();
+    if (newPassword !== confirm) {
+      setFormError("As senhas não conferem.");
+      return;
+    }
+    setFormError(null);
+    setSaving(true);
+    const { error } = await adminSetNotesPassword(newPassword);
+    setSaving(false);
+    if (error) {
+      setFormError(notesErrorMessage(error));
+      return;
+    }
+    toast({ title: hasPassword ? "Senha alterada" : "Senha definida" });
+    setHasPassword(true);
+    setNewPassword("");
+    setConfirm("");
+  }
+
+  return (
+    <Card className="max-w-lg">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2"><Lock className="h-5 w-5" /> Senha de observações confidenciais</CardTitle>
+        <CardDescription>
+          Senha única, compartilhada entre todos os administradores, exigida para ver e editar as observações confidenciais dos clientes.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        {loadError ? (
+          <p className="text-sm text-destructive">{loadError}</p>
+        ) : hasPassword === null ? (
+          <p className="text-sm text-muted-foreground">Carregando...</p>
+        ) : (
+          <form onSubmit={save} className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              {hasPassword ? "Já existe uma senha configurada. Defina uma nova para substituí-la." : "Nenhuma senha configurada ainda."}
+            </p>
+            <div className="space-y-2">
+              <Label htmlFor="notes-pw">Nova senha</Label>
+              <Input id="notes-pw" type="password" autoComplete="new-password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="notes-pw-confirm">Confirmar nova senha</Label>
+              <Input id="notes-pw-confirm" type="password" autoComplete="new-password" value={confirm} onChange={(e) => setConfirm(e.target.value)} />
+            </div>
+            {formError && <p className="text-sm text-destructive">{formError}</p>}
+            <Button type="submit" disabled={!newPassword || !confirm || saving}>
+              {saving && <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />}
+              {hasPassword ? "Alterar senha" : "Definir senha"}
+            </Button>
+          </form>
+        )}
+      </CardContent>
+    </Card>
   );
 }
