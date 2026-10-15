@@ -86,7 +86,7 @@ export function CalendarTaskPill<T extends CalendarTaskLike>({
           {task.parent_task_id && (
             <span title="Subtarefa" className="shrink-0 mt-0.5"><CornerDownRight className="h-3 w-3" /></span>
           )}
-          <span className={cn("line-clamp-2 leading-snug break-normal", done && "line-through opacity-60")}>
+          <span className={cn("line-clamp-3 leading-snug break-normal", done && "line-through opacity-60")}>
             {task.title}
           </span>
         </div>
