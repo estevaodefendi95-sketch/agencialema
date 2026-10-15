@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { format, parseISO } from "date-fns";
 import { Carousel, CarouselContent, CarouselItem, CarouselPrevious, CarouselNext, type CarouselApi } from "@/components/ui/carousel";
 import { ChevronLeft, ChevronRight, ChevronDown, Plus, Grid3x3, Play, UserSquare2, Presentation as PresentationIcon, X } from "lucide-react";
@@ -61,35 +61,101 @@ export default function PresentationView({
     [pres, blocks, posts, postMedia],
   );
 
+  const rootRef = useRef<HTMLDivElement>(null);
+  const [controlsVisible, setControlsVisible] = useState(true);
+  const hideTimer = useRef<number>();
+  const overControls = useRef(false);
+
+  function enterDeck() {
+    setIndex(0);
+    setDeckMode(true);
+    setControlsVisible(true);
+    // Precisa rodar dentro do clique (gesto do usuário). Se o navegador não
+    // suportar/recusar (ex: iPhone), o deck continua cobrindo a janela.
+    rootRef.current?.requestFullscreen?.().catch(() => {});
+  }
+
+  function exitDeck() {
+    setDeckMode(false);
+    if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+  }
+
+  // Saiu da tela cheia por fora (Esc, F11, botão do SO) → sai do deck também.
+  useEffect(() => {
+    function onFsChange() {
+      if (!document.fullscreenElement) setDeckMode(false);
+    }
+    document.addEventListener("fullscreenchange", onFsChange);
+    return () => document.removeEventListener("fullscreenchange", onFsChange);
+  }, []);
+
+  // Se o componente desmontar no meio da apresentação, não deixa a tela cheia presa.
+  useEffect(() => {
+    const root = rootRef.current;
+    return () => {
+      if (root && document.fullscreenElement === root) {
+        document.exitFullscreen().catch(() => {});
+      }
+    };
+  }, []);
+
   useEffect(() => {
     if (!deckMode) return;
     function onKey(e: KeyboardEvent) {
-      if (e.key === "ArrowRight" || e.key === " ") setIndex((i) => Math.min(i + 1, slides.length - 1));
+      if (e.key === "ArrowRight" || e.key === " ") {
+        e.preventDefault();
+        setIndex((i) => Math.min(i + 1, slides.length - 1));
+      }
       if (e.key === "ArrowLeft") setIndex((i) => Math.max(i - 1, 0));
-      if (e.key === "Escape") setDeckMode(false);
+      if (e.key === "Escape") exitDeck();
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [deckMode, slides.length]);
 
+  // Controles somem após ~2,5s sem mexer o mouse/tocar a tela.
+  function pokeControls() {
+    setControlsVisible(true);
+    window.clearTimeout(hideTimer.current);
+    hideTimer.current = window.setTimeout(() => {
+      if (!overControls.current) setControlsVisible(false);
+    }, 2500);
+  }
+
+  useEffect(() => {
+    if (!deckMode) return;
+    pokeControls();
+    return () => window.clearTimeout(hideTimer.current);
+  }, [deckMode]);
+
   const current = slides[Math.min(index, Math.max(slides.length - 1, 0))];
+  const controlsProps = {
+    onMouseEnter: () => { overControls.current = true; },
+    onMouseLeave: () => { overControls.current = false; },
+  };
+  const overlayBtn = "pointer-events-auto rounded-full bg-black/55 text-white backdrop-blur-sm flex items-center justify-center transition-opacity disabled:opacity-30";
 
   return (
     <div
+      ref={rootRef}
       style={themeVars(theme)}
-      className="pres-root min-h-screen"
+      className={cn("pres-root", deckMode ? "fixed inset-0 z-[100] overflow-hidden" : "min-h-screen")}
     >
-      <div style={{ background: "var(--pres-bg)", color: "var(--pres-fg)" }} className="min-h-screen">
+      <div style={{ background: "var(--pres-bg)", color: "var(--pres-fg)" }} className={deckMode ? "h-full" : "min-h-screen"}>
         {deckMode && current ? (
-          <div className="min-h-screen flex flex-col items-center justify-center gap-4 p-6">
-            <div
-              className="relative w-full max-w-[1400px] aspect-[16/9] overflow-hidden shadow-2xl"
-              style={
-                current.invert
-                  ? { background: "var(--pres-invert-bg)", color: "var(--pres-invert-fg)" }
-                  : { background: "var(--pres-bg)", color: "var(--pres-fg)" }
-              }
-            >
+          // Tela cheia estilo PowerPoint: o slide 16:9 ocupa o máximo possível;
+          // a faixa de letterbox que sobrar usa a cor de fundo do próprio slide.
+          <div
+            className={cn("relative h-full w-full flex items-center justify-center [container-type:size]", !controlsVisible && "cursor-none")}
+            style={
+              current.invert
+                ? { background: "var(--pres-invert-bg)", color: "var(--pres-invert-fg)" }
+                : { background: "var(--pres-bg)", color: "var(--pres-fg)" }
+            }
+            onMouseMove={pokeControls}
+            onTouchStart={pokeControls}
+          >
+            <div className="relative w-[min(100cqw,calc(100cqh*16/9))] aspect-[16/9] overflow-hidden">
               {current.backgroundImage && !current.fullBleed && (
                 <>
                   <div
@@ -106,32 +172,41 @@ export default function PresentationView({
                 <div className={cn(current.fillHeight && "h-full")}>{current.node}</div>
               </div>
             </div>
-            <div className="flex items-center gap-4">
+            {/* Controles sobrepostos — somem sozinhos sem movimento */}
+            <div
+              className={cn(
+                "pointer-events-none absolute inset-0 transition-opacity duration-300",
+                controlsVisible ? "opacity-100" : "opacity-0 [&_*]:!pointer-events-none",
+              )}
+            >
               <button
-                onClick={() => setIndex((i) => Math.max(i - 1, 0))}
-                disabled={index === 0}
-                className="h-9 w-9 rounded-full border border-current/30 flex items-center justify-center disabled:opacity-30"
-                aria-label="Slide anterior"
-              >
-                <ChevronLeft className="h-4 w-4" />
-              </button>
-              <span className="text-sm tabular-nums opacity-70">
-                {index + 1} / {slides.length}
-              </span>
-              <button
-                onClick={() => setIndex((i) => Math.min(i + 1, slides.length - 1))}
-                disabled={index >= slides.length - 1}
-                className="h-9 w-9 rounded-full border border-current/30 flex items-center justify-center disabled:opacity-30"
-                aria-label="Próximo slide"
-              >
-                <ChevronRight className="h-4 w-4" />
-              </button>
-              <button
-                onClick={() => setDeckMode(false)}
-                className="ml-2 text-sm flex items-center gap-1.5 opacity-70 hover:opacity-100"
+                {...controlsProps}
+                onClick={exitDeck}
+                className={cn(overlayBtn, "absolute top-4 right-4 gap-1.5 px-4 h-10 text-sm")}
               >
                 <X className="h-4 w-4" /> Sair
               </button>
+              <button
+                {...controlsProps}
+                onClick={() => setIndex((i) => Math.max(i - 1, 0))}
+                disabled={index === 0}
+                className={cn(overlayBtn, "absolute left-4 top-1/2 -translate-y-1/2 h-12 w-12")}
+                aria-label="Slide anterior"
+              >
+                <ChevronLeft className="h-6 w-6" />
+              </button>
+              <button
+                {...controlsProps}
+                onClick={() => setIndex((i) => Math.min(i + 1, slides.length - 1))}
+                disabled={index >= slides.length - 1}
+                className={cn(overlayBtn, "absolute right-4 top-1/2 -translate-y-1/2 h-12 w-12")}
+                aria-label="Próximo slide"
+              >
+                <ChevronRight className="h-6 w-6" />
+              </button>
+              <span className="absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full bg-black/55 text-white backdrop-blur-sm px-3 py-1 text-sm tabular-nums">
+                {index + 1} / {slides.length}
+              </span>
             </div>
           </div>
         ) : (
@@ -141,7 +216,7 @@ export default function PresentationView({
                 key={s.id}
                 className={cn(
                   "relative w-full h-[85vh] md:h-screen overflow-y-auto flex [align-items:safe_center] animate-fade-in",
-                  s.fullBleed ? "p-0" : "px-6 md:px-16 py-14 md:py-20",
+                  s.fullBleed ? "p-0" : s.fillHeight ? "px-6 md:px-16 py-8 md:py-10" : "px-6 md:px-16 py-14 md:py-20",
                 )}
                 style={
                   s.invert
@@ -177,10 +252,7 @@ export default function PresentationView({
 
             {slides.length > 0 && (
               <button
-                onClick={() => {
-                  setIndex(0);
-                  setDeckMode(true);
-                }}
+                onClick={enterDeck}
                 className="hidden md:flex fixed bottom-6 right-6 items-center gap-2 rounded-full px-4 py-2.5 text-sm font-medium shadow-lg z-30"
                 style={{ background: "var(--pres-accent)", color: "var(--pres-invert-fg)" }}
               >
@@ -614,24 +686,65 @@ function MediaTile({ item, className }: { item: MediaItem; className?: string })
   return <img src={item.url} alt="" className={cn(cls, "hover:scale-[1.01] transition-transform duration-300")} />;
 }
 
+// Tamanho "de desenho" do mockup (frame 9:19 + px-3/py-1 dos botões laterais).
+const PHONE_FRAME_W = 300;
+const PHONE_FRAME_H = Math.round((PHONE_FRAME_W * 19) / 9);
+const PHONE_BOX_W = PHONE_FRAME_W + 24;
+const PHONE_BOX_H = PHONE_FRAME_H + 8;
+const PHONE_MAX_SCALE = 1.3;
+// Margem mínima (px, em cada lado) entre o celular e o espaço disponível.
+const PHONE_MARGIN = 12;
+
+// Escala que faz uma caixa w×h caber inteira no elemento medido.
+function useFitScale(w: number, h: number, max: number) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [scale, setScale] = useState(0);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const update = () => {
+      const availW = el.clientWidth - PHONE_MARGIN * 2;
+      const availH = el.clientHeight - PHONE_MARGIN * 2;
+      setScale(Math.max(0, Math.min(availW / w, availH / h, max)));
+    };
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [w, h, max]);
+  return { ref, scale };
+}
+
 function InstagramPreview({ data }: { data: any }) {
   const items = getFeedItems(data);
   const layout: "feed_only" | "full_profile" = data?.layout || "feed_only";
   const isFull = layout === "full_profile";
   const highlights: { id: string; title: string; cover_url: string }[] = data?.highlights || [];
+  const { ref: fitRef, scale } = useFitScale(PHONE_BOX_W, PHONE_BOX_H, PHONE_MAX_SCALE);
 
   return (
     <section className="animate-fade-in w-full h-full flex flex-col items-center">
       <div className="shrink-0 text-center">
-        <h2 className="pres-display text-3xl md:text-4xl font-bold tracking-tight">
+        <h2 className="pres-display text-2xl md:text-4xl font-bold tracking-tight">
           {isFull ? "Preview do Perfil" : "Preview do Feed"}
         </h2>
-        <p className="opacity-70 mb-2 md:mb-3">
+        <p className="opacity-70 text-sm md:text-base">
           {isFull ? "Como ficará o perfil completo do cliente" : "Como ficará o Instagram do cliente"}
         </p>
       </div>
-      <div className="flex-1 min-h-0 w-full flex justify-center">
-        <div className="relative h-full py-1 px-3">
+      {/* O celular é desenhado num tamanho fixo e escalado pra caber inteiro
+          no espaço medido (com margem mínima) — assim notch, status bar e a
+          barra de usuário nunca ficam cortados, na página ou no modo apresentação. */}
+      <div ref={fitRef} className="relative flex-1 min-h-0 w-full">
+        <div
+          className="absolute left-1/2 top-1/2 py-1 px-3"
+          style={{
+            width: PHONE_BOX_W,
+            height: PHONE_BOX_H,
+            transform: `translate(-50%, -50%) scale(${scale})`,
+            visibility: scale > 0 ? "visible" : "hidden",
+          }}
+        >
           {/* Side buttons (drawn outside the frame) */}
           {/* Left: silent switch + volume up + volume down */}
           <div className="absolute left-[1px] top-[120px] w-[4px] h-[24px] bg-neutral-900 rounded-l-md" />
@@ -640,10 +753,9 @@ function InstagramPreview({ data }: { data: any }) {
           {/* Right: power button */}
           <div className="absolute right-[1px] top-[180px] w-[4px] h-[68px] bg-neutral-900 rounded-r-md" />
 
-          {/* iPhone outer frame — proportional to a real device (~9:19.5), sempre preenchendo a altura disponível */}
+          {/* iPhone outer frame — proportional to a real device (~9:19) */}
           <div
-            className="relative h-full w-auto bg-white border-[3px] border-neutral-900 rounded-[44px] p-[6px] shadow-[0_25px_60px_-15px_rgba(0,0,0,0.35)]"
-            style={{ aspectRatio: "9 / 19" }}
+            className="relative w-full h-full bg-white border-[3px] border-neutral-900 rounded-[44px] p-[6px] shadow-[0_25px_60px_-15px_rgba(0,0,0,0.35)]"
           >
             {/* Inner screen */}
             <div className="relative w-full h-full bg-white text-neutral-900 rounded-[38px] overflow-hidden border border-neutral-200 flex flex-col">
