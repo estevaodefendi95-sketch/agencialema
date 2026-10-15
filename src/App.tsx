@@ -20,6 +20,8 @@ import TaskCalendar from "@/pages/TaskCalendar";
 import AdminUsers from "@/pages/AdminUsers";
 import AdminSettings from "@/pages/AdminSettings";
 import AsanaImport from "@/pages/AsanaImport";
+import AdminClients from "@/pages/AdminClients";
+import AdminClientDetail from "@/pages/AdminClientDetail";
 import Profile from "@/pages/Profile";
 
 import Notifications from "@/pages/Notifications";
@@ -102,6 +104,8 @@ function AppRoutes() {
             <Route path="/admin/usuarios" element={<AdminUsers />} />
             <Route path="/admin/configuracoes" element={<AdminSettings />} />
             <Route path="/admin/importar-asana" element={<AsanaImport />} />
+            <Route path="/admin/clientes" element={<AdminClients />} />
+            <Route path="/admin/clientes/:companyId" element={<AdminClientDetail />} />
           </Route>
           <Route path="/notificacoes" element={<Notifications />} />
           <Route path="/perfil" element={<Profile />} />
